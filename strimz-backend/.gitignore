@@ -1,0 +1,7 @@
+build
+dist
+node_modules
+downloads
+tmp
+.env
+.env.dev

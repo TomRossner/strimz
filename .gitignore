@@ -1,0 +1,40 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+out/
+.build/
+.next/
+electron-builder-cache/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# Electron
+*.asar
+
+# Next.js export cache
+strimz-frontend/out/
+
+# TypeScript build files
+**/*.tsbuildinfo
+strimz-backend/dist/
+strimz-frontend/.turbo/
+strimz-frontend/.next/
