@@ -1,6 +1,6 @@
 {
     "name": "strimz",
-    "version": "1.0.3",
+    "version": "1.0.0",
     "main": "electron/main.js",
     "description": "Strimz v1.0.3",
     "author": {
@@ -12,13 +12,12 @@
         "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
         "dev:backend": "cd strimz-backend && npm run start",
         "dev:frontend": "cd strimz-client && npm run dev",
-        "dev:electron": "wait-on http://localhost:3000 && electron electron/main.js",
+        "dev:electron": "wait-on http://localhost:5147 && electron electron/main.js",
         "build:frontend": "cd strimz-client && npm run build",
         "build:backend": "cd strimz-backend && npm run build",
         "build:electron": "npm run build:frontend && npm run build:backend && electron-builder",
         "build": "tsup"
     },
-    "icon": "./strimz-client/public/strimz_icon.webp",
     "build": {
         "asar": true,
         "asarUnpack": [
@@ -27,6 +26,7 @@
             "node_modules/sharp",
             "**\\*.{node,dll}"
         ],
+        "icon": "./electron/assets/strimzicon.ico",
         "appId": "com.strimz.app",
         "productName": "Strimz",
         "directories": {

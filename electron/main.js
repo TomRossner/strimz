@@ -8,6 +8,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: path.join(__dirname, "assets", "strimzicon.ico"),
     webPreferences: {
       nodeIntegration: false,
       preload: path.join(__dirname, 'preload.js'),
@@ -26,7 +27,7 @@ function createWindow() {
 
   const loadURL = async () => {
     if (isDev) {
-      mainWindow.loadURL("http://localhost:3000");
+      mainWindow.loadURL("http://localhost:5147");
     } else {
       try {
         require(path.join(__dirname, '../strimz-backend/dist/index.js'));
