@@ -16,31 +16,31 @@ function createWindow() {
     },
   });
 
-  const isDev = !app.isPackaged;
+  // const isDev = !app.isPackaged;
   // const frontendUrl = isDev
   //   ? 'http://localhost:3000'
   //   : `file://${__dirname}/strimz-frontend/out/index.html`;
 
-  // mainWindow.loadURL('http://localhost:3000');
+  mainWindow.loadURL('http://localhost:5173');
 
   mainWindow.on("ready-to-show", () => mainWindow.show());
 
-  const loadURL = async () => {
-    if (isDev) {
-      mainWindow.loadURL("http://localhost:5147");
-    } else {
-      try {
-        require(path.join(__dirname, '../strimz-backend/dist/index.js'));
-        const port = await startNextJSServer();
-        console.log("Next.js server started on port:", port);
-        mainWindow.loadURL(`http://localhost:${port}`);
-      } catch (error) {
-        console.error("Error starting Next.js server:", error);
-      }
-    }
-  };
+  // const loadURL = async () => {
+  //   if (isDev) {
+  //     mainWindow.loadURL("http://localhost:5147");
+  //   } else {
+  //     try {
+  //       require(path.join(__dirname, '../strimz-backend/dist/index.js'));
+  //       const port = await startNextJSServer();
+  //       console.log("Next.js server started on port:", port);
+  //       mainWindow.loadURL(`http://localhost:${port}`);
+  //     } catch (error) {
+  //       console.error("Error starting Next.js server:", error);
+  //     }
+  //   }
+  // };
 
-  loadURL();
+  // loadURL(`http://localhost:5147`);
   return mainWindow;
 }
 
