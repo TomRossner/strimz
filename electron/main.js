@@ -32,9 +32,8 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
-      allowRunningInsecureContent: true,
     },
+    autoHideMenuBar: !isDev,
   });
 
   const url = isDev
