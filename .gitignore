@@ -38,3 +38,6 @@ strimz-frontend/out/
 strimz-backend/dist/
 strimz-frontend/.turbo/
 strimz-frontend/.next/
+
+
+node-bin/
