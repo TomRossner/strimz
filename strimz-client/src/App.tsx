@@ -22,6 +22,7 @@ const MoviesPage = () => {
   const filters = useAppSelector(selectFilters);
 
   const handleError = useCallback((err: unknown) => {
+    console.error(err);
     return dispatch(setError(
       isAxiosError(err) && typeof err.response?.data.error === 'string'
         ? err.response.data.error
