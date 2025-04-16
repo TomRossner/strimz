@@ -8,10 +8,14 @@ const log = require('electron-log');
 // ===========================
 // Config
 // ===========================
+
 const isDev = !app.isPackaged;
-const backendRelativePath = isDev
-  ? path.join(__dirname, '../strimz-backend/dist/index.js')
-  : path.join(process.resourcesPath, 'backend/index.js');
+
+const nodeBinary = isDev
+  ? process.execPath
+  : path.join(process.resourcesPath, 'node', 'node.exe');
+
+const backendRelativePath = isDev ? './strimz-backend/dist/index.js' : path.join(process.resourcesPath, 'backend', 'index.js');
 
 let mainWindow;
 let backendProcess;
@@ -28,12 +32,14 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: false,
+      allowRunningInsecureContent: true,
     },
   });
 
   const url = isDev
     ? 'http://localhost:5173'
-    : `file://${path.join(__dirname, '../strimz-client/dist/index.html')}`;
+    : `file://${path.resolve(__dirname, '../strimz-client/dist/index.html')}`;
 
   mainWindow.loadURL(url);
 
@@ -50,7 +56,7 @@ function createMainWindow() {
 // Launch Backend Process
 // ===========================
 
-function waitForBackendReady(retries = 20, interval = 500) {
+async function waitForBackendReady(retries = 20, interval = 500) {
   return new Promise((resolve, reject) => {
     const check = () => {
       http.get('http://localhost:3003/api/ping', res => {
@@ -63,7 +69,7 @@ function waitForBackendReady(retries = 20, interval = 500) {
     };
 
     const retry = () => {
-      if (--retries === 0) return reject(new Error('Backend not ready'));
+      if (--retries === 0) return reject(new Error('Backend not ready after multiple retries.'));
       setTimeout(check, interval);
     };
 
@@ -73,10 +79,11 @@ function waitForBackendReady(retries = 20, interval = 500) {
 
 function startBackend() {
   backendProcess = spawn(
-    process.execPath,
+    nodeBinary,
     [backendRelativePath],
     {
-      stdio: 'inherit',
+      stdio: 'pipe',
+      detached: false,
       env: {
         ...process.env,
         IS_BACKEND_PROCESS: 'true',
@@ -84,7 +91,18 @@ function startBackend() {
       },
     }
   );
+
+  backendProcess.on('error', (err) => {
+    log.error("Backend Process Error:", err);
+    console.error("Backend Process Error:", err);
+  });
+
+  backendProcess.stderr.on("data", (data) => {
+    console.error(`[Backend STDERR]: ${data.toString().trim()}`);
+    log.error(`[Backend STDERR]: ${data.toString().trim()}`);
+  });
 }
+
 
 // ===========================
 // Auto Updater
@@ -125,17 +143,27 @@ ipcMain.on('restart-app', () => {
 // App Lifecycle
 // ===========================
 app.whenReady().then(async () => {
-  console.log("Is BE process: ", process.env.IS_BACKEND_PROCESS)
-  if (process.env.IS_BACKEND_PROCESS === undefined && !isDev) {
-    console.log("Starting backend")
+  if (!process.env.IS_BACKEND_PROCESS) {
+    console.log("Starting backend process...");
+    log.info("Starting backend process...");
     startBackend();
-    await waitForBackendReady();
-  }
 
-  createMainWindow();
-  
-  if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
+    try {
+      await waitForBackendReady();
+      createMainWindow();
+      if (!isDev) {
+        autoUpdater.checkForUpdatesAndNotify();
+      }
+    } catch (error) {
+      console.error("Error waiting for backend:", error);
+      log.error("Error waiting for backend:", error);
+
+      dialog.showErrorBox('Backend Startup Error', 'The backend application failed to start. Please check the logs for more information.');
+      app.quit();
+    }
+  } else {
+    console.log("Running as backend process (this should not happen in main.js).");
+    log.warn("Running as backend process (this should not happen in main.js).");
   }
 
   app.on('activate', () => {
@@ -144,15 +172,13 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  if (backendProcess) backendProcess.kill();
+  if (backendProcess) {
+    console.log("Killing backend process...");
+    log.info("Killing backend process...");
+    backendProcess.kill();
+  }
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-
-
-
-log.info('App starting...');
-log.error('Something failed');
-log.debug('backendRelativePath =', backendRelativePath);

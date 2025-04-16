@@ -115,9 +115,7 @@ export const pauseMovieStream = async (req: Request, res: Response) => {
 
         const MIN_TORRENT_PROGRESS: number = 0.15;
         if (torrent.progress <= MIN_TORRENT_PROGRESS) {
-            // Optional: destroy the torrent if you want to clean up memory
             torrent.destroy();
-            console.log("Destroyed torrent", torrent.progress)
             activeTorrents.delete(hash as string);
         }
 

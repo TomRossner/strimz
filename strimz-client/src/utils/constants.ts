@@ -1,4 +1,4 @@
-import { OrderBy, SortBy, TOrderBy, TQuality, TSortBy } from "../services/movies";
+import { GENRES, OrderBy, SortBy, TOrderBy, TQuality, TSortBy } from "../services/movies";
 import { Filters } from "./types";
 
 export const APP_NAME: string = "Strimz";
@@ -15,7 +15,7 @@ export const DEFAULT_PAGE: number = 1;
 export const DEFAULT_MOVIES_SEARCH_COUNT: number | null = null;
 export const DEFAULT_RATING: number = 0;
 export const DEFAULT_QUALITY: TQuality = "All";
-export const DEFAULT_GENRE: string = '';
+export const DEFAULT_GENRE: string = GENRES.ACTION;
 export const DEFAULT_SORT_BY: TSortBy =  SortBy.DOWNLOAD_COUNT;
 export const DEFAULT_ORDER_BY: TOrderBy = OrderBy.DESC;
 

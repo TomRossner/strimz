@@ -4,8 +4,6 @@ import { Limits } from "../yts/yts.js";
 import { config } from "dotenv";
 config();
 
-const YTS_BASE_URL: string = process.env.YTS_URL as string;
-
 const PAGE_NUMBER: number = 1;
 
 const FETCH_LIMIT: number = Limits.MAX; // 50 IS THE MAX VALUE
@@ -52,7 +50,6 @@ const CLIENT_URL: string = process.env.CLIENT_URL as string;
 const BASE_DIR = path.join(os.homedir(), "Downloads", "strimz");
 
 export {
-    YTS_BASE_URL,
     BYTE_SIZE,
     CATEGORIES,
     CLIENT_URL,

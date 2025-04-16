@@ -9,7 +9,7 @@
         "url": "https://www.tomrossner.dev/"
     },
     "scripts": {
-        "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
+        "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:electron\"",
         "dev:backend": "cd strimz-backend && npm run start",
         "dev:frontend": "cd strimz-client && npm run dev",
         "dev:electron": "wait-on http://localhost:5173 && electron electron/main.js",
@@ -37,12 +37,23 @@
             "electron/**/*",
             "strimz-client/**/*",
             "strimz-backend/dist/**/*",
-            "buildResources/**/*"
+            "buildResources/**/*",
+            "dist/**/*",
+            "node_modules/dotenv/**/*",
+            "package.json"
         ],
         "extraResources": [
             {
                 "from": "./strimz-backend/dist",
                 "to": "backend"
+            },
+            {
+                "from": "./strimz-backend/node_modules",
+                "to": "backend/node_modules"
+            },
+            {
+                "from": "node-bin/node.exe",
+                "to": "node/node.exe"
             }
         ],
         "publish": [

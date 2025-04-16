@@ -4,4 +4,3 @@ declare module 'webtorrent' {
     const WebTorrent: WebTorrent;
     export = WebTorrent;
 }
-  
