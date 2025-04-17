@@ -34,9 +34,9 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
             name="qualities"
             id="qualities"
             onChange={handleSelect}
-            className='min-w-fit w-full outline-none rounded-sm text-black bg-white'
+            className='cursor-pointer min-w-fit w-full outline-none rounded-sm text-white bg-stone-800'
         >
-            <option value={undefined}>Select quality</option>
+            <option className='text-white cursor-pointer' value={undefined}>Select quality</option>
             {(getMovieQualities(torrents as Torrent[]))
                 .toReversed()
                 .map(q => (
@@ -46,7 +46,7 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
                         className={twMerge(`
                             ${q === selected
                                 ? 'bg-blue-500 text-white'
-                                : 'text-black'
+                                : 'bg-stone-800 text-white'
                             }
                         `)}
                     >

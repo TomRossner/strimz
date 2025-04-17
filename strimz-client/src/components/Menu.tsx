@@ -10,6 +10,7 @@ import { IoSettingsSharp } from 'react-icons/io5';
 import Logo from './Logo';
 import Footer from './Footer';
 import { Link } from 'react-router-dom';
+import { GoHomeFill } from 'react-icons/go';
 
 
 const Menu = () => {
@@ -21,6 +22,10 @@ const Menu = () => {
         //     text: "Downloads",
         //     icon: <BsDownload />
         // },
+        {
+            text: "Home",
+            icon: <GoHomeFill />
+        },
         {
             text: "Favorites",
             icon: <BsStarFill />
@@ -41,6 +46,20 @@ const Menu = () => {
     
     const isMenuOpen = useAppSelector(selectMenu);
 
+    const setLink = (text: string): string => {
+        switch (text.toLowerCase()) {
+            case 'home':
+                return '';
+            case 'report a bug':
+                return 'reports';
+            case 'watch list':
+                return 'watch-list';
+            
+                default:
+                return text.toLowerCase();
+        }
+    }
+
   return (
     <AnimatePresence>
         {isMenuOpen && (
@@ -48,15 +67,15 @@ const Menu = () => {
                 initial={{left: '-100%'}}
                 animate={{left: 0, transition: {duration: 0.2}}}
                 exit={{left: '-100%', transition: {duration: 0.4}}}
-                className='w-56 h-[100vh] fixed top-0 flex flex-col gap-1 bg-stone-950 z-40'
+                className='w-56 h-[100vh] fixed top-0 flex flex-col gap-1 bg-stone-950 z-50'
             >
                 <div className='w-full relative flex gap-1 h-fit py-1 items-center justify-between mb-4'>
-                    <Logo className='text-3xl' />
+                    <Link to={"/"} onClick={() => dispatch(closeModal('menu'))}><Logo className='text-3xl' /></Link>
                     <CloseButton onClose={handleClose} className='z-40 md:block w-fit text-xl p-1 relative mr-1' />
                 </div>
 
                 {menuItems.map(item => (
-                    <Link to={item.text.toLowerCase()} onClick={() => dispatch(closeModal('menu'))} key={item?.text} className='w-full text-lg flex items-center gap-2 cursor-pointer hover:bg-stone-800 transition-all text-white px-2 py-1 text-start'>
+                    <Link to={setLink(item.text)} onClick={() => dispatch(closeModal('menu'))} key={item?.text} className='w-full text-lg flex items-center gap-2 cursor-pointer hover:bg-stone-800 transition-all text-white px-2 py-1 text-start'>
                         {item?.icon}
                         {item?.text}
                     </Link>

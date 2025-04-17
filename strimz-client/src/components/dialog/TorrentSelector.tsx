@@ -39,11 +39,9 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
                                 w-full
                                 text-center
                                 rounded-sm
-                                bg-white
-                                ${t.hash === hash
-                                    ? 'text-white bg-blue-400'
-                                    : 'text-black bg-white'
-                                }
+                                bg-stone-800
+                                text-white
+                                ${t.hash === hash && 'bg-blue-400'}
                             `)}
                         >
                             {t.peers} peers / {t.seeds} seeds

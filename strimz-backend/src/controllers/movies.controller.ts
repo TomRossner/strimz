@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Filters, getAllMovies, getMovieCast } from "../scraper/scraper.js";
 import { FETCH_LIMIT, PAGE_NUMBER } from "../utils/constants.js";
+import { yts } from "../yts/yts.js";
 
 export const getCast = async (req: Request, res: Response): Promise<Response | void> => {
     try {
@@ -108,6 +109,35 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
                 movies: filteredMovies.length ? filteredMovies : moviesResponseObject.data.movies
             }
         });
+    } catch (error) {
+        console.error(error);
+        if ((error as Error).message) {
+            return res.status(400).send((error as Error).message);
+        }
+        
+        res.status(400).send(error);
+    }
+}
+
+export const getMovies = async (req: Request, res: Response) => {
+    try {
+        const {ids} = req.body;
+
+        if (!ids.length) {
+            return res.status(200).json([]);
+        }
+
+        let movies: object[] = [];
+
+        for (const movieId of ids) {
+            const response = await yts.getMovie({movieId, withCast: false, withImages: true});
+
+            if (response) {
+                movies = [...movies, response.data.movie];
+            }
+        }
+
+        return res.status(200).json({movies});
     } catch (error) {
         console.error(error);
         if ((error as Error).message) {

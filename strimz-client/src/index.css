@@ -11,9 +11,20 @@
   }
 }
 
+html {
+  min-height: 100vh;
+}
 
 body {
+  min-height: 100vh;
   background-color: rgb(32, 32, 32);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100vh;
 }
 /* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;

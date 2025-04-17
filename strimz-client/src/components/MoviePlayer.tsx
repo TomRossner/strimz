@@ -39,7 +39,7 @@ const MoviePlayer = ({ movieSrc }: { movieSrc: string | null; }) => {
     <>
       <Button
         onClick={handleBack}
-        className='bg-stone-800 hover:bg-stone-700 py-2 m-2'
+        className='bg-stone-700 hover:bg-stone-600 py-2 m-2'
       >
         Back
       </Button>

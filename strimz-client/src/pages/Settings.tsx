@@ -1,3 +1,4 @@
+import CloseButton from '@/components/CloseButton';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import Page from '../components/Page';
@@ -51,7 +52,10 @@ const SettingsPage = () => {
   return (
     <Page>
         <Container id='settingsPage'>
-            <PageTitle>Settings</PageTitle>
+            <PageTitle>
+                <CloseButton onClose={() => navigate(-1)} className='md:block w-fit text-lg py-1 text-stone-400 relative border-none' text='Back' />
+                Settings
+            </PageTitle>
 
             <hr className='w-full block border-slate-100 mb-2' />
             

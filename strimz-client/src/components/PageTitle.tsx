@@ -5,7 +5,7 @@ interface PageTitleProps {
 }
 const PageTitle = ({children}: PageTitleProps) => {
   return (
-    <h1 className='text-white text-3xl font-semibold w-full'>
+    <h1 className='text-white text-3xl font-semibold w-full flex items-center gap-3'>
       {children}
     </h1>
   )

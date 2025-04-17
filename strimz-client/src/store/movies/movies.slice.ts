@@ -1,3 +1,4 @@
+import { getMoviesByIds } from '@/services/movies';
 import { Movie } from '../../components/MovieCard';
 import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_LANGUAGES } from '../../utils/constants';
 import { fetchMovies } from '../../utils/fetchMovies';
@@ -22,6 +23,8 @@ interface MoviesState {
   currentQuery: string;
   selectedMovie: Movie | null;
   lastFetchParams: Filters | null;
+  favorites: Map<string, Movie>;
+  watchList: Map<string, Movie>;
 }
 
 const initialState: MoviesState = {
@@ -36,6 +39,8 @@ const initialState: MoviesState = {
   currentQuery: '',
   selectedMovie: null,
   lastFetchParams: null,
+  favorites: new Map(),
+  watchList: new Map(),
 }
 
 type FetchMoviesAsync = {
@@ -122,6 +127,36 @@ export const fetchMoviesAsync = createAsyncThunk(
     }
 });
 
+export const fetchFavoritesAsync = createAsyncThunk(
+  'movies/fetchFavoritesAsync',
+  async (ids: string[], {rejectWithValue}) => {
+    try {
+      const {data: {movies}} = await getMoviesByIds(ids);
+
+      return movies.length
+        ? new Map(movies.map((m: Movie) => [m.slug, m]))
+        : new Map();
+    } catch (error) {
+      console.error(error);
+      return rejectWithValue(error);
+    }
+});
+
+export const fetchWatchListAsync = createAsyncThunk(
+  'movies/fetchWatchListAsync',
+  async (ids: string[], {rejectWithValue}) => {
+    try {
+      const {data: {movies}} = await getMoviesByIds(ids);
+
+      return movies?.length
+        ? new Map(movies.map((m: Movie) => [m.slug, m]))
+        : new Map();
+    } catch (error) {
+      console.error(error);
+      return rejectWithValue(error);
+    }
+});
+
 const moviesSlice = createSlice({
   name: 'movies',
   initialState,
@@ -152,6 +187,12 @@ const moviesSlice = createSlice({
     },
     setLastFetchParams: (state, action: PayloadAction<Filters>) => {
       state.lastFetchParams = action.payload;
+    },
+    setFavorites: (state, action: PayloadAction<Map<string, Movie>>) => {
+      state.favorites = action.payload;
+    },
+    setWatchList: (state, action: PayloadAction<Map<string, Movie>>) => {
+      state.watchList = action.payload;
     }
   },
   extraReducers: (builder) => {
@@ -194,6 +235,28 @@ const moviesSlice = createSlice({
         console.log(action.error)
         state.error = action.payload as string;
       })
+
+      .addCase(fetchFavoritesAsync.fulfilled, (state, action) => {
+        state.favorites = action.payload;
+        state.isLoading = false;
+      })
+      .addCase(fetchFavoritesAsync.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(fetchFavoritesAsync.rejected, (state) => {
+        state.isLoading = false;
+      })
+
+      .addCase(fetchWatchListAsync.fulfilled, (state, action) => {
+        state.watchList = action.payload;
+        state.isLoading = false;
+      })
+      .addCase(fetchWatchListAsync.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(fetchWatchListAsync.rejected, (state) => {
+        state.isLoading = false;
+      })
   }
  });
 
@@ -205,6 +268,8 @@ export const {
   setCurrentQuery,
   setSelectedMovie,
   setLastFetchParams,
+  setFavorites,
+  setWatchList,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

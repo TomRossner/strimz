@@ -123,3 +123,7 @@ export const searchMovies = async (query: string, params?: Params): Promise<Axio
 export const stopDownload = async (hash: string) => {
     return await axios.post(`${API_URL}/watch/pause/${hash}`);
 }
+
+export const getMoviesByIds = async (ids: string[]) => {
+    return await axios.post(`${MOVIES_FETCH_URL}`, {ids});
+}

@@ -22,6 +22,7 @@ export type Movie = {
   medium_cover_image: string;
   large_cover_image: string;
   torrents: object[];
+  description_full?: string;
 }
 
 type Props = {
@@ -92,7 +93,7 @@ const MovieCard = ({movie, setOpen}: Props) => {
         p-0
       `}
     >
-      <div className="absolute z-10 bg-white text-black drop-shadow-md top-1 right-1 rounded-sm font-semibold px-2 py-1 text-center">
+      <div className="absolute z-[5] bg-white text-black drop-shadow-md top-1 right-1 rounded-sm font-semibold px-2 py-1 text-center">
         {getBestTorrentQuality(torrents as Torrent[])}
       </div>
       <img

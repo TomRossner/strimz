@@ -11,3 +11,5 @@ export const selectFilters = (state: RootState) => state.movies.filters;
 export const selectError = (state: RootState) => state.movies.error;
 export const selectMovie = (state: RootState) => state.movies.selectedMovie;
 export const selectLastFetchParams = (state: RootState) => state.movies.lastFetchParams;
+export const selectFavorites = (state: RootState) => state.movies.favorites;
+export const selectWatchList = (state: RootState) => state.movies.watchList;
