@@ -151,6 +151,7 @@ app.whenReady().then(async () => {
       await waitForBackendReady();
       createMainWindow();
       if (!isDev) {
+        log.info("Checking for updates...");
         autoUpdater.checkForUpdatesAndNotify();
       }
     } catch (error) {
