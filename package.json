@@ -3,6 +3,7 @@
     "version": "1.0.2",
     "main": "electron/main.js",
     "description": "Strimz v1.0.2",
+    "type": "module",
     "author": {
         "email": "tomrossner2@gmail.com",
         "name": "Tom Rossner",

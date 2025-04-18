@@ -9,7 +9,7 @@ import { GiHamburgerMenu } from 'react-icons/gi';
 import Logo from './Logo';
 import Button from './Button';
 import { useLocation } from 'react-router-dom';
-import { MdOutlineBrowserUpdated } from "react-icons/md";
+import CheckForUpdatesButton from './CheckForUpdatesButton';
 
 interface NavProps {
   withSearchBar: boolean;
@@ -21,7 +21,6 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
   const isMovieDialogOpen = useAppSelector(selectMovieModal);
 
   const {pathname} = useLocation();
-  console.log(pathname)
 
   const handleOpen = useCallback(() => {
     if (isMovieDialogOpen) {
@@ -78,15 +77,7 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
         </section>
       )}
 
-      <Button
-        title='Check for updates'
-        onClick={() => window.electronAPI.checkForUpdates()}
-        className='hidden md:flex text-lg py-1.5 group hover:bg-stone-600 hover:text-green-400 justify-end'
-      >
-        <span className='group-hover:scale-120 transition-transform duration-100'>
-          <MdOutlineBrowserUpdated />
-        </span>
-      </Button>
+      <CheckForUpdatesButton />
     </nav>
   )
 }

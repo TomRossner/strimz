@@ -148,8 +148,42 @@ autoUpdater.on('update-available', async () => {
 // ===========================
 // IPC Handlers
 // ===========================
-ipcMain.handle('check-for-updates', async () => {
-  await autoUpdater.checkForUpdates();
+ipcMain.on('check-for-updates', (event) => {
+  const win = BrowserWindow.getFocusedWindow(); // Or your main window ref
+
+  if (isDev) {
+    console.log('Skipping update check: app is in development');
+    win.webContents.send('update-check-skipped', 'Update check skipped in development mode.');
+    return;
+  }
+
+  win.webContents.send('checking-for-update');
+
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.error('Error while checking for updates:', err);
+    win.webContents.send('update-check-failed', err.message || 'Unknown error');
+  });
+});
+
+// From autoUpdater to renderer
+autoUpdater.on('checking-for-update', () => {
+  mainWindow.webContents.send('checking-for-update');
+});
+
+autoUpdater.on('update-available', () => {
+  mainWindow.webContents.send('update-available');
+});
+
+autoUpdater.on('update-not-available', () => {
+  mainWindow.webContents.send('update-not-available');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  mainWindow.webContents.send('download-progress', progress);
+});
+
+autoUpdater.on('update-downloaded', () => {
+  mainWindow.webContents.send('update-downloaded');
 });
 
 ipcMain.handle('open-directory-dialog', async () => {
@@ -175,6 +209,11 @@ ipcMain.on('quit-app', () => {
 ipcMain.on('restart-app', () => {
   app.relaunch();
   app.exit();
+});
+
+ipcMain.on('install-update-now', () => {
+  console.log('Installing update and quitting...');
+  autoUpdater.quitAndInstall();
 });
 
 // ===========================

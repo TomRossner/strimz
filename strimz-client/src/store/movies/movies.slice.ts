@@ -108,7 +108,7 @@ export const fetchMoviesAsync = createAsyncThunk(
       const count = !!movies && (movies.length >= filters.limit) ? movie_count : filteredMovies.length;
 
       return {
-        movies: filteredMovies.length
+        movies: filteredMovies?.length
           ? new Map(filteredMovies.map((mov: Movie) => [mov.slug, mov]))
           : new Map(),
         moviesCount: count,
@@ -133,7 +133,7 @@ export const fetchFavoritesAsync = createAsyncThunk(
     try {
       const {data: {movies}} = await getMoviesByIds(ids);
 
-      return movies.length
+      return movies?.length
         ? new Map(movies.map((m: Movie) => [m.slug, m]))
         : new Map();
     } catch (error) {
