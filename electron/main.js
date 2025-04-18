@@ -182,16 +182,16 @@ autoUpdater.on('update-not-available', () => {
 autoUpdater.on('download-progress', (progress) => {
   // const win = BrowserWindow.getFocusedWindow();
 
-  const progress = {
+  const prog = {
     percent: progress.percent,
     transferred: progress.transferred,
     total: progress.total,
     bytesPerSecond: progress.bytesPerSecond,
   }
 
-  log.info(`Downloading - ${progress.percent.toFixed(1)}%`);
+  log.info(`Downloading - ${prog.percent.toFixed(1)}%`);
 
-  mainWindow.webContents.send('update-download-progress', progress);
+  mainWindow.webContents.send('update-download-progress', prog);
 });
 
 autoUpdater.on('update-downloaded', async () => {
