@@ -106,6 +106,33 @@ function startBackend() {
 // ===========================
 // Auto Updater
 // ===========================
+autoUpdater.on('update-available', () => {
+  log.info("New update available");
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update available',
+    message: 'A new update is available. Downloading now...',
+  });
+});
+
+autoUpdater.on('checking-for-update', () => {
+  log.info("Checking for updates...");
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Checking for updates',
+    message: 'Checking for updates...',
+  });
+});
+
+autoUpdater.on('update-not-available', () => {
+  log.info("No new updates");
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'No new updates',
+    message: 'You are currently running the latest version',
+  });
+});
+
 autoUpdater.on('update-downloaded', () => {
   autoUpdater.quitAndInstall();
 });
@@ -113,6 +140,10 @@ autoUpdater.on('update-downloaded', () => {
 // ===========================
 // IPC Handlers
 // ===========================
+ipcMain.handle('check-for-updates', async () => {
+  await autoUpdater.checkForUpdates();
+});
+
 ipcMain.handle('open-directory-dialog', async () => {
   const res = await dialog.showOpenDialog({
     properties: ['openDirectory'],

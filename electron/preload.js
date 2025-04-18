@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDefaultDownloadsPath: async () => await ipcRenderer.invoke('get-default-downloads-path'),
     quitApp: () => ipcRenderer.send('quit-app'),
     restartApp: () => ipcRenderer.send('restart-app'),
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 });

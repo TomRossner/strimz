@@ -8,6 +8,7 @@ declare global {
             getDefaultDownloadsPath: () => Promise<string>;
             quitApp: () => void;
             restartApp: () => void;
+            checkForUpdates: () => void;
         }
     }
 }

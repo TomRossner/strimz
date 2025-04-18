@@ -16,7 +16,7 @@
         "build:frontend": "cd strimz-client && npm run build",
         "build:backend": "cd strimz-backend && npm run build",
         "build:electron": "npm run build:frontend && npm run build:backend && electron-builder",
-        "build": "tsup"
+        "build": "npm run build:electron"
     },
     "build": {
         "asar": true,
