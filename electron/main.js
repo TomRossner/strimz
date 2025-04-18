@@ -140,7 +140,7 @@ autoUpdater.on('update-available', async () => {
     defaultId: 0,
     cancelId: 1,
   });
-  
+
   mainWindow.webContents.send('update-available');
 
   if (result.response === 0) {
@@ -155,19 +155,19 @@ autoUpdater.on('update-available', async () => {
 // IPC Handlers
 // ===========================
 ipcMain.on('check-for-updates', (event) => {
-  // const win = BrowserWindow.getFocusedWindow();
+  const win = BrowserWindow.getFocusedWindow();
 
   if (isDev) {
     console.log('Skipping update check: app is in development');
-    mainWindow.webContents.send('update-check-skipped', 'Update check skipped in development mode.');
+    win.webContents.send('update-check-skipped', 'Update check skipped in development mode.');
     return;
   }
 
-  mainWindow.webContents.send('checking-for-update');
+  win.webContents.send('checking-for-update');
 
   autoUpdater.checkForUpdates().catch((err) => {
     console.error('Error while checking for updates:', err);
-    mainWindow.webContents.send('update-check-failed', err.message || 'Unknown error');
+    win.webContents.send('update-check-failed', err.message || 'Unknown error');
   });
 });
 
@@ -181,7 +181,7 @@ autoUpdater.on('update-not-available', () => {
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  // const win = BrowserWindow.getFocusedWindow();
+  const win = BrowserWindow.getFocusedWindow();
 
   const prog = {
     percent: progress.percent,
@@ -192,17 +192,16 @@ autoUpdater.on('download-progress', (progress) => {
 
   log.info(`Downloading - ${prog.percent.toFixed(1)}%`);
 
-  mainWindow.webContents.send('update-download-progress', prog);
+  win.webContents.send('update-download-progress', prog);
 });
 
 autoUpdater.on('update-downloaded', async () => {
+  const win = BrowserWindow.getFocusedWindow();
   log.info("Update downloaded");
 
-  mainWindow.webContents.send('update-downloaded');
+  win.webContents.send('update-downloaded');
 
-  const focusedWindow = BrowserWindow.getFocusedWindow();
-
-  const result = await dialog.showMessageBox(focusedWindow, {
+  const result = await dialog.showMessageBox(win, {
     type: 'info',
     title: 'Update ready',
     message: 'The update has been downloaded. Do you want to install it now?',
@@ -214,7 +213,6 @@ autoUpdater.on('update-downloaded', async () => {
   if (result.response === 0) {
     autoUpdater.quitAndInstall();
   } else {
-
     log.info("User chose to install later.");
   }
 });
