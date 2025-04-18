@@ -132,8 +132,6 @@ autoUpdater.on('update-available', async () => {
     autoUpdater.downloadUpdate();
   }
 
-  const focusedWindow = BrowserWindow.getFocusedWindow();
-
   const result = await dialog.showMessageBox(focusedWindow, {
     type: 'info',
     title: 'Update available',
@@ -142,12 +140,15 @@ autoUpdater.on('update-available', async () => {
     defaultId: 0,
     cancelId: 1,
   });
+  
+  mainWindow.webContents.send('update-available');
 
   if (result.response === 0) {
     autoUpdater.quitAndInstall();
   } else {
     log.info("User chose to install later.");
   }
+
 });
 
 // ===========================
@@ -213,6 +214,7 @@ autoUpdater.on('update-downloaded', async () => {
   if (result.response === 0) {
     autoUpdater.quitAndInstall();
   } else {
+
     log.info("User chose to install later.");
   }
 });
