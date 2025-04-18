@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS, setSettings, Settings } from '../store/settings/setti
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { MdOpenInNew } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
+import CheckForUpdatesButton from '@/components/CheckForUpdatesButton';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -53,8 +54,10 @@ const SettingsPage = () => {
     <Page>
         <Container id='settingsPage'>
             <PageTitle>
-                <CloseButton onClose={() => navigate(-1)} className='md:block w-fit text-lg py-1 text-stone-400 relative border-none' text='Back' />
-                Settings
+                <CloseButton onClose={() => navigate(-1)} className='md:block w-fit z-0 top-0 text-lg py-1 text-stone-400 relative border-none' text='Back' />
+                <span className='grow'>Settings</span>
+
+                <CheckForUpdatesButton withText className='min-w-[200px] text-sm justify-center font-normal' />
             </PageTitle>
 
             <hr className='w-full block border-slate-100 mb-2' />

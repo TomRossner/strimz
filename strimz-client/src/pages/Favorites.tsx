@@ -21,7 +21,7 @@ const FavoritesPage = () => {
     <Page>
       <Container id='favoritesPage'>
         <PageTitle >
-          <CloseButton onClose={() => navigate(-1)} className='md:block w-fit text-lg py-1 text-stone-400 relative border-none' text='Back' />
+          <CloseButton onClose={() => navigate(-1)} className='md:block w-fit top-0 text-lg py-1 text-stone-400 relative border-none' text='Back' />
           Favorites
         </PageTitle>
 

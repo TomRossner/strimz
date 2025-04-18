@@ -26,7 +26,12 @@ const setStatusText = (status: string) => {
     }
 }
 
-const CheckForUpdatesButton = () => {
+interface CheckForUpdatesButtonProps {
+    withText?: boolean;
+    className?: string;
+}
+
+const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesButtonProps) => {
     const [status, setStatus] = useState<string>('idle');
 
     const checkForUpdates = () => {
@@ -57,15 +62,15 @@ const CheckForUpdatesButton = () => {
         title={setStatusText(status)}
         onClick={status !== 'downloaded'? checkForUpdates : window.electronAPI.installUpdateNow}
         className={twMerge(`
-            hidden
-            md:flex
             text-lg
             py-1.5
             group
+            gap-2
             hover:bg-stone-600
-            hover:text-green-400
+            hover:text-blue-300
             justify-end
-            ${status === 'available' && "disabled:text-green-300"}
+            ${status === 'available' && "disabled:text-blue-300"}
+            ${className}
         `)}
     >
         {(status === 'idle' || status === 'up-to-date' || status === 'skipped' || status === 'failed') && (
@@ -81,7 +86,7 @@ const CheckForUpdatesButton = () => {
         )}
 
         {status === 'available' && (
-            <span className='text-green-300 animate-spin'>
+            <span className='text-blue-300 animate-spin'>
                 <RxUpdate />
             </span>
         )}
@@ -90,6 +95,12 @@ const CheckForUpdatesButton = () => {
             <span className='text-green-500 animate-pulse'>
                 <MdOutlineBrowserUpdated />
             </span>
+        )}
+
+        {withText && (
+            <>
+                {setStatusText(status)}
+            </>
         )}
     </Button>
   )

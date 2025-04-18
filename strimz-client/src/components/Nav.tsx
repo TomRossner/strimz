@@ -9,7 +9,6 @@ import { GiHamburgerMenu } from 'react-icons/gi';
 import Logo from './Logo';
 import Button from './Button';
 import { useLocation } from 'react-router-dom';
-import CheckForUpdatesButton from './CheckForUpdatesButton';
 
 interface NavProps {
   withSearchBar: boolean;
@@ -77,7 +76,6 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
         </section>
       )}
 
-      <CheckForUpdatesButton />
     </nav>
   )
 }
