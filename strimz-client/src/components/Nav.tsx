@@ -54,7 +54,7 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
         ${className}
       `)}
     >
-      <Button onClick={() => dispatch(openModal('menu'))} className='text-xl text-slate-300 py-2 absolute md:top-0 md:left-0.5 top-2 left-2 md:relative'>
+      <Button onClick={() => dispatch(openModal('menu'))} className='text-xl text-stone-300 bg-stone-700 hover:bg-stone-600 py-2 absolute md:top-0 md:left-0.5 top-2 left-2 md:relative'>
         <GiHamburgerMenu />
       </Button>
 

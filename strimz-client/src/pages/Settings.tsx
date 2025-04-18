@@ -1,4 +1,3 @@
-import CloseButton from '@/components/CloseButton';
 import Button from '../components/Button';
 import Container from '../components/Container';
 import Page from '../components/Page';
@@ -10,6 +9,9 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { MdOpenInNew } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
 import CheckForUpdatesButton from '@/components/CheckForUpdatesButton';
+import BackButton from '@/components/BackButton';
+import CloseButton from '@/components/CloseButton';
+import PageDescription from '@/components/PageDescription';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -41,10 +43,6 @@ const SettingsPage = () => {
     }
 
     useEffect(() => {
-        console.log(formValues);
-    }, [formValues]);
-
-    useEffect(() => {
         if (!formValues.path) {
             setFormValues(settings);
         }
@@ -53,24 +51,22 @@ const SettingsPage = () => {
   return (
     <Page>
         <Container id='settingsPage'>
-            <PageTitle>
-                <CloseButton onClose={() => navigate(-1)} className='md:block w-fit z-0 top-0 text-lg py-1 text-stone-400 relative border-none' text='Back' />
-                <span className='grow'>Settings</span>
+            <PageTitle className='items-center'>
+                <BackButton />
+                <span className='grow -mt-1'>Settings</span>
 
-                <CheckForUpdatesButton withText className='min-w-[200px] text-sm justify-center font-normal' />
+                <CheckForUpdatesButton withText className='min-w-[200px] text-sm justify-center font-normal py-1 self-end' />
             </PageTitle>
-
-            <hr className='w-full block border-slate-100 mb-2' />
             
-            <p className='text-slate-200 italic font-light text-sm mb-5'>Customize your preferences to get the best experience with the app.</p>
+            <PageDescription>Customize your preferences to get the best experience with the app.</PageDescription>
             
-            <div className='relative flex flex-col w-full gap-3 h-[80vh]'>
+            <div className='relative flex flex-col w-full gap-3 grow'>
                 <form className='text-white flex flex-col gap-5 h-full border border-stone-700 p-2' onSubmit={handleSubmit}>
                     <div className='flex w-full gap-2 flex-col'>
                         <p className='w-full flex justify-between'>
                             <span className='flex gap-2 items-center'>Download path</span>
                             
-                            <Button onClick={handleDirectoryChange} className='text-blue-300 hover:text-blue-600 text-sm bg-stone-800'>
+                            <Button onClick={handleDirectoryChange} className='text-blue-300 hover:text-blue-400 text-sm bg-stone-800'>
                                 Choose download path
                             </Button>
                         </p>
@@ -88,7 +84,7 @@ const SettingsPage = () => {
                                         title='Open folder'
                                         disabled={!formValues.path}
                                         onClick={() => window.electronAPI.openFolder(formValues.path)}
-                                        className='p-1.5 text-lg bg-stone-700'
+                                        className='p-1.5 text-stone-400 text-lg hover:bg-stone-600'
                                     >
                                         <MdOpenInNew />
                                     </Button>
@@ -123,14 +119,23 @@ const SettingsPage = () => {
                         <p className='text-sm text-slate-500'>Automatically load more movies as you scroll down.</p>
                     </div>
 
-                    <div className="absolute bottom-0 left-0 right-0 px-4 py-2 w-full flex gap-1 items-center">
+                    <div className='grow' />
+
+                    <div className="p-4 w-full bg-stone-800 flex gap-2 items-center justify-center flex-wrap md:flex-nowrap">
                         <Button
                             type='submit'
                             disabled={!formValues.path}
-                            className='text-white bg-stone-700 border-2 border-white w-full'
+                            className='text-white w-full bg-slate-600 hover:bg-slate-500'
                         >
                             Save changes
                         </Button>
+                        <CloseButton
+                            text='Cancel'
+                            onClose={() => navigate(-1)}
+                            className='relative md:block text-stone-300 w-full text-base py-1 top-0 border-none hover:bg-stone-600 right-0'
+                        >
+                            Cancel
+                        </CloseButton>
                     </div>
                 </form>
             </div>

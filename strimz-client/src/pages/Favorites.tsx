@@ -8,22 +8,22 @@ import { twMerge } from 'tailwind-merge';
 import MovieCard from '@/components/MovieCard';
 import { openModal } from '@/store/modals/modals.slice';
 import MoviesListSkeleton from '@/components/MoviesListSkeleton';
-import CloseButton from '@/components/CloseButton';
-import { useNavigate } from 'react-router-dom';
+import BackButton from '@/components/BackButton';
+import PageDescription from '@/components/PageDescription';
 
 const FavoritesPage = () => {
   const favorites = useAppSelector(selectFavorites);
-
   const dispatch = useAppDispatch();
-  const navigate = useNavigate();
 
   return (
     <Page>
-      <Container id='favoritesPage'>
+      <Container id='favoritesPage' className='grow'>
         <PageTitle >
-          <CloseButton onClose={() => navigate(-1)} className='md:block w-fit top-0 text-lg py-1 text-stone-400 relative border-none' text='Back' />
-          Favorites
+          <BackButton />
+          <span className='grow -mt-1'>Favorites</span>
         </PageTitle>
+
+        <PageDescription>Quick access to the content you enjoy most.</PageDescription>
 
         {favorites.size
           ? (
