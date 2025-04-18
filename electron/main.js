@@ -179,7 +179,16 @@ autoUpdater.on('update-not-available', () => {
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  mainWindow.webContents.send('download-progress', progress);
+  const win = BrowserWindow.getFocusedWindow();
+
+  if (win) {
+    win.webContents.send('update-download-progress', {
+      percent: progress.percent,           // e.g., 43.2
+      transferred: progress.transferred,   // bytes
+      total: progress.total,               // bytes
+      bytesPerSecond: progress.bytesPerSecond,
+    });
+  }
 });
 
 autoUpdater.on('update-downloaded', () => {

@@ -11,7 +11,7 @@ const setStatusText = (status: string) => {
         case 'checking':
             return 'Checking...';
         case 'available':
-            return 'New update available, downloading...';
+            return 'Downloading...';
         case 'up-to-date':
             return 'Check for updates';
         case 'downloaded':
@@ -24,6 +24,13 @@ const setStatusText = (status: string) => {
         default:
             return 'Check for updates';
     }
+}
+
+type ProgressData = {
+    percent: number;
+    transferred: number;
+    total: number;
+    bytesPerSecond: number;
 }
 
 interface CheckForUpdatesButtonProps {
@@ -54,6 +61,14 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
             setStatus('failed');
             console.error(msg);
         });
+    }, []);
+    
+    const [progress, setProgress] = useState<number | null>(null);
+
+    useEffect(() => {
+    window.electronAPI.onDownloadProgress((progressData: ProgressData) => {
+        setProgress(progressData.percent);
+    });
     }, []);
 
   return (
@@ -101,6 +116,10 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
             <>
                 {setStatusText(status)}
             </>
+        )}
+
+        {status === 'available' && progress !== null && (
+            <span>{progress.toFixed(1)}%</span>
         )}
     </Button>
   )
