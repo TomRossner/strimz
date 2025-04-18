@@ -20,6 +20,24 @@ const backendRelativePath = isDev ? './strimz-backend/dist/index.js' : path.join
 let mainWindow;
 let backendProcess;
 
+let currentDialog = null;
+
+async function showSingleDialog(options) {
+  if (currentDialog) {
+    try {
+      currentDialog.close();
+    } catch (err) {
+      log.error(err);
+    }
+  }
+
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+
+  currentDialog = dialog.showMessageBox(focusedWindow, options);
+  await currentDialog;
+  currentDialog = null;
+}
+
 // ===========================
 // Create Main Window
 // ===========================
@@ -106,27 +124,27 @@ function startBackend() {
 // ===========================
 // Auto Updater
 // ===========================
-autoUpdater.on('update-available', () => {
-  log.info("New update available");
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update available',
-    message: 'A new update is available. Downloading now...',
-  });
-});
-
 autoUpdater.on('checking-for-update', () => {
   log.info("Checking for updates...");
-  dialog.showMessageBox({
+  showSingleDialog({
     type: 'info',
     title: 'Checking for updates',
     message: 'Checking for updates...',
   });
 });
 
+autoUpdater.on('update-available', () => {
+  log.info("New update available");
+  showSingleDialog({
+    type: 'info',
+    title: 'Update available',
+    message: 'A new update is available. Downloading now...',
+  });
+});
+
 autoUpdater.on('update-not-available', () => {
   log.info("No new updates");
-  dialog.showMessageBox({
+  showSingleDialog({
     type: 'info',
     title: 'No new updates',
     message: 'You are currently running the latest version',
