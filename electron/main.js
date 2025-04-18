@@ -126,6 +126,11 @@ function startBackend() {
 // ===========================
 autoUpdater.on('update-available', async () => {
   log.info("New update available");
+  
+  log.info("autoDownload: ", autoUpdater.autoDownload);
+  if (!autoUpdater.autoDownload) {
+    autoUpdater.downloadUpdate();
+  }
 
   const focusedWindow = BrowserWindow.getFocusedWindow();
 
@@ -133,7 +138,7 @@ autoUpdater.on('update-available', async () => {
     type: 'info',
     title: 'Update available',
     message: 'A new update is available. Do you want to install it now?',
-    buttons: ['Install Now', 'Later'],
+    buttons: ['Install now', 'Later'],
     defaultId: 0,
     cancelId: 1,
   });
@@ -149,19 +154,19 @@ autoUpdater.on('update-available', async () => {
 // IPC Handlers
 // ===========================
 ipcMain.on('check-for-updates', (event) => {
-  const win = BrowserWindow.getFocusedWindow(); // Or your main window ref
+  // const win = BrowserWindow.getFocusedWindow();
 
   if (isDev) {
     console.log('Skipping update check: app is in development');
-    win.webContents.send('update-check-skipped', 'Update check skipped in development mode.');
+    mainWindow.webContents.send('update-check-skipped', 'Update check skipped in development mode.');
     return;
   }
 
-  win.webContents.send('checking-for-update');
+  mainWindow.webContents.send('checking-for-update');
 
   autoUpdater.checkForUpdates().catch((err) => {
     console.error('Error while checking for updates:', err);
-    win.webContents.send('update-check-failed', err.message || 'Unknown error');
+    mainWindow.webContents.send('update-check-failed', err.message || 'Unknown error');
   });
 });
 
@@ -170,26 +175,23 @@ autoUpdater.on('checking-for-update', () => {
   mainWindow.webContents.send('checking-for-update');
 });
 
-autoUpdater.on('update-available', () => {
-  log.info("New update available");
-  mainWindow.webContents.send('update-available');
-});
-
 autoUpdater.on('update-not-available', () => {
   mainWindow.webContents.send('update-not-available');
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  const win = BrowserWindow.getFocusedWindow();
+  // const win = BrowserWindow.getFocusedWindow();
 
-  if (win) {
-    win.webContents.send('update-download-progress', {
-      percent: progress.percent,           // e.g., 43.2
-      transferred: progress.transferred,   // bytes
-      total: progress.total,               // bytes
-      bytesPerSecond: progress.bytesPerSecond,
-    });
+  const progress = {
+    percent: progress.percent,
+    transferred: progress.transferred,
+    total: progress.total,
+    bytesPerSecond: progress.bytesPerSecond,
   }
+
+  log.info(`Downloading - ${progress.percent.toFixed(1)}%`);
+
+  mainWindow.webContents.send('update-download-progress', progress);
 });
 
 autoUpdater.on('update-downloaded', async () => {
@@ -201,9 +203,9 @@ autoUpdater.on('update-downloaded', async () => {
 
   const result = await dialog.showMessageBox(focusedWindow, {
     type: 'info',
-    title: 'Update Ready',
+    title: 'Update ready',
     message: 'The update has been downloaded. Do you want to install it now?',
-    buttons: ['Install Now', 'Later'],
+    buttons: ['Install now', 'Later'],
     defaultId: 0,
     cancelId: 1,
   });
