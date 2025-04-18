@@ -31,9 +31,8 @@ const TrailerPlayer = ({yt_trailer_code, title}: TrailerPlayerProps) => {
     }, [isOpen, handleClose]);
 
   return (
-    <>
+    <AnimatePresence>
         {isOpen && (
-            <AnimatePresence>
                 <motion.dialog
                     open={isOpen}
                     // sm:w-[1080px]
@@ -41,8 +40,8 @@ const TrailerPlayer = ({yt_trailer_code, title}: TrailerPlayerProps) => {
                     // max-w-[1080px]
                     className={twMerge(`
                         fixed
-                        w-full
-                        h-[100vh]
+                        w-[85vw]
+                        m-auto
                         aspect-video
                         rounded-sm
                         bg-stone-900
@@ -68,9 +67,8 @@ const TrailerPlayer = ({yt_trailer_code, title}: TrailerPlayerProps) => {
                         className="w-full aspect-video"
                     />
                 </motion.dialog>
-            </AnimatePresence>
-        )}
-    </>
+            )}
+        </AnimatePresence>
   )
 }
 
