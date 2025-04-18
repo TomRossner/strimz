@@ -9,6 +9,7 @@ import CloseButton from '@/components/CloseButton';
 import { useNavigate } from 'react-router-dom';
 import { LuUpload } from "react-icons/lu";
 import { BiTrash } from 'react-icons/bi';
+import OptionDescription from '@/components/OptionDescription';
 
 type ReportFormValues = {
   description: string;
@@ -132,7 +133,7 @@ const ReportsPage = () => {
               </label>
             </p>
 
-            <span className='text-sm text-slate-500'>Add screenshots to help us understand the issue.</span>
+            <OptionDescription>Add screenshots to help us understand the issue.</OptionDescription>
 
             <input
               hidden
@@ -188,7 +189,7 @@ const ReportsPage = () => {
           <div className="p-4 w-full bg-stone-800 flex gap-2 items-center justify-center flex-wrap md:flex-nowrap">
             <Button
                 type='submit'
-                // disabled={!formValues.path}
+                disabled={!formValues.description}
                 className='text-white w-full bg-slate-600 hover:bg-slate-500'
             >
                 Submit report

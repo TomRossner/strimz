@@ -1,8 +1,8 @@
 {
     "name": "strimz",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "main": "electron/main.js",
-    "description": "Strimz v1.0.4",
+    "description": "Strimz v1.0.5",
     "type": "module",
     "author": {
         "email": "tomrossner2@gmail.com",

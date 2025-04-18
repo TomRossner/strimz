@@ -1,4 +1,3 @@
-import MoviePlayer from '../components/MoviePlayer';
 import { API_URL, WATCH_MOVIE_URL } from '../utils/constants';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
@@ -6,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setError, setIsLoading } from '../store/movies/movies.slice';
 import LoadingScreen from '../components/LoadingScreen';
 import { selectSettings } from '../store/settings/settings.selectors';
+import VidStackPlayer from '@/components/VidStackPlayer';
 
 const WatchMoviePage = () => {
     const [searchParams] = useSearchParams();
@@ -59,7 +59,7 @@ const WatchMoviePage = () => {
     }, []);
 
     return videoSrc
-        ? <MoviePlayer movieSrc={videoSrc} />
+        ? <VidStackPlayer movieSrc={videoSrc} />
         : <LoadingScreen />;
 }
 

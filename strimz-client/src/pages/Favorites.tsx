@@ -49,7 +49,13 @@ const FavoritesPage = () => {
                 ? (
                   <>
                     {Array.from(favorites.values()).map(movie => {
-                      return <MovieCard key={movie.id} movie={movie} setOpen={() => dispatch(openModal('movie'))} />
+                      return (
+                        <MovieCard
+                          key={movie.id}
+                          movie={movie}
+                          setOpen={() => dispatch(openModal('movie'))}
+                        />
+                      )
                     })}
                   </>
                 )

@@ -12,6 +12,7 @@ import CheckForUpdatesButton from '@/components/CheckForUpdatesButton';
 import BackButton from '@/components/BackButton';
 import CloseButton from '@/components/CloseButton';
 import PageDescription from '@/components/PageDescription';
+import OptionDescription from '@/components/OptionDescription';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -71,7 +72,7 @@ const SettingsPage = () => {
                             </Button>
                         </p>
 
-                        <p className='text-sm text-slate-500'>Select the folder where downloaded content will be saved.</p>
+                        <OptionDescription>Select the folder where downloaded content will be saved.</OptionDescription>
 
                         <div className='flex w-full gap-3 items-center'>
                             {formValues.path && (
@@ -116,7 +117,7 @@ const SettingsPage = () => {
                             </div>
                         </div>
 
-                        <p className='text-sm text-slate-500'>Automatically load more movies as you scroll down.</p>
+                        <OptionDescription>Automatically load more movies as you scroll down.</OptionDescription>
                     </div>
 
                     <div className='grow' />
