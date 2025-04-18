@@ -124,35 +124,25 @@ function startBackend() {
 // ===========================
 // Auto Updater
 // ===========================
-autoUpdater.on('checking-for-update', () => {
-  log.info("Checking for updates...");
-  showSingleDialog({
-    type: 'info',
-    title: 'Checking for updates',
-    message: 'Checking for updates...',
-  });
-});
-
-autoUpdater.on('update-available', () => {
+autoUpdater.on('update-available', async () => {
   log.info("New update available");
-  showSingleDialog({
+
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+
+  const result = await dialog.showMessageBox(focusedWindow, {
     type: 'info',
     title: 'Update available',
-    message: 'A new update is available. Downloading now...',
+    message: 'A new update is available. Do you want to install it now?',
+    buttons: ['Install Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
   });
-});
 
-autoUpdater.on('update-not-available', () => {
-  log.info("No new updates");
-  showSingleDialog({
-    type: 'info',
-    title: 'No new updates',
-    message: 'You are currently running the latest version',
-  });
-});
-
-autoUpdater.on('update-downloaded', () => {
-  autoUpdater.quitAndInstall();
+  if (result.response === 0) {
+    autoUpdater.quitAndInstall();
+  } else {
+    log.info("User chose to install later.");
+  }
 });
 
 // ===========================
