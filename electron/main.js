@@ -171,6 +171,7 @@ autoUpdater.on('checking-for-update', () => {
 });
 
 autoUpdater.on('update-available', () => {
+  log.info("New update available");
   mainWindow.webContents.send('update-available');
 });
 
@@ -191,8 +192,27 @@ autoUpdater.on('download-progress', (progress) => {
   }
 });
 
-autoUpdater.on('update-downloaded', () => {
+autoUpdater.on('update-downloaded', async () => {
+  log.info("Update downloaded");
+
   mainWindow.webContents.send('update-downloaded');
+
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+
+  const result = await dialog.showMessageBox(focusedWindow, {
+    type: 'info',
+    title: 'Update Ready',
+    message: 'The update has been downloaded. Do you want to install it now?',
+    buttons: ['Install Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+
+  if (result.response === 0) {
+    autoUpdater.quitAndInstall();
+  } else {
+    log.info("User chose to install later.");
+  }
 });
 
 ipcMain.handle('open-directory-dialog', async () => {
