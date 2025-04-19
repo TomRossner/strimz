@@ -15,4 +15,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateCheckSkipped: (cb) => ipcRenderer.on('update-check-skipped', (e, msg) => cb(msg)),
     onUpdateCheckFailed: (cb) => ipcRenderer.on('update-check-failed', (e, msg) => cb(msg)),
     installUpdateNow: () => ipcRenderer.send('install-update-now'),
+
+    offCheckingForUpdate: (cb) => ipcRenderer.removeListener('checking-for-update', cb),
+    offUpdateAvailable: (cb) => ipcRenderer.removeListener('update-available', cb),
+    offUpdateNotAvailable: (cb) => ipcRenderer.removeListener('update-not-available', cb),
+    offUpdateDownloaded: (cb) => ipcRenderer.removeListener('update-downloaded', cb),
+    offUpdateCheckSkipped: (cb) => ipcRenderer.removeListener('update-check-skipped', cb),
+    offUpdateCheckFailed: (cb) => ipcRenderer.removeListener('update-check-failed', cb),
+
+    ipcRenderer: {
+        send: (channel, data) => {
+          // whitelist channels
+          const validChannels = ['subscribe-to-updates', 'check-for-updates', 'install-update-now', /* others */];
+          if (validChannels.includes(channel)) {
+            ipcRenderer.send(channel, data);
+          }
+        },
+        on: (channel, func) => {
+          ipcRenderer.on(channel, (event, ...args) => func(...args));
+        },
+        removeAllListeners: (channel) => {
+          ipcRenderer.removeAllListeners(channel);
+        }
+      }
 });

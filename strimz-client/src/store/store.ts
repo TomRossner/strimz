@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import moviesReducer from "./movies/movies.slice";
 import modalsReducer from "./modals/modals.slice";
 import settingsReducer from "./settings/settings.slice";
+import updatesReducer from "./updates/updates.slice";
 
 export const makeStore = () => {
   return configureStore({
@@ -9,6 +10,7 @@ export const makeStore = () => {
       movies: moviesReducer,
       modals: modalsReducer,
       settings: settingsReducer,
+      updates: updatesReducer,
     },
     middleware: (getDefaultMiddleware) => getDefaultMiddleware({serializableCheck: false}),
   });

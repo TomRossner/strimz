@@ -124,36 +124,71 @@ function startBackend() {
 // ===========================
 // Auto Updater
 // ===========================
-autoUpdater.on('update-available', async () => {
-  log.info("New update available");
+function attachUpdateListeners(win) {
+  autoUpdater.on('update-available', async () => {
+    log.info("New update available");
+    
+    log.info("autoDownload: ", autoUpdater.autoDownload);
+    if (!autoUpdater.autoDownload) {
+      autoUpdater.downloadUpdate();
+    }
   
-  log.info("autoDownload: ", autoUpdater.autoDownload);
-  if (!autoUpdater.autoDownload) {
-    autoUpdater.downloadUpdate();
-  }
-
-  const result = await dialog.showMessageBox(focusedWindow, {
-    type: 'info',
-    title: 'Update available',
-    message: 'A new update is available. Do you want to install it now?',
-    buttons: ['Install now', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
+    const result = await dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
+      type: 'info',
+      title: 'Update available',
+      message: 'A new update is available. Do you want to install it now?',
+      buttons: ['Install now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+  
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    } else {
+      log.info("User chose to install later.");
+    }
+  
   });
-
-  mainWindow.webContents.send('update-available');
-
-  if (result.response === 0) {
-    autoUpdater.quitAndInstall();
-  } else {
-    log.info("User chose to install later.");
-  }
-
-});
+  
+  autoUpdater.on('checking-for-update', () => {
+    mainWindow.webContents.send('checking-for-update');
+  });
+  
+  autoUpdater.on('update-not-available', () => {
+    mainWindow.webContents.send('update-not-available');
+  });
+  
+  autoUpdater.on('download-progress', (progress) => {
+    const win = BrowserWindow.getFocusedWindow();
+  
+    const prog = {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond,
+    }
+  
+    log.info(`Downloading - ${prog.percent.toFixed(1)}%`);
+  
+    win.webContents.send('update-download-progress', prog);
+  });
+  
+  autoUpdater.on('update-downloaded', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    log.info("Update downloaded");
+  
+    win.webContents.send('update-downloaded');
+  });
+}
 
 // ===========================
 // IPC Handlers
 // ===========================
+ipcMain.on('subscribe-to-updates', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  attachUpdateListeners(win);
+});
+
 ipcMain.on('check-for-updates', (event) => {
   const win = BrowserWindow.getFocusedWindow();
 
@@ -169,52 +204,6 @@ ipcMain.on('check-for-updates', (event) => {
     console.error('Error while checking for updates:', err);
     win.webContents.send('update-check-failed', err.message || 'Unknown error');
   });
-});
-
-// From autoUpdater to renderer
-autoUpdater.on('checking-for-update', () => {
-  mainWindow.webContents.send('checking-for-update');
-});
-
-autoUpdater.on('update-not-available', () => {
-  mainWindow.webContents.send('update-not-available');
-});
-
-autoUpdater.on('download-progress', (progress) => {
-  const win = BrowserWindow.getFocusedWindow();
-
-  const prog = {
-    percent: progress.percent,
-    transferred: progress.transferred,
-    total: progress.total,
-    bytesPerSecond: progress.bytesPerSecond,
-  }
-
-  log.info(`Downloading - ${prog.percent.toFixed(1)}%`);
-
-  win.webContents.send('update-download-progress', prog);
-});
-
-autoUpdater.on('update-downloaded', async () => {
-  const win = BrowserWindow.getFocusedWindow();
-  log.info("Update downloaded");
-
-  win.webContents.send('update-downloaded');
-
-  const result = await dialog.showMessageBox(win, {
-    type: 'info',
-    title: 'Update ready',
-    message: 'The update has been downloaded. Do you want to install it now?',
-    buttons: ['Install now', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
-  });
-
-  if (result.response === 0) {
-    autoUpdater.quitAndInstall();
-  } else {
-    log.info("User chose to install later.");
-  }
 });
 
 ipcMain.handle('open-directory-dialog', async () => {
@@ -259,6 +248,7 @@ app.whenReady().then(async () => {
     try {
       await waitForBackendReady();
       createMainWindow();
+      
       if (!isDev) {
         log.info("Checking for updates...");
         autoUpdater.checkForUpdatesAndNotify();
