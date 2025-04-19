@@ -1,8 +1,8 @@
-import { Qualities } from '../../utils/qualities'
-import { Torrent } from '../../utils/types'
-import React, { ChangeEvent } from 'react'
-import { MdOutlineHighQuality } from 'react-icons/md'
-import { twMerge } from 'tailwind-merge'
+import { Qualities } from '../../utils/qualities';
+import { Torrent } from '../../utils/types';
+import React, { ChangeEvent } from 'react';
+import { MdOutlineHighQuality } from 'react-icons/md';
+import { twMerge } from 'tailwind-merge';
 
 const getMovieQualities = (torrents: Torrent[]): string[] => {
     const qualities = new Set<string>();
@@ -34,7 +34,7 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
             name="qualities"
             id="qualities"
             onChange={handleSelect}
-            className='cursor-pointer min-w-fit w-full outline-none rounded-sm text-white bg-stone-800'
+            className='cursor-pointer min-w-fit p-1 w-full outline-none rounded-sm text-white bg-stone-800 hover:bg-stone-700'
         >
             <option className='text-white cursor-pointer' value={undefined}>Select quality</option>
             {(getMovieQualities(torrents as Torrent[]))
@@ -59,4 +59,4 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
   )
 }
 
-export default QualitySelector
+export default QualitySelector;

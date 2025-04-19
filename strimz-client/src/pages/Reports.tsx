@@ -190,7 +190,7 @@ const ReportsPage = () => {
             <Button
                 type='submit'
                 disabled={!formValues.description}
-                className='text-white w-full bg-slate-600 hover:bg-slate-500'
+                className='text-white w-full bg-slate-600 hover:bg-slate-500 disabled:text-stone-400'
             >
                 Submit report
             </Button>

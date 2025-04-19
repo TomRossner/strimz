@@ -4,13 +4,19 @@ import CloseButton from './CloseButton';
 import { BiChevronLeft } from 'react-icons/bi';
 import { twMerge } from 'tailwind-merge';
 
-const BackButton = ({title = 'Back', className}: ButtonHTMLAttributes<HTMLButtonElement>) => {
+const BackButton = ({title = 'Back', className, cb = () => {}}: ButtonHTMLAttributes<HTMLButtonElement> & {cb?: () => void}) => {
     const navigate = useNavigate();
+
+    const handleClick = () => {
+      navigate(-1);
+      cb();
+    }
+
   return (
     <CloseButton
         title={title}
         icon={<BiChevronLeft />}
-        onClose={() => navigate(-1)}
+        onClose={handleClick}
         className={twMerge(`
           md:block
           w-fit

@@ -18,7 +18,7 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
             Available torrents
         </p>
 
-        <div className='flex flex-col gap-2 grow w-full max-h-[60px] overflow-y-auto'>
+        <div className='flex flex-col gap-2 grow w-full max-h-[75px] overflow-y-auto'>
             {(torrents as Torrent[])
                 .filter(t => t.quality === quality)
                 .map(t => (
@@ -40,7 +40,9 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
                                 text-center
                                 rounded-sm
                                 bg-stone-800
+                                hover:bg-stone-700
                                 text-white
+                                p-1
                                 ${t.hash === hash && 'bg-blue-400'}
                             `)}
                         >

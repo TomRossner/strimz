@@ -5,7 +5,7 @@ import { twMerge } from 'tailwind-merge';
 interface DialogProps {
     isOpen: boolean;
     children: ReactNode | ReactNode[];
-    size: "large" | "medium" | "small";
+    size: "large" | "medium" | "small" | "fit";
     title?: string;
     className?: string;
 }
@@ -30,7 +30,7 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                     md:border
                     border-gray-400
                     rounded-sm
-                    bg-stone-950
+                    bg-stone-900
                     z-20
                     left-0
                     right-0
@@ -42,6 +42,7 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                     ${size === "large" && "md:w-[97%]"}
                     ${size === "medium" && "md:w-[65%]"}
                     ${size === "small" && "md:w-[40%]"}
+                    ${size === "fit" && "md:w-fit"}
                 `)}
             >
                 {title && <p className='text-2xl text-slate-100 font-bold px-2 py-1'>{title}</p>}

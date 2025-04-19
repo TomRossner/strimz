@@ -27,7 +27,9 @@ const WatchTrailerButton = ({isDisabled = false, onPlay, ytTrailerCode = ''}: Wa
         ${ytTrailerCode && 'disabled:opacity-55'}
       `)}
     >
-      <BsYoutube className='text-2xl text-red-600' />
+      <span className={twMerge(`text-2xl text-red-600 ${(isDisabled || !ytTrailerCode) && 'opacity-70'}`)}>
+        <BsYoutube />
+      </span>
       Watch trailer
     </Button>
   )

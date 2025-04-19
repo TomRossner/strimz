@@ -7,6 +7,8 @@ import { useSearchParams } from 'react-router-dom';
 import Page from './Page';
 import BackButton from './BackButton';
 import Container from './Container';
+import { useAppDispatch } from '@/store/hooks';
+import { openModal } from '@/store/modals/modals.slice';
 
 interface Props {
     movieSrc: string;
@@ -14,11 +16,12 @@ interface Props {
 
 const VidStackPlayer = ({movieSrc}: Props) => {
     const [searchParams] = useSearchParams();
+    const dispatch = useAppDispatch();
 
   return (
     <Page>
-        <Container id='watchMovie' className='min-h-0 max-h-[100vh] overflow-hidden'>
-            <BackButton className='absolute top-1 left-1 z-20' />
+        <Container id='watchMovie' className='min-h-0 max-h-[100vh] overflow-hidden grow'>
+            <BackButton className='absolute top-1 left-1 z-20' cb={() => dispatch(openModal('movie'))} />
             
             <MediaPlayer
                 src={{

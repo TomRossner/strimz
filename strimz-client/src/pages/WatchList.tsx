@@ -16,7 +16,7 @@ const WatchListPage = () => {
   const watchList = useAppSelector(selectWatchList);
   return (
     <Page>
-      <Container id='watchListPage'>
+      <Container id='watchListPage' className='grow'>
         <PageTitle>
           <BackButton />
           <span className='grow -mt-1'>Watch list</span>
