@@ -112,6 +112,12 @@ function startBackend() {
 // Auto Updater
 // ===========================
 function attachUpdateListeners(win) {
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: "TomRossner",
+    repo: "strimz",
+  });
+  
   autoUpdater.on('update-available', async () => {
     log.info("New update available");
 
@@ -163,7 +169,12 @@ function attachUpdateListeners(win) {
   
     win.webContents.send('update-downloaded');
   });
+  
+  autoUpdater.on('error', (error) => {
+    log.error('Auto updater error:', error);
+  });
 }
+
 
 // ===========================
 // IPC Handlers
