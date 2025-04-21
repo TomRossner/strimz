@@ -87,15 +87,15 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
     }, [dispatch]);
 
     useEffect(() => {
-        const handler = (ev: Event, progressData: ProgressData) => {
+        const downloadProgressHandler = (progressData: ProgressData) => {
             dispatch(setUpdateStatus('available'));
             setProgress(progressData.percent);
         }
     
-        window.electronAPI.onDownloadProgress(handler);
+        window.electronAPI.onDownloadProgress(downloadProgressHandler);
     
         return () => {
-            window.electronAPI.offDownloadProgress(handler);
+            window.electronAPI.offDownloadProgress(downloadProgressHandler);
         }
     }, [dispatch]);
 
