@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Filters, getAllMovies, getMovieCast } from "../scraper/scraper.js";
 import { FETCH_LIMIT, PAGE_NUMBER } from "../utils/constants.js";
 import { yts } from "../yts/yts.js";
+import { getCorrected } from "../utils/spell.js";
 
 export const getCast = async (req: Request, res: Response): Promise<Response | void> => {
     try {
@@ -87,7 +88,7 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
         const minRating = req.query.minimum_rating ? parseInt(req.query.minimum_rating.toString()) : 0;
         const page = req.query.page ? parseInt(req.query.page.toString()) : PAGE_NUMBER;
         const limit = req.query.limit ? parseInt(req.query.limit.toString()) : FETCH_LIMIT;
-        const query_term = req.query.query_term;
+        const query_term = req.query.query_term ? getCorrected(req.query.query_term as string) : '';
 
         const filters: Filters = {
             genre: genre as string,

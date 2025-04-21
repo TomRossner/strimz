@@ -15,9 +15,7 @@ const Search = () => {
     const filters = useAppSelector(selectFilters);
 
     const hasMounted = useRef(false);
-
-    // const inputRef = useRef<HTMLInputElement>(null);
-
+    
     const onInputChange = (ev: ChangeEvent<HTMLInputElement>) => {
         setQuery(ev.target.value);
     }
