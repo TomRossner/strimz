@@ -59,8 +59,9 @@
         ],
         "publish": [
             {
-                "provider": "generic",
-                "url": "http://localhost:5001/updates/"
+                "provider": "github",
+                "owner": "TomRossner",
+                "repo": "strimz"
             }
         ],
         "win": {
