@@ -100,6 +100,11 @@ function startBackend() {
     console.error(`[Backend STDERR]: ${data.toString().trim()}`);
     log.error(`[Backend STDERR]: ${data.toString().trim()}`);
   });
+
+  backendProcess.stdout.on("data", (data) => {
+    console.log(`[Backend STDOUT]: ${data.toString().trim()}`);
+    log.info(`[Backend STDOUT]: ${data.toString().trim()}`);
+  });
 }
 
 

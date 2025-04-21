@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onCheckingForUpdate: (cb) => ipcRenderer.on('checking-for-update', cb),
     onUpdateAvailable: (cb) => ipcRenderer.on('update-available', cb),
     onUpdateNotAvailable: (cb) => ipcRenderer.on('update-not-available', cb),
-    onDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (event, progress) => callback(progress)),
+    onDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (progress) => callback(progress)),
     onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', cb),
     onUpdateCheckSkipped: (cb) => ipcRenderer.on('update-check-skipped', (e, msg) => cb(msg)),
     onUpdateCheckFailed: (cb) => ipcRenderer.on('update-check-failed', (e, msg) => cb(msg)),
@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     offUpdateDownloaded: (cb) => ipcRenderer.removeListener('update-downloaded', cb),
     offUpdateCheckSkipped: (cb) => ipcRenderer.removeListener('update-check-skipped', cb),
     offUpdateCheckFailed: (cb) => ipcRenderer.removeListener('update-check-failed', cb),
+    offDownloadProgress: (callback) => ipcRenderer.removeListener('update-download-progress', callback),
 
     ipcRenderer: {
         send: (channel, data) => {

@@ -24,6 +24,7 @@ declare global {
             offUpdateDownloaded: (cb) => void,
             offUpdateCheckSkipped: (cb) => void,
             offUpdateCheckFailed: (cb) => void,
+            offDownloadProgress: (cb) => void,
 
             ipcRenderer: {
                 send: (channel, data?) => void,
