@@ -127,13 +127,14 @@ function startBackend() {
 function attachUpdateListeners(win) {
   autoUpdater.on('update-available', async () => {
     log.info("New update available");
+
+    win.webContents.send('update-available');
     
-    log.info("autoDownload: ", autoUpdater.autoDownload);
     if (!autoUpdater.autoDownload) {
       autoUpdater.downloadUpdate();
     }
-  
-    const result = await dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
+
+    const result = await dialog.showMessageBox(win, {
       type: 'info',
       title: 'Update available',
       message: 'A new update is available. Do you want to install it now?',
@@ -147,19 +148,17 @@ function attachUpdateListeners(win) {
     } else {
       log.info("User chose to install later.");
     }
-  
   });
   
   autoUpdater.on('checking-for-update', () => {
-    mainWindow.webContents.send('checking-for-update');
+    win.webContents.send('checking-for-update');
   });
   
   autoUpdater.on('update-not-available', () => {
-    mainWindow.webContents.send('update-not-available');
+    win.webContents.send('update-not-available');
   });
   
   autoUpdater.on('download-progress', (progress) => {
-    const win = BrowserWindow.getFocusedWindow();
   
     const prog = {
       percent: progress.percent,
@@ -174,7 +173,6 @@ function attachUpdateListeners(win) {
   });
   
   autoUpdater.on('update-downloaded', async () => {
-    const win = BrowserWindow.getFocusedWindow();
     log.info("Update downloaded");
   
     win.webContents.send('update-downloaded');
