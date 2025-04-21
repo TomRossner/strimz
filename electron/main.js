@@ -20,24 +20,6 @@ const backendRelativePath = isDev ? './strimz-backend/dist/index.js' : path.join
 let mainWindow;
 let backendProcess;
 
-let currentDialog = null;
-
-async function showSingleDialog(options) {
-  if (currentDialog) {
-    try {
-      currentDialog.close();
-    } catch (err) {
-      log.error(err);
-    }
-  }
-
-  const focusedWindow = BrowserWindow.getFocusedWindow();
-
-  currentDialog = dialog.showMessageBox(focusedWindow, options);
-  await currentDialog;
-  currentDialog = null;
-}
-
 // ===========================
 // Create Main Window
 // ===========================
@@ -159,7 +141,6 @@ function attachUpdateListeners(win) {
   });
   
   autoUpdater.on('download-progress', (progress) => {
-  
     const prog = {
       percent: progress.percent,
       transferred: progress.transferred,
@@ -172,7 +153,7 @@ function attachUpdateListeners(win) {
     win.webContents.send('update-download-progress', prog);
   });
   
-  autoUpdater.on('update-downloaded', async () => {
+  autoUpdater.on('update-downloaded', () => {
     log.info("Update downloaded");
   
     win.webContents.send('update-downloaded');

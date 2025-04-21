@@ -1,8 +1,8 @@
 {
     "name": "Strimz",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "main": "electron/main.js",
-    "description": "Strimz v1.0.9",
+    "description": "Strimz v1.1.0",
     "type": "module",
     "author": {
         "email": "tomrossner2@gmail.com",
@@ -59,9 +59,8 @@
         ],
         "publish": [
             {
-                "provider": "github",
-                "owner": "TomRossner",
-                "repo": "strimz"
+                "provider": "generic",
+                "url": "http://localhost:5001/updates/"
             }
         ],
         "win": {
