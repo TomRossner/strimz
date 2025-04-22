@@ -21,7 +21,7 @@ const WatchMoviePage = () => {
     const title = searchParams.get('title');
     const hash = searchParams.get('hash');
 
-    const statusUrl = `${API_URL}/sse/status/${slug}?hash=${hash}&title=${title}&dir=${settings.path}`;
+    const statusUrl = `${API_URL}/sse/status/${slug}?hash=${hash}&title=${title}&dir=${settings.downloadsFolderPath}`;
     const streamUrl = `${WATCH_MOVIE_URL}${slug}?hash=${hash}`;
     
     useEffect(() => {
