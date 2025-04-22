@@ -1,11 +1,8 @@
 const path = require("path");
 const fs = require("fs");
-const { app, BrowserWindow } = require("electron");
 const { attachUpdateListeners } = require("./updater");
 
-const isDev = !app.isPackaged;
-
-function setupIpcHandlers(ipcMain, store, dialog, shell, autoUpdater) {
+function setupIpcHandlers(app, ipcMain, store, dialog, shell, autoUpdater, isDev) {
     ipcMain.handle('get-auto-install-setting', () => {
         return store.get("autoInstallOnQuit");
     });
@@ -67,12 +64,12 @@ function setupIpcHandlers(ipcMain, store, dialog, shell, autoUpdater) {
     });
     
     ipcMain.on('subscribe-to-updates', (event) => {
-        const win = BrowserWindow.fromWebContents(event.sender);
+        const win = require('electron').BrowserWindow.fromWebContents(event.sender);
         attachUpdateListeners(win, store);
     });
     
     ipcMain.on('check-for-updates', (event) => {
-        const win = BrowserWindow.getFocusedWindow();
+        const win = require('electron').BrowserWindow.getFocusedWindow();
         
         if (isDev) {
             console.log('Skipping update check: app is in development');

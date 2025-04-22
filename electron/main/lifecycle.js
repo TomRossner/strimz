@@ -1,4 +1,3 @@
-const { BrowserWindow } = require('electron');
 const { createMainWindow } = require('./window');
 
 function setupAppLifecycle(app, backendProcess, store, clearDownloadFolderAsync, DEFAULT_DOWNLOADS_PATH) {
@@ -20,7 +19,7 @@ function setupAppLifecycle(app, backendProcess, store, clearDownloadFolderAsync,
     });
   
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+      if (require('electron').BrowserWindow.getAllWindows().length === 0) createMainWindow();
     });
 }
   

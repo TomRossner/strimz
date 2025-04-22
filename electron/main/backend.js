@@ -1,6 +1,5 @@
 const http = require('http');
 const { spawn } = require('child_process');
-const path = require('path');
 const log = require('electron-log');
 
 function startBackend(nodeBinary, backendRelativePath, isDev) {

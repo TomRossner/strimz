@@ -17,7 +17,7 @@ const backendRelativePath = isDev ? './strimz-backend/dist/index.js' : path.join
 let backendProcess;
 
 ensureDefaultDownloadPath(store, DEFAULT_DOWNLOADS_PATH);
-setupIpcHandlers(ipcMain, store, dialog, shell, autoUpdater);
+setupIpcHandlers(app, ipcMain, store, dialog, shell, autoUpdater, isDev);
 
 app.whenReady().then(async () => {
   if (!process.env.IS_BACKEND_PROCESS) {
