@@ -1,10 +1,11 @@
-import { getSettings, saveSettings } from "../../services/localStorage";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface Settings {
-    path: string;
+    downloadsFolderPath: string;
     theme: "light" | "dark" | "system";
     loadOnScroll: boolean;
+    updateOnQuit: boolean;
+    clearOnExit: boolean;
 }
 
 interface SettingsState {
@@ -12,9 +13,11 @@ interface SettingsState {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-    path: '',
+    downloadsFolderPath: "",
     theme: "dark",
     loadOnScroll: false,
+    updateOnQuit: false,
+    clearOnExit: false,
 }
 
 const initialState: SettingsState = {
@@ -22,14 +25,12 @@ const initialState: SettingsState = {
 }
 
 export const fetchUserSettings = createAsyncThunk('settings/fetchUserSettings', async (): Promise<Settings> => {
-  const settings = getSettings();
+  const settings = await window.electronAPI.getSettings();
 
   if (!settings) {
-    const downloadsPath = await window.electronAPI.getDefaultDownloadsPath();
-
     return {
       ...DEFAULT_SETTINGS,
-      path: downloadsPath,
+      downloadsFolderPath: await window.electronAPI.getDefaultDownloadsPath(),
     }
   }
 
@@ -42,7 +43,6 @@ const settingsSlice = createSlice({
     reducers: {
       setSettings(state, action: PayloadAction<Settings>) {
         state.settings = action.payload;
-        saveSettings(action.payload);
       }
     },
     extraReducers: (builder) => {
@@ -50,7 +50,7 @@ const settingsSlice = createSlice({
         .addCase(fetchUserSettings.fulfilled, (state, action: PayloadAction<Settings>) => {
           state.settings = action.payload;
         })
-        .addCase(fetchUserSettings.rejected, (state, action) => {
+        .addCase(fetchUserSettings.rejected, (state) => {
           state.settings = DEFAULT_SETTINGS;
         })
     }
