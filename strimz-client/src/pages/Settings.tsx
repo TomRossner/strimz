@@ -124,7 +124,7 @@ const SettingsPage = () => {
                     </div>
 
                     <div className='flex w-full gap-2 flex-col'>
-                        <div className='w-full flex gap-4 items-center'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
                             <span className='flex gap-2 items-center'>Clear downloads on exit</span>
 
                             <div className="relative inline-block w-11 h-5">
@@ -146,7 +146,7 @@ const SettingsPage = () => {
                     </div>
 
                     <div className='flex w-full gap-2 flex-col'>
-                        <div className='w-full flex gap-4 items-center'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
                             <span className='flex gap-2 items-center'>Load on scroll</span>
 
                             <div className="relative inline-block w-11 h-5">
@@ -171,7 +171,7 @@ const SettingsPage = () => {
                     </div>
                     
                     <div className='flex w-full gap-2 flex-col'>
-                        <div className='w-full flex gap-4 items-center'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
                             <span className='flex gap-2 items-center'>Auto-update on quit</span>
 
                             <div className="relative inline-block w-11 h-5">
