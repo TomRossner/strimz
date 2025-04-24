@@ -1,8 +1,7 @@
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
 import store from '../store.js';
 import path from 'path';
 import fs from 'fs';
-import fsPromises from 'fs/promises';
 import { DEFAULT_DOWNLOADS_PATH } from '../constants.js';
 import electronUpdater from 'electron-updater';
 import { setupAutoUpdater } from './autoUpdater.js';

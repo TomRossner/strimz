@@ -2,12 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import http from 'http';
 import log from 'electron-log';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { app } from 'electron';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const isDev = !app.isPackaged;
 

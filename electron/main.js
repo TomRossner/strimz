@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, autoUpdater, BrowserWindow } from 'electron';
 import { createMainWindow } from './modules/mainWindow.js';
 import { startBackend, waitForBackendReady } from './modules/backend.js';
 import { attachIPCHandlers } from './modules/ipcHandlers.js';
@@ -14,7 +14,7 @@ let backendProcess;
 
 app.whenReady().then(async () => {
   ensureDefaultDownloadPath();
-  attachIPCHandlers(isDev); // Initialize IPC handlers
+  attachIPCHandlers(isDev);
 
   if (!process.env.IS_BACKEND_PROCESS) {
     log.info("Starting backend process...");
@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
       mainWindow = createMainWindow(isDev);
 
       if (!isDev) {
-        setupAutoUpdater(mainWindow); // Initialize auto-updater
+        setupAutoUpdater(mainWindow);
         autoUpdater.autoInstallOnAppQuit = store.get("autoInstallOnQuit");
         log.info("Checking for updates...");
         autoUpdater.checkForUpdatesAndNotify();
