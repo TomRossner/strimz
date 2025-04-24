@@ -127,18 +127,21 @@ const SettingsPage = () => {
                         <div className='w-full flex gap-4 items-center justify-between'>
                             <span className='flex gap-2 items-center'>Clear downloads on exit</span>
 
-                            <div className="relative inline-block w-11 h-5">
-                                <input
-                                    id="clearOnExit"
-                                    type="checkbox"
-                                    checked={formValues.clearOnExit}
-                                    onChange={handleClearOnExitChange}
-                                    className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
-                                />
-                                <label
-                                    htmlFor="clearOnExit"
-                                    className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
-                                />
+                            <div className='flex items-center grow justify-end gap-2'>
+                                <span>{formValues.clearOnExit ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input
+                                        id="clearOnExit"
+                                        type="checkbox"
+                                        checked={formValues.clearOnExit}
+                                        onChange={handleClearOnExitChange}
+                                        className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
+                                    />
+                                    <label
+                                        htmlFor="clearOnExit"
+                                        className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -149,21 +152,24 @@ const SettingsPage = () => {
                         <div className='w-full flex gap-4 items-center justify-between'>
                             <span className='flex gap-2 items-center'>Load on scroll</span>
 
-                            <div className="relative inline-block w-11 h-5">
-                                <input
-                                    id="loadOnScroll"
-                                    type="checkbox"
-                                    checked={formValues.loadOnScroll}
-                                    onChange={() => setFormValues(values => ({
-                                        ...values,
-                                        loadOnScroll: !values.loadOnScroll
-                                    }))}
-                                    className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
-                                />
-                                <label
-                                    htmlFor="loadOnScroll"
-                                    className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
-                                />
+                            <div className='flex items-center grow justify-end gap-2'>
+                                <span>{formValues.loadOnScroll ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input
+                                        id="loadOnScroll"
+                                        type="checkbox"
+                                        checked={formValues.loadOnScroll}
+                                        onChange={() => setFormValues(values => ({
+                                            ...values,
+                                            loadOnScroll: !values.loadOnScroll
+                                        }))}
+                                        className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
+                                    />
+                                    <label
+                                        htmlFor="loadOnScroll"
+                                        className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -174,18 +180,21 @@ const SettingsPage = () => {
                         <div className='w-full flex gap-4 items-center justify-between'>
                             <span className='flex gap-2 items-center'>Auto-update on quit</span>
 
-                            <div className="relative inline-block w-11 h-5">
-                                <input
-                                    id="updateOnQuit"
-                                    type="checkbox"
-                                    checked={formValues.updateOnQuit}
-                                    onChange={handleAutoUpdateChange}
-                                    className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
-                                />
-                                <label
-                                    htmlFor="updateOnQuit"
-                                    className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
-                                />
+                            <div className='flex items-center grow justify-end gap-2'>
+                                <span>{formValues.updateOnQuit ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input
+                                        id="updateOnQuit"
+                                        type="checkbox"
+                                        checked={formValues.updateOnQuit}
+                                        onChange={handleAutoUpdateChange}
+                                        className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300"
+                                    />
+                                    <label
+                                        htmlFor="updateOnQuit"
+                                        className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer"
+                                    />
+                                </div>
                             </div>
                         </div>
 
