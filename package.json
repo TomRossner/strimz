@@ -1,8 +1,8 @@
 {
     "name": "strimz",
-    "version": "1.1.7",
+    "version": "1.1.8",
     "main": "electron/main.js",
-    "description": "Strimz v1.1.7",
+    "description": "Strimz v1.1.8",
     "type": "module",
     "license": "MIT",
     "repository": {

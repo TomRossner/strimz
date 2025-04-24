@@ -84,7 +84,7 @@ export function attachIPCHandlers(isDev) {
 
     win.webContents.send('checking-for-update');
 
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    autoUpdater.checkForUpdates().catch((err) => {
       console.error('Error while checking for updates:', err);
       win.webContents.send('update-check-failed', err.message || 'Unknown error');
     });
