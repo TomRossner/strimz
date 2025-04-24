@@ -4,7 +4,7 @@ import log from 'electron-log';
 
 const { autoUpdater } = electronUpdater;
 
-export function setupAutoUpdater(win) {
+export function setupAutoUpdater(win, updateState) {
   autoUpdater.on('update-available', async () => {
     log.info("New update available");
     win.webContents.send('update-available');
@@ -46,6 +46,7 @@ export function setupAutoUpdater(win) {
 
   autoUpdater.on('update-downloaded', () => {
     log.info("Update downloaded");
+    updateState.downloaded = true;
     win.webContents.send('update-downloaded');
   });
 

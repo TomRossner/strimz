@@ -14,6 +14,8 @@ const isDev = !app.isPackaged;
 let mainWindow;
 let backendProcess;
 
+let updateState = { downloaded: false };
+
 app.whenReady().then(async () => {
   ensureDefaultDownloadPath();
   attachIPCHandlers(isDev);
@@ -27,7 +29,7 @@ app.whenReady().then(async () => {
       mainWindow = createMainWindow(isDev);
 
       if (!isDev) {
-        setupAutoUpdater(mainWindow);
+        setupAutoUpdater(mainWindow, updateState);
         autoUpdater.autoInstallOnAppQuit = store.get("autoInstallOnQuit");
         log.info("Checking for updates...");
         autoUpdater.checkForUpdatesAndNotify();
@@ -61,11 +63,16 @@ app.on('will-quit', async (event) => {
   const downloadsFolderPath = store.get('downloadsFolderPath');
   const shouldClear = store.get('clearOnExit', false);
 
+  const autoInstallOnQuit = store.get('autoInstallOnQuit');
+
   if (shouldClear && downloadsFolderPath) {
     event.preventDefault();
     try {
       await clearDownloadFolderAsync(downloadsFolderPath);
     } finally {
+      if (autoInstallOnQuit && updateState.downloaded) {
+        autoUpdater.quitAndInstall();
+      }
       app.exit();
     }
   }
