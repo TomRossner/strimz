@@ -1,4 +1,4 @@
-import { app, autoUpdater, BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { createMainWindow } from './modules/mainWindow.js';
 import { startBackend, waitForBackendReady } from './modules/backend.js';
 import { attachIPCHandlers } from './modules/ipcHandlers.js';
@@ -6,7 +6,9 @@ import { setupAutoUpdater } from './modules/autoUpdater.js';
 import { clearDownloadFolderAsync, ensureDefaultDownloadPath } from './modules/utils.js';
 import log from 'electron-log';
 import store from './store.js';
+import electronUpdater from "electron-updater";
 
+const { autoUpdater } = electronUpdater;
 const isDev = !app.isPackaged;
 
 let mainWindow;

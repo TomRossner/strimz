@@ -52,22 +52,10 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
     }
 
     useEffect(() => {
-        const checkingHandler = () => 
-            {
-                console.log('Received status "Checking"')
-                dispatch(setUpdateStatus('checking'))};
-        const availableHandler = () => 
-            {
-                console.log('Received status "Available"')
-                dispatch(setUpdateStatus('available'))};
-        const notAvailableHandler = () => 
-            {
-                console.log('Received status "Up to date"')
-                dispatch(setUpdateStatus('up-to-date'))};
-        const downloadedHandler = () => 
-            {
-                console.log('Received status "Downloaded"')
-                dispatch(setUpdateStatus('downloaded'))};
+        const checkingHandler = () => dispatch(setUpdateStatus('checking'));
+        const availableHandler = () => dispatch(setUpdateStatus('available'));
+        const notAvailableHandler = () => dispatch(setUpdateStatus('up-to-date'));
+        const downloadedHandler = () => dispatch(setUpdateStatus('downloaded'));
         
         const skippedHandler = (msg: string) => {
             dispatch(setUpdateStatus('skipped'));
