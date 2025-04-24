@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import { createMainWindow } from './modules/mainWindow.js';
 import { startBackend, waitForBackendReady } from './modules/backend.js';
 import { attachIPCHandlers } from './modules/ipcHandlers.js';
