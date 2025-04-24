@@ -1,9 +1,14 @@
 {
-    "name": "Strimz",
+    "name": "strimz",
     "version": "1.1.4",
     "main": "electron/main.js",
     "description": "Strimz v1.1.4",
     "type": "module",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/TomRossner/strimz.git"
+    },
     "author": {
         "email": "tomrossner2@gmail.com",
         "name": "Tom Rossner",
@@ -17,7 +22,7 @@
         "build:frontend": "cd strimz-client && npm run build",
         "build:backend": "cd strimz-backend && npm run build",
         "build:electron": "npm run build:frontend && npm run build:backend && electron-builder",
-        "build": "npm run build:electron"
+        "dist": "npm run build:electron"
     },
     "build": {
         "asar": true,
@@ -82,12 +87,13 @@
     "dependencies": {
         "electron-log": "^5.3.3",
         "electron-store": "^10.0.1",
-        "electron-updater": "^6.1.1"
+        "electron-updater": "^6.6.2",
+        "update-electron-app": "^3.1.1"
     },
     "devDependencies": {
         "concurrently": "^9.1.2",
         "electron": "^35.1.4",
-        "electron-builder": "^24.12.0",
+        "electron-builder": "^24.13.3",
         "wait-on": "^8.0.3"
     }
 }

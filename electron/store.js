@@ -1,10 +1,7 @@
-const Store = require("electron-store").default;
-const path = require("path");
-const { app } = require("electron");
+import ElectronStore from "electron-store";
+import { DEFAULT_DOWNLOADS_PATH } from "./constants.js";
 
-const DEFAULT_DOWNLOADS_PATH = path.join(app.getPath('downloads'), 'strimz');
-
-const store = new Store({
+const store = new ElectronStore({
     defaults: {
         downloadsFolderPath: DEFAULT_DOWNLOADS_PATH,
         autoInstallOnQuit: false,
@@ -14,7 +11,4 @@ const store = new Store({
     },
 });
 
-module.exports = {
-    store,
-    DEFAULT_DOWNLOADS_PATH,
-}
+export default store;
