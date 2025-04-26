@@ -4,7 +4,9 @@ import log from 'electron-log';
 
 const { autoUpdater } = electronUpdater;
 
-export function setupAutoUpdater(win, updateState) {
+export function setupAutoUpdater(win, updateStateParam) {
+  const updateState = updateStateParam || { downloaded: false };
+
   autoUpdater.removeAllListeners();
   
   autoUpdater.on('update-available', async () => {
