@@ -1,9 +1,10 @@
 import React from 'react';
 import { Qualities } from '../utils/qualities';
 import { Torrent } from '../utils/types';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setSelectedMovie } from '../store/movies/movies.slice';
 import Button from './Button';
+import { selectFavorites } from '@/store/movies/movies.selectors';
 
 export type Movie = {
   id: string;
@@ -66,6 +67,8 @@ const MovieCard = ({movie, setOpen}: Props) => {
 
   const dispatch = useAppDispatch();
 
+  const favorites = useAppSelector(selectFavorites);
+
   const handleClick = () => {
     dispatch(setSelectedMovie(movie));
     setOpen();
@@ -89,7 +92,8 @@ const MovieCard = ({movie, setOpen}: Props) => {
         duration-150
         hover:scale-[1.04]
         hover:border
-        hover:border-gray-400
+        ${favorites.has(movie.slug) && "border-2 border-yellow-300"}
+        ${favorites.has(movie.slug) ? "hover:border-yellow-300" : "hover:border-gray-300"}
         p-0
       `}
     >
