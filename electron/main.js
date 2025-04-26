@@ -64,15 +64,17 @@ app.on('will-quit', async (event) => {
   const shouldClear = store.get('clearOnExit', false);
 
   const autoInstallOnQuit = store.get('autoInstallOnQuit');
+  log.info("Auto install on quit: ", autoInstallOnQuit);
 
   if (shouldClear && downloadsFolderPath) {
     event.preventDefault();
     try {
       await clearDownloadFolderAsync(downloadsFolderPath);
-    } finally {
+      
       if (autoInstallOnQuit && updateState.downloaded) {
         autoUpdater.quitAndInstall();
       }
+    } finally {
       app.exit();
     }
   }
