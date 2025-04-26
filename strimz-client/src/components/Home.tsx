@@ -7,11 +7,6 @@ import { setUpdateStatus } from '@/store/updates/updates.slice';
 
 const Home = () => {
     const dispatch = useAppDispatch();
-
-    useEffect(() => {
-        dispatch(fetchUserSettings());
-    }, [dispatch]);
-
     const [isBackToTopBtnVisible, setIsBackToTopBtnVisible] = useState<boolean>(false);
 
     useEffect(() => {
@@ -27,6 +22,8 @@ const Home = () => {
     }, []);
 
     useEffect(() => {
+      dispatch(fetchUserSettings());
+
       const checkingHandler = () => dispatch(setUpdateStatus('checking'));
       const availableHandler = () => dispatch(setUpdateStatus('available'));
       const notAvailableHandler = () => dispatch(setUpdateStatus('up-to-date'));

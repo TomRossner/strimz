@@ -5,6 +5,8 @@ import log from 'electron-log';
 const { autoUpdater } = electronUpdater;
 
 export function setupAutoUpdater(win, updateState) {
+  autoUpdater.removeAllListeners();
+  
   autoUpdater.on('update-available', async () => {
     log.info("New update available");
     win.webContents.send('update-available');
