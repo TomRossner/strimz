@@ -20,6 +20,7 @@ declare global {
             getClearOnExitSetting: () => Promise<boolean>;
             getDownloadsFolderPath: () => Promise<string>;
             getSettings: () => Promise<Settings>;
+            checkVpnConnection: () => Promise<boolean>;
             
             onCheckingForUpdate: (cb) => void;
             onUpdateAvailable: (cb) => void;

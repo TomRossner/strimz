@@ -7,6 +7,7 @@ interface ModalsState {
   movie: boolean;
   menu: boolean;
   error: boolean;
+  vpn: boolean;
 }
 
 const initialState: ModalsState = {
@@ -15,6 +16,7 @@ const initialState: ModalsState = {
   movie: false,
   menu: false,
   error: false,
+  vpn: false,
 }
 
 const modalsSlice = createSlice({

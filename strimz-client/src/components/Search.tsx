@@ -8,6 +8,10 @@ import { selectFilters, selectQuery } from '../store/movies/movies.selectors';
 import { Filters } from '../utils/types';
 import Button from './Button';
 
+const scrollToTop = () => {
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
 const Search = () => {
     const [query, setQuery] = useState<string>('');
     const dispatch = useAppDispatch();
@@ -35,6 +39,7 @@ const Search = () => {
 
     const onFormSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
+        scrollToTop();
         dispatch(setFilters(params));
     }, [params, dispatch]);
 

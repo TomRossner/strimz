@@ -4,6 +4,7 @@ import { useAppDispatch } from '../store/hooks';
 import { fetchUserSettings } from '../store/settings/settings.slice';
 import BackToTop from './BackToTop';
 import { setUpdateStatus } from '@/store/updates/updates.slice';
+import { openModal } from '@/store/modals/modals.slice';
 
 const Home = () => {
     const dispatch = useAppDispatch();
@@ -23,6 +24,7 @@ const Home = () => {
 
     useEffect(() => {
       dispatch(fetchUserSettings());
+      dispatch(openModal('vpn'));
 
       const checkingHandler = () => dispatch(setUpdateStatus('checking'));
       const availableHandler = () => dispatch(setUpdateStatus('available'));

@@ -19,9 +19,12 @@ import MovieDialog from './components/dialog/MovieDialog';
 import TrailerPlayer from './components/TrailerPlayer';
 import { DEFAULT_PARAMS } from './utils/constants';
 import Overlay from './components/Overlay';
-import { selectFiltersModal, selectMenu, selectMovieModal, selectTrailerModal } from './store/modals/modals.selectors';
+import { selectFiltersModal, selectMenu, selectMovieModal, selectTrailerModal, selectVpnModal } from './store/modals/modals.selectors';
 import Nav from './components/Nav';
 import Menu from './components/Menu';
+import VpnReminderDialog from './components/VpnReminderDialog';
+import { selectIsVpnActive } from './store/vpn/vpn.selectors';
+import { setIsActive } from './store/vpn/vpn.slice';
 
 const MoviesPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -38,10 +41,25 @@ const MoviesPage = () => {
   const isMovieDialogOpen = useAppSelector(selectMovieModal);
   const isTrailerDialogOpen = useAppSelector(selectTrailerModal);
   const isMenuOpen = useAppSelector(selectMenu);
+  const isVpnDialogOpen = useAppSelector(selectVpnModal);
 
   const isOverlayActive = useMemo(() => {
-      return isFiltersDialogOpen || isMenuOpen || isMovieDialogOpen || isTrailerDialogOpen;
-  }, [isFiltersDialogOpen, isMenuOpen, isMovieDialogOpen, isTrailerDialogOpen]);
+    return (
+      isFiltersDialogOpen ||
+      isMenuOpen ||
+      isMovieDialogOpen ||
+      isTrailerDialogOpen ||
+      isVpnDialogOpen
+    );
+  }, [
+    isFiltersDialogOpen,
+    isMenuOpen,
+    isMovieDialogOpen,
+    isTrailerDialogOpen,
+    isVpnDialogOpen
+  ]);
+
+  const isVpnActive = useAppSelector(selectIsVpnActive);
 
   const selectedMovie = useAppSelector(selectMovie);
 
@@ -59,6 +77,19 @@ const MoviesPage = () => {
       ));
   }, [dispatch]);
 
+  const checkVpn = async () => {
+    const isActive = await window.electronAPI.checkVpnConnection();
+    dispatch(setIsActive(isActive));
+  }
+
+  const CHECK_VPN_INTERVAL_DELAY: number = 3000;
+
+  let checkVpnInterval = null;
+
+  if (process.env.NODE_ENV === 'production') {
+    checkVpnInterval = setInterval(checkVpn, CHECK_VPN_INTERVAL_DELAY);
+  }
+
   useEffect(() => {
     ping()
       .catch(handleError)
@@ -70,9 +101,19 @@ const MoviesPage = () => {
           : setIsLoading(false)
       ));
 
-      dispatch(fetchWatchListAsync(getWatchList()));
-      dispatch(fetchFavoritesAsync(getFavorites()));
+    dispatch(fetchWatchListAsync(getWatchList()));
+    dispatch(fetchFavoritesAsync(getFavorites()));
   }, []);
+
+  useEffect(() => {
+    if (isVpnActive) {
+      clearInterval(checkVpnInterval as NodeJS.Timeout);
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      dispatch(setIsActive(true));
+    }
+  }, [isVpnActive, checkVpnInterval, dispatch]);
 
   if (error && !filters.query_term && !filters.genre) return (
     <ErrorDialog btnText='Quit' onClose={() => window.electronAPI.quitApp()} />
@@ -85,6 +126,7 @@ const MoviesPage = () => {
       <TrailerPlayer title={selectedMovie?.title ?? ""} yt_trailer_code={selectedMovie?.yt_trailer_code} />
       <MovieDialog />
       <FiltersDialog />
+      <VpnReminderDialog isActive={isVpnActive} />
 
       <Menu />
       <Nav withSearchBar={pathname === '/'} />

@@ -73,12 +73,11 @@ export const handleFetchMovies = async (req: Request, res: Response): Promise<vo
 
 export const searchMovies = async (req: Request, res: Response): Promise<void | Response<any, Record<string, any>>> => {
     try {
-        const {genre, sort_by, order_by} = req.query;
+        const { genre, sort_by, order_by } = req.query;
 
         const languages = Array.isArray(req.query.languages) ? req.query.languages : [];
 
         const languagesMap = new Map();
-
         for (const lang of languages) {
             if (!languagesMap.has(lang)) {
                 languagesMap.set(lang, true);
@@ -88,26 +87,44 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
         const minRating = req.query.minimum_rating ? parseInt(req.query.minimum_rating.toString()) : 0;
         const page = req.query.page ? parseInt(req.query.page.toString()) : PAGE_NUMBER;
         const limit = req.query.limit ? parseInt(req.query.limit.toString()) : FETCH_LIMIT;
-        const query_term = req.query.query_term ? getCorrected(req.query.query_term as string) : '';
+        const originalQueryTerm = req.query.query_term?.toString() || '';
+        const correctedQueryTerm = getCorrected(originalQueryTerm);
 
         const filters: Filters = {
             genre: genre as string,
             minRating,
             orderBy: order_by as string,
             sortBy: sort_by as string
-        }
-        
-        const moviesResponseObject = await getAllMovies(filters, page, limit, query_term as string);
+        };
 
-        const filteredMovies = (moviesResponseObject.data.movies ?? []).filter(
-            (m: Record<string, unknown>) => languagesMap.has(m.language)
+        const [originalResponse, correctedResponse] = await Promise.all([
+            getAllMovies(filters, page, limit, originalQueryTerm),
+            (correctedQueryTerm.length && (correctedQueryTerm !== originalQueryTerm))
+                ? getAllMovies(filters, page, limit, correctedQueryTerm)
+                : Promise.resolve({ data: { movies: [] } })
+        ]);
+
+        const movieMap = new Map<string, Record<string, unknown>>();
+
+        for (const movie of originalResponse.data.movies || []) {
+            movieMap.set(movie.id, movie);
+        }
+
+        for (const movie of correctedResponse.data.movies || []) {
+            movieMap.set(movie.id, movie);
+        }
+
+        const allMovies = Array.from(movieMap.values());
+
+        const filteredMovies = allMovies.filter(
+            (m: Record<string, unknown>) => !languages.length || languagesMap.has(m.language)
         );
 
         res.status(200).json({
-            ...moviesResponseObject,
+            ...originalResponse,
             data: {
-                ...moviesResponseObject.data,
-                movies: filteredMovies.length ? filteredMovies : moviesResponseObject.data.movies
+                ...originalResponse.data,
+                movies: filteredMovies
             }
         });
     } catch (error) {
@@ -115,7 +132,7 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
         if ((error as Error).message) {
             return res.status(400).send((error as Error).message);
         }
-        
+
         res.status(400).send(error);
     }
 }

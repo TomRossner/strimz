@@ -1,6 +1,6 @@
 {
   "name": "electron",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "main": "main.js",
   "type": "module",
   "scripts": {
@@ -14,7 +14,9 @@
     "electron": "^35.1.4"
   },
   "dependencies": {
+    "dotenv": "^16.5.0",
     "electron-log": "^5.3.3",
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "proxycheck-ts": "^0.0.11"
   }
 }

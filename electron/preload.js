@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getClearOnExitSetting: async () => await ipcRenderer.invoke('get-clear-on-exit-setting'),
   getDownloadsFolderPath: async () => await ipcRenderer.invoke('get-downloads-folder-path'),
   getSettings: async () => await ipcRenderer.invoke('get-settings'),
+  checkVpnConnection: async () => await ipcRenderer.invoke('check-vpn-connection'),
 
   onCheckingForUpdate: (cb) => ipcRenderer.on('checking-for-update', cb),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', cb),

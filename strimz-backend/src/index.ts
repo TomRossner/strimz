@@ -12,6 +12,7 @@ import cors from 'cors';
 import MoviesRouter from './routes/movies.routes.js';
 import WatchRouter from "./routes/watch.routes.js";
 import sseRouter from "./routes/sse.routes.js";
+import subtitlesRouter from './routes/subtitles.routes.js';
 
 const app = express();
 const PORT: number = parseInt(process.env.PORT as string) || 3003;
@@ -38,6 +39,7 @@ app.use('/api/ping', (req: Request, res: Response) => {
 app.use('/api/movies', MoviesRouter);
 app.use('/api/watch', WatchRouter);
 app.use('/api/sse', sseRouter);
+app.use('/api/subtitles', subtitlesRouter);
 
 const init = async (): Promise<void> => {
     try {

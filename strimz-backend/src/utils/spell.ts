@@ -32,7 +32,7 @@ export const getCorrected = (str: string): string => {
             if (fallback) return fallback;
         
             return suggestions[0];
-        }).join(" ");
+        }).filter(Boolean).join(" ");
     }
     console.log("Corrected: ", corrected);
     return corrected;

@@ -5,6 +5,7 @@ import fs from 'fs';
 import { DEFAULT_DOWNLOADS_PATH } from '../constants.js';
 import electronUpdater from 'electron-updater';
 import { setupAutoUpdater } from './autoUpdater.js';
+import { checkVpn } from './checkVpn.js';
 
 const { autoUpdater } = electronUpdater;
 
@@ -53,6 +54,10 @@ export function attachIPCHandlers(isDev) {
 
   ipcMain.handle('get-settings', () => {
     return store.store;
+  });
+  
+  ipcMain.handle('check-vpn-connection', () => {
+    return checkVpn(isDev);
   });
 
   ipcMain.on('subscribe-to-updates', (event) => {
