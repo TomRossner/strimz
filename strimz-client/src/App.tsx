@@ -103,15 +103,19 @@ const MoviesPage = () => {
 
     dispatch(fetchWatchListAsync(getWatchList()));
     dispatch(fetchFavoritesAsync(getFavorites()));
+
+    checkVpn();
   }, []);
 
   useEffect(() => {
     if (isVpnActive) {
       clearInterval(checkVpnInterval as NodeJS.Timeout);
+      return;
     }
     
     if (process.env.NODE_ENV === 'development') {
       dispatch(setIsActive(true));
+      return;
     }
   }, [isVpnActive, checkVpnInterval, dispatch]);
 
