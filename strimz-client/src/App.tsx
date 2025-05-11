@@ -24,7 +24,6 @@ import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
 import { selectIsVpnActive } from './store/vpn/vpn.selectors';
-import { setIsActive } from './store/vpn/vpn.slice';
 
 const MoviesPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -77,47 +76,18 @@ const MoviesPage = () => {
       ));
   }, [dispatch]);
 
-  const checkVpn = async () => {
-    const isActive = await window.electronAPI.checkVpnConnection();
-    dispatch(setIsActive(isActive));
-  }
-
-  const CHECK_VPN_INTERVAL_DELAY: number = 3000;
-
-  let checkVpnInterval = null;
-
-  if (process.env.NODE_ENV === 'production') {
-    checkVpnInterval = setInterval(checkVpn, CHECK_VPN_INTERVAL_DELAY);
-  }
-
   useEffect(() => {
     ping()
       .catch(handleError)
       .finally(() => (
         !moviesMap.size
-          ? setTimeout(() => {
-              setIsLoading(false);
-            }, 1000)
+          ? setTimeout(() => setIsLoading(false), 1000)
           : setIsLoading(false)
       ));
 
     dispatch(fetchWatchListAsync(getWatchList()));
     dispatch(fetchFavoritesAsync(getFavorites()));
-
-    checkVpn();
   }, []);
-
-  useEffect(() => {
-    if (isVpnActive) {
-      clearInterval(checkVpnInterval as NodeJS.Timeout);
-      return;
-    }
-    
-    if (process.env.NODE_ENV === 'development') {
-      dispatch(setIsActive(true));
-      return;
-    }
-  }, [isVpnActive, checkVpnInterval, dispatch]);
 
   if (error && !filters.query_term && !filters.genre) return (
     <ErrorDialog btnText='Quit' onClose={() => window.electronAPI.quitApp()} />
