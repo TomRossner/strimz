@@ -2,11 +2,14 @@ import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
 import store from '../store.js';
 import path from 'path';
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 import { DEFAULT_DOWNLOADS_PATH } from '../constants.js';
 import electronUpdater from 'electron-updater';
 import { setupAutoUpdater } from './autoUpdater.js';
 import { checkVpn } from './checkVpn.js';
 import { checkDisk } from './checkDiskSpace.js';
+import chardet from "chardet";
+import iconv from "iconv-lite";
 
 const { autoUpdater } = electronUpdater;
 
@@ -40,6 +43,33 @@ export function attachIPCHandlers(isDev) {
     store.set('downloadsFolderPath', finalPath);
 
     return finalPath;
+  });
+
+  ipcMain.handle('open-subtitle-file-dialog', async () => {
+    const res = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Subtitle Files', extensions: ['srt', 'vtt', 'sub', 'sbv', 'ass', 'ssa'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (res.canceled || res.filePaths.length === 0) return null;
+
+    return res.filePaths[0];
+  });
+
+  ipcMain.handle('read-subtitle-file', async (event, filePath) => {
+    try {
+      const buffer = await fsPromises.readFile(filePath);
+      const encoding = chardet.detect(buffer) || 'utf8';
+      const content = iconv.decode(buffer, encoding);
+      
+      return content;
+    } catch (err) {
+      console.error('Failed to read subtitle file:', err);
+      return null;
+    }
   });
 
   ipcMain.handle('get-downloads-folder-path', () => {

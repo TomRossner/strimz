@@ -25,6 +25,8 @@ interface MoviesState {
   lastFetchParams: Filters | null;
   favorites: Map<string, Movie>;
   watchList: Map<string, Movie>;
+  subtitleFilePath: string | null;
+  subtitleLang: string | null;
 }
 
 const initialState: MoviesState = {
@@ -41,6 +43,8 @@ const initialState: MoviesState = {
   lastFetchParams: null,
   favorites: new Map(),
   watchList: new Map(),
+  subtitleFilePath: null,
+  subtitleLang: null,
 }
 
 type FetchMoviesAsync = {
@@ -193,6 +197,12 @@ const moviesSlice = createSlice({
     },
     setWatchList: (state, action: PayloadAction<Map<string, Movie>>) => {
       state.watchList = action.payload;
+    },
+    setSubtitleFilePath: (state, action: PayloadAction<string | null>) => {
+      state.subtitleFilePath = action.payload;
+    },
+    setSubtitleLang: (state, action: PayloadAction<string | null>) => {
+      state.subtitleLang = action.payload;
     }
   },
   extraReducers: (builder) => {
@@ -270,6 +280,8 @@ export const {
   setLastFetchParams,
   setFavorites,
   setWatchList,
+  setSubtitleFilePath,
+  setSubtitleLang,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

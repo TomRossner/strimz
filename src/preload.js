@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSetting: (key, value) => ipcRenderer.send(CHANNELS.SAVE_SETTING, key, value),
   
   openDirectoryDialog: async () => await ipcRenderer.invoke('open-directory-dialog'),
+  openSubtitleFileDialog: async () => await ipcRenderer.invoke('open-subtitle-file-dialog'),
   getDefaultDownloadsPath: async () => await ipcRenderer.invoke('get-default-downloads-path'),
   getAutoInstallSetting: async () => await ipcRenderer.invoke('get-auto-install-setting'),
   getClearOnExitSetting: async () => await ipcRenderer.invoke('get-clear-on-exit-setting'),
@@ -30,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: async () => await ipcRenderer.invoke('get-settings'),
   checkVpnConnection: async () => await ipcRenderer.invoke('check-vpn-connection'),
   checkDiskSpace: async () => await ipcRenderer.invoke('check-disk-space'),
+  readSubtitleFile: async (filePath) => await ipcRenderer.invoke('read-subtitle-file', filePath),
 
   onCheckingForUpdate: (cb) => ipcRenderer.on('checking-for-update', cb),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', cb),

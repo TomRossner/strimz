@@ -9,6 +9,9 @@ import PlayButton from './PlayButton';
 import MobileCoverSpacer from './MobileCoverSpacer';
 import Metadata from './Metadata';
 import { useNavigate } from 'react-router-dom';
+import { useAppDispatch } from '@/store/hooks';
+import { setSubtitleFilePath } from '@/store/movies/movies.slice';
+import SubtitlesSelector from './SubtitlesSelector';
 
 interface MovieInfoPanelProps {
     movie: Movie;
@@ -24,6 +27,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
     } = movie;
 
     const navigate = useNavigate();
+    const dispatch = useAppDispatch();
     const [hash, setHash] = useState<string>('');
     const [selectedQuality, setSelectedQuality] = useState<string>('');
 
@@ -42,6 +46,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         close();
         setHash('');
         setSelectedQuality('');
+        dispatch(setSubtitleFilePath(null));
     }
 
     const handleTorrentSelect = (hash: string) => {
@@ -72,11 +77,11 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
                 <TorrentSelector handleSelect={handleTorrentSelect} quality={selectedQuality} torrents={torrents} hash={hash} />
             </div>
 
+            <SubtitlesSelector />
+            
             <FileSize size={selectedTorrent?.size} selectedTorrent={selectedTorrent} />
 
             <div className='flex w-full items-center justify-center flex-col py-1 gap-1'>
-                <p className='italic w-full mx-auto text-white font-thin md:text-center text-sm rounded-sm'>Note: Higher quality torrents may take more time to load.</p>
-
                 <PlayButton isDisabled={!selectedTorrent || !selectedQuality} onPlay={handlePlay} />
             </div>
         </div>

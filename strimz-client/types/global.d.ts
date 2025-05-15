@@ -15,6 +15,7 @@ declare global {
             saveSetting: (key: string, value: unknown) => void;
             
             openDirectoryDialog: () => Promise<string | null>;
+            openSubtitleFileDialog: () => Promise<string | null>;
             getDefaultDownloadsPath: () => Promise<string>;
             getAutoInstallSetting: () => Promise<boolean>;
             getClearOnExitSetting: () => Promise<boolean>;
@@ -22,6 +23,7 @@ declare global {
             getSettings: () => Promise<Settings>;
             checkVpnConnection: () => Promise<boolean>;
             checkDiskSpace: () => Promise<unknown>;
+            readSubtitleFile: (filePath: string) => Promise<string | null>;
             
             onCheckingForUpdate: (cb) => void;
             onUpdateAvailable: (cb) => void;

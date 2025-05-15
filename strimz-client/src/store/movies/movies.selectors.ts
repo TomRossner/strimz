@@ -13,3 +13,5 @@ export const selectMovie = (state: RootState) => state.movies.selectedMovie;
 export const selectLastFetchParams = (state: RootState) => state.movies.lastFetchParams;
 export const selectFavorites = (state: RootState) => state.movies.favorites;
 export const selectWatchList = (state: RootState) => state.movies.watchList;
+export const selectSubtitleFilePath = (state: RootState) => state.movies.subtitleFilePath;
+export const selectSubtitleLang = (state: RootState) => state.movies.subtitleLang;

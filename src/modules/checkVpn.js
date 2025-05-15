@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-config({ path: path.resolve(__dirname, '..', '.env') });
+config({ path: path.resolve(__dirname, '../../', '.env') });
 
 export async function checkVpn(isDev) {
   if (isDev) return true;

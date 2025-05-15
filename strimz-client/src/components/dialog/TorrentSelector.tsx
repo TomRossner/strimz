@@ -1,6 +1,7 @@
 import { Torrent } from '../../utils/types';
 import React from 'react';
 import { BiMovie } from 'react-icons/bi';
+import { BsInfoCircle } from 'react-icons/bs';
 import { twMerge } from 'tailwind-merge';
 
 interface TorrentSelectorProps {
@@ -15,7 +16,10 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
     <div className='flex flex-col gap-5 w-full'>
         <p className='text-white flex items-center gap-1'>
             <BiMovie className='text-xl' />
-            Available torrents
+            <span className='flex items-center gap-2'>
+                Available torrents
+                <BsInfoCircle className='text-blue-500' title='Higher seed and peer counts mean faster, more reliable downloads.' />
+            </span>
         </p>
 
         <div className='flex flex-col gap-2 grow w-full max-h-[75px] overflow-y-auto'>
@@ -39,11 +43,9 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
                                 w-full
                                 text-center
                                 rounded-sm
-                                bg-stone-800
-                                hover:bg-stone-700
                                 text-white
                                 p-1
-                                ${t.hash === hash && 'bg-blue-400'}
+                                ${t.hash === hash ? 'bg-blue-500 hover:bg-blue-400' : 'bg-stone-800 hover:bg-stone-700'}
                             `)}
                         >
                             {t.peers} peers / {t.seeds} seeds

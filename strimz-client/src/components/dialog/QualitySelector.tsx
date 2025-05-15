@@ -1,6 +1,7 @@
 import { Qualities } from '../../utils/qualities';
 import { Torrent } from '../../utils/types';
 import React, { ChangeEvent } from 'react';
+import { BsInfoCircle } from 'react-icons/bs';
 import { MdOutlineHighQuality } from 'react-icons/md';
 import { twMerge } from 'tailwind-merge';
 
@@ -27,7 +28,10 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
     <div className='flex flex-col gap-5 w-full'>
         <p className='text-white flex items-center gap-1'>
             <MdOutlineHighQuality className='text-2xl' />
-            Quality
+            <span className='flex items-center gap-2'>
+                Quality
+                <BsInfoCircle className='text-blue-500' title='Higher quality torrents may take more time to load.' />
+            </span>
         </p>
 
         <select
