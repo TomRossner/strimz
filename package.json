@@ -1,7 +1,7 @@
 {
     "name": "strimz",
     "version": "1.2.6",
-    "main": "main.js",
+    "main": "src/main.js",
     "description": "Strimz v1.2.6",
     "type": "module",
     "license": "MIT",
@@ -32,11 +32,11 @@
             "node_modules/sharp",
             "**\\*.{node,dll}"
         ],
-        "icon": "./assets/strimzicon.ico",
+        "icon": "./src/assets/strimzicon.ico",
         "appId": "com.strimz.app",
         "productName": "Strimz",
         "directories": {
-            "buildResources": "assets",
+            "buildResources": "src/assets",
             "output": "dist"
         },
         "files": [
@@ -45,7 +45,9 @@
             "buildResources/**/*",
             "dist/**/*",
             "node_modules/dotenv/**/*",
-            "package.json"
+            "package.json",
+            "src/**/*",
+            ".env"
         ],
         "extraResources": [
             {
