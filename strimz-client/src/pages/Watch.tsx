@@ -6,6 +6,7 @@ import { setError, setIsLoading } from '../store/movies/movies.slice';
 import LoadingScreen from '../components/LoadingScreen';
 import { selectSettings } from '../store/settings/settings.selectors';
 import VidStackPlayer from '@/components/VidStackPlayer';
+import { selectSocket } from '@/store/socket/socket.selectors';
 
 const WatchMoviePage = () => {
     const [searchParams] = useSearchParams();
@@ -21,10 +22,14 @@ const WatchMoviePage = () => {
     const title = searchParams.get('title');
     const hash = searchParams.get('hash');
 
-    const statusUrl = `${API_URL}/sse/status/${slug}?hash=${hash}&title=${title}&dir=${settings.downloadsFolderPath}`;
+    const socket = useAppSelector(selectSocket);
+
     const streamUrl = `${WATCH_MOVIE_URL}${slug}?hash=${hash}`;
     
     useEffect(() => {
+        if (!socket?.id) return;
+
+        const statusUrl = `${API_URL}/sse/status/${slug}?hash=${hash}&title=${title}&dir=${settings.downloadsFolderPath}&sid=${socket.id}`;
         const eventSource = new EventSource(statusUrl);
     
         eventSource.addEventListener('message', (event) => {
@@ -47,7 +52,6 @@ const WatchMoviePage = () => {
                 dispatch(setIsLoading(false));
             } else {
                 console.log("SSE error due to client-initiated close, ignored.");
-                // dispatch(closeModal('movie'));
             }
             dispatch(setError("Failed starting stream. Please restart the app and try again."));
             eventSource.close();
@@ -56,11 +60,11 @@ const WatchMoviePage = () => {
         return () => {
             eventSource.close();
         }
-    }, []);
+    }, [socket?.id]);
 
     return videoSrc
         ? <VidStackPlayer movieSrc={videoSrc} />
-        : <LoadingScreen />;
+        : <LoadingScreen hash={hash as string} />;
 }
 
 export default WatchMoviePage;

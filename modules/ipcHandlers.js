@@ -6,6 +6,7 @@ import { DEFAULT_DOWNLOADS_PATH } from '../constants.js';
 import electronUpdater from 'electron-updater';
 import { setupAutoUpdater } from './autoUpdater.js';
 import { checkVpn } from './checkVpn.js';
+import { checkDisk } from './checkDiskSpace.js';
 
 const { autoUpdater } = electronUpdater;
 
@@ -58,6 +59,10 @@ export function attachIPCHandlers(isDev) {
   
   ipcMain.handle('check-vpn-connection', () => {
     return checkVpn(isDev);
+  });
+  
+  ipcMain.handle('check-disk-space', () => {
+    return checkDisk(store.get('downloadsFolderPath'));
   });
 
   ipcMain.on('subscribe-to-updates', (event) => {

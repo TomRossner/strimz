@@ -72,7 +72,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
                 <TorrentSelector handleSelect={handleTorrentSelect} quality={selectedQuality} torrents={torrents} hash={hash} />
             </div>
 
-            <FileSize size={selectedTorrent?.size} />
+            <FileSize size={selectedTorrent?.size} selectedTorrent={selectedTorrent} />
 
             <div className='flex w-full items-center justify-center flex-col py-1 gap-1'>
                 <p className='italic w-full mx-auto text-white font-thin md:text-center text-sm rounded-sm'>Note: Higher quality torrents may take more time to load.</p>

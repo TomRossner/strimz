@@ -1,7 +1,7 @@
 {
   "name": "strimz-client",
   "private": true,
-  "version": "1.2.5",
+  "version": "1.2.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,11 +16,13 @@
     "@vidstack/react": "^1.12.13",
     "axios": "^1.8.4",
     "framer-motion": "^12.6.5",
+    "media-icons": "^1.1.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.5.0",
+    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.2.0"
   },
   "devDependencies": {

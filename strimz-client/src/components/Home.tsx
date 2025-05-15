@@ -1,14 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import MoviesList from './MoviesList';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchUserSettings } from '../store/settings/settings.slice';
 import BackToTop from './BackToTop';
 import { setUpdateStatus } from '@/store/updates/updates.slice';
 import { openModal } from '@/store/modals/modals.slice';
+import { selectIsVpnActive } from '@/store/vpn/vpn.selectors';
+import { selectSocket } from '@/store/socket/socket.selectors';
+import { io } from 'socket.io-client';
+import { SERVER_URL } from '@/utils/constants';
+import { setSocket } from '@/store/socket/socket.slice';
 
 const Home = () => {
     const dispatch = useAppDispatch();
     const [isBackToTopBtnVisible, setIsBackToTopBtnVisible] = useState<boolean>(false);
+
+    const isVpnActive = useAppSelector(selectIsVpnActive);
+
+    const socket = useAppSelector(selectSocket);
 
     useEffect(() => {
       const handleBackToTopButton = () => {
@@ -23,8 +32,23 @@ const Home = () => {
     }, []);
 
     useEffect(() => {
+      if (!socket) {
+        const newSocket = io(SERVER_URL, {
+          transports: ['websocket'],
+        });
+
+        dispatch(setSocket(newSocket));
+      }
+    }, [socket, dispatch]);
+
+    useEffect(() => {
+      if (!isVpnActive) {
+        dispatch(openModal('vpn'));
+      }
+    }, [dispatch, isVpnActive]);
+
+    useEffect(() => {
       dispatch(fetchUserSettings());
-      dispatch(openModal('vpn'));
 
       const checkingHandler = () => dispatch(setUpdateStatus('checking'));
       const availableHandler = () => dispatch(setUpdateStatus('available'));

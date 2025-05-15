@@ -38,10 +38,10 @@ const Menu = () => {
             text: "Settings",
             icon: <IoSettingsSharp />
         },
-        {
-            text: "Report a bug",
-            icon: <MdBugReport />
-        },
+        // {
+        //     text: "Report a bug",
+        //     icon: <MdBugReport />
+        // },
     ]
     
     const isMenuOpen = useAppSelector(selectMenu);

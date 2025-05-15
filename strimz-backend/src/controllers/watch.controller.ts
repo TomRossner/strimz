@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import WebTorrent from "webtorrent";
-import { BASE_DIR, VideoExtensions } from "../utils/constants.js";
+import { VideoExtensions } from "../utils/constants.js";
 import { addTrackersToMagnet, encodeMovieNameToMagnet } from "../utils/magnet.js";
 import path from "path";
 import fs from "fs";
+import { ioServer } from "../index.js";
 
 let client: WebTorrent.Instance | null = null;
 const activeTorrents: Map<string, WebTorrent.Torrent> = new Map();
@@ -21,8 +22,17 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
             return res.status(404).json({ error: "File not found. Please try again using with a different torrent." });
         }
 
+        const hash = torrent.infoHash.toLowerCase();
+
         const range = req.headers.range;
         const fileSize = file.length;
+
+        req.on('close', () => {
+            if (activeTorrents.has(hash)) {
+                torrent.pause();
+                torrent.files.forEach(file => file.deselect());
+            }
+        });
 
         if (range) {
             const parts = range.replace(/bytes=/, "").split("-");
@@ -48,6 +58,11 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
 
             stream.on("error", (err) => {
                 if (stream.readable) {
+                    
+                    if (torrent.paused) {
+                        torrent.resume();
+                    }
+                    
                     stream.resume();
                     return;
                 }
@@ -87,8 +102,8 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
 const pauseOtherTorrents = (currentHash: string) => {
     activeTorrents.forEach((torrent, hash) => {
         if (hash !== currentHash && !torrent.paused) {
-            console.log(`Pausing torrent: ${hash}`);
             torrent.pause();
+            torrent.files.forEach(file => file.deselect());
         }
     });
 }
@@ -96,13 +111,14 @@ const pauseOtherTorrents = (currentHash: string) => {
 export const pauseMovieStream = async (req: Request, res: Response) => {
     try {
         const { hash } = req.params;
-        console.log(hash)
-
+        
         if (!hash) {
             return res.status(400).json({ error: "Could not pause download. Missing torrent hash." });
         }
 
-        const torrent = activeTorrents.get(hash as string);
+        const hashStr = String(hash).toLowerCase();
+
+        const torrent = activeTorrents.get(hashStr);
 
         if (!torrent) {
             return res.status(404).json({ error: "Torrent not found" });
@@ -110,13 +126,7 @@ export const pauseMovieStream = async (req: Request, res: Response) => {
 
         if (!torrent.paused) {
             torrent.pause();
-            console.log(`Torrent ${hash} paused.`);
-        }
-
-        const MIN_TORRENT_PROGRESS: number = 0.15;
-        if (torrent.progress <= MIN_TORRENT_PROGRESS) {
-            torrent.destroy();
-            activeTorrents.delete(hash as string);
+            torrent.files.forEach(file => file.deselect());
         }
 
         return res.status(200).json({ message: "Torrent paused" });
@@ -128,129 +138,132 @@ export const pauseMovieStream = async (req: Request, res: Response) => {
 
 export const watchMovieStatus = async (req: Request, res: Response) => {
     try {
-        const { hash, title, dir } = req.query;
+        const { hash, title, dir, sid } = req.query;
 
-        if (!hash || !title || !dir) {
+        if (!hash || !title || !dir || !sid) {
             return res.status(400).json({ error: "Stream failed. Please restart the app and try again." });
         }
 
-        const magnetLink: string = addTrackersToMagnet(
-            encodeMovieNameToMagnet(hash as string, title as string)
-        );
-
-        const requestedDir = dir ? path.resolve(dir as string) : BASE_DIR;
+        const hashStr = String(hash).toLowerCase();
+        const requestedDir = path.resolve(dir as string);
+        const magnetLink = addTrackersToMagnet(encodeMovieNameToMagnet(hashStr, title as string));
 
         if (!fs.existsSync(requestedDir)) {
             fs.mkdirSync(requestedDir, { recursive: true });
         }
 
-        if (!client) {
-            client = new WebTorrent();
-
-            client.on("error", (clientErr) => {
-                console.error("WebTorrent Client Error:", clientErr);
-                if (!res.headersSent) {
-                    res.writeHead(500, {
-                        "Content-Type": "text/event-stream",
-                        "Cache-Control": "no-cache",
-                        "Connection": "keep-alive",
-                    });
-                    res.write(`data: ${JSON.stringify({ error: "WebTorrent client error" })}\n\n`);
-                    res.end();
-                }
-                if (client) {
-                    client.destroy();
-                    client = null;
-                }
-            });
-        }
-
-        const hashStr = hash as string;
-        const torrentInClient = activeTorrents.get(hashStr);
-
-        if (torrentInClient) {
-            console.log("Already in client, playing...");
-            res.writeHead(200, {
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-            });
-            res.write(`data: ${JSON.stringify("Video is ready")}\n\n`);
-            res.end();
-            return;
-        }
-
-        res.writeHead(200, {
+        const headers = {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-        });
-        res.flushHeaders();
-
-        if (addingTorrents.has(hashStr)) {
-            const torrent = await addingTorrents.get(hashStr);
-            if (torrent) {
-                res.write(`data: ${JSON.stringify("Movie is ready")}\n\n`);
-                res.end();
-                return;
-            }
         }
 
-        const addTorrentPromise = new Promise<WebTorrent.Torrent>((resolve, reject) => {
-            client!.add(
-                magnetLink,
-                {
-                    path: requestedDir,
-                    destroyStoreOnDestroy: false,
-                    storeCacheSlots: 0,
-                },
-                (torrent) => {
-                    activeTorrents.set(hashStr, torrent);
-                    torrent.on("error", (torrentErr) => {
-                        console.error("Torrent Error:", torrentErr);
-                        torrent.destroy();
-                        activeTorrents.delete(hashStr);
-                        reject(torrentErr);
-                    });
-                    resolve(torrent);
-                }
-            );
-        });
+        if (!client) {
+            client = new WebTorrent();
 
-        addingTorrents.set(hashStr, addTorrentPromise);
-
-        addTorrentPromise
-            .then((torrent) => {
-                let videoReadySent = false;
-                torrent.on('download', () => {
-                    if ((torrent.progress * 100) >= 1 && !videoReadySent) {
-                        addingTorrents.delete(hashStr);
-                        res.write(`data: ${JSON.stringify("Movie is ready")}\n\n`);
-                        videoReadySent = true;
-                        res.end();
-                    }
-                })
-
-                torrent.on('error', (torrentErr) => {
-                    console.error(`Torrent Error (${hashStr}):`, torrentErr);
-                    if (!res.writableEnded) {
-                        res.write(`data: ${JSON.stringify({ error: "Torrent Error." })}\n\n`);
-                        res.end();
-                    } else {
-                        console.log("Response already ended, torrent error not sent to client.");
-                    }
-                });
-            })
-            .catch((err) => {
-                addingTorrents.delete(hashStr);
-                console.error(`Error adding torrent ${hashStr}:`, err);
+            client.on("error", (err) => {
+                console.error("WebTorrent Client Error:", err);
                 if (!res.headersSent) {
-                    res.write(`data: ${JSON.stringify({ error: "Failed to add torrent." })}\n\n`);
+                    res.writeHead(500, headers);
+                    res.write(`data: ${JSON.stringify({ error: "WebTorrent client error" })}\n\n`);
                     res.end();
                 }
+                client?.destroy();
+                client = null;
             });
+        }
+
+        // If torrent is already active, return early
+        if (activeTorrents.has(hashStr)) {
+            console.log("Torrent already active, sending ready");
+            res.writeHead(200, headers);
+            res.write(`data: ${JSON.stringify("Video is ready")}\n\n`);
+            return res.end();
+        }
+
+        res.writeHead(200, headers);
+        res.flushHeaders();
+
+        // Check if this torrent is already being added
+        if (addingTorrents.has(hashStr)) {
+            const existingPromise = addingTorrents.get(hashStr);
+            await existingPromise;
+            res.write(`data: ${JSON.stringify("Movie is ready")}\n\n`);
+            return res.end();
+        }
+
+        const torrentPromise = new Promise<WebTorrent.Torrent>((resolve, reject) => {
+            client!.add(magnetLink, { path: requestedDir }, (torrent) => {
+                torrent.on("error", (torrentErr) => {
+                    console.error("Torrent Error:", torrentErr);
+                    torrent.destroy();
+                    activeTorrents.delete(hashStr);
+                    reject(torrentErr);
+
+                    res.status(500).send(torrentErr);
+                });
+
+                // Find the main video file
+                const videoFile = torrent.files.find((file) =>
+                    file.name.endsWith(".mp4") || file.name.endsWith(".mkv")
+                );
+
+                if (!videoFile) {
+                    res.write(`data: ${JSON.stringify({ error: "No video file found." })}\n\n`);
+                    return res.end();
+                }
+
+                activeTorrents.set(hashStr, torrent);
+                console.table(activeTorrents);
+
+                // Prioritize beginning of video file
+                const PRELOAD_BYTES = 5 * 1024 * 1024; // First 5MB
+                videoFile.select();
+
+                const checkInterval = setInterval(() => {
+                    if (videoFile.downloaded >= PRELOAD_BYTES) {
+                        clearInterval(checkInterval);
+                        if (!res.writableEnded) {
+                            res.write(`data: ${JSON.stringify("Movie is ready")}\n\n`);
+                            res.end();
+                        }
+                    }
+                }, 500);
+
+                // Emit download progress
+                const targetSocket = ioServer.sockets.sockets.get(sid as string);
+
+                torrent.on("download", () => {
+                    if (targetSocket) {
+                        targetSocket.emit('downloadProgress', {
+                            hash: hashStr,
+                            progress: torrent.progress,
+                            speed: torrent.downloadSpeed,
+                        });
+                    }
+                });
+
+                resolve(torrent);
+            });
+        });
+
+        req.on("error", () => {
+            const torrent = client?.torrents.find(tor => tor.infoHash.toLowerCase() === hashStr);
+
+            if (torrent) {
+                torrent?.destroy({ destroyStore: true }, () => {
+                    console.log(`Torrent ${hashStr} destroyed due to request error.`);
+                    activeTorrents.delete(hashStr);
+                    addingTorrents.delete(hashStr);
+                });
+            }
+        });
+
+        addingTorrents.set(hashStr, torrentPromise);
+
+        torrentPromise.finally(() => addingTorrents.delete(hashStr));
     } catch (error) {
-        console.error("General error:", error);
+        console.error("watchMovieStatus error:", error);
         if (!res.headersSent) {
             res.writeHead(500, {
                 "Content-Type": "text/event-stream",
@@ -263,10 +276,11 @@ export const watchMovieStatus = async (req: Request, res: Response) => {
     }
 }
 
+
 export const watchMovieStream = async (req: Request, res: Response) => {
     try {
         const { hash } = req.query;
-        const hashStr = hash as string;
+        const hashStr = String(hash).toLowerCase();
         const torrentInClient = activeTorrents.get(hashStr);
         if (torrentInClient) {
             pauseOtherTorrents(hashStr);

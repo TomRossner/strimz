@@ -49,6 +49,8 @@ const CLIENT_URL: string = process.env.CLIENT_URL as string;
 
 const BASE_DIR = path.join(os.homedir(), "Downloads", "strimz");
 
+const MIN_TORRENT_PROGRESS: number = 0.15;
+
 export {
     BYTE_SIZE,
     CATEGORIES,
@@ -58,5 +60,6 @@ export {
     QUALITIES,
     TRACKERS,
     VideoExtensions,
-    BASE_DIR
+    BASE_DIR,
+    MIN_TORRENT_PROGRESS,
 }

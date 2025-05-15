@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDownloadsFolderPath: async () => await ipcRenderer.invoke('get-downloads-folder-path'),
   getSettings: async () => await ipcRenderer.invoke('get-settings'),
   checkVpnConnection: async () => await ipcRenderer.invoke('check-vpn-connection'),
+  checkDiskSpace: async () => await ipcRenderer.invoke('check-disk-space'),
 
   onCheckingForUpdate: (cb) => ipcRenderer.on('checking-for-update', cb),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', cb),

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import SplashScreen from './components/SplashScreen';
 import { ping } from './utils/ping';
 import Home from './components/Home';
@@ -8,11 +8,6 @@ import { isAxiosError } from 'axios';
 import { selectError, selectFilters, selectMovie, selectMoviesMap } from './store/movies/movies.selectors';
 import ErrorDialog from './components/ErrorDialog';
 import { Route, Routes, useLocation } from 'react-router-dom';
-import WatchMoviePage from './pages/Watch';
-import SettingsPage from './pages/Settings';
-import FavoritesPage from './pages/Favorites';
-import ReportsPage from './pages/Reports';
-import WatchListPage from './pages/WatchList';
 import { getFavorites, getWatchList } from './services/localStorage';
 import FiltersDialog from './components/FiltersDialog';
 import MovieDialog from './components/dialog/MovieDialog';
@@ -24,6 +19,12 @@ import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
 import { selectIsVpnActive } from './store/vpn/vpn.selectors';
+
+const WatchMoviePage = lazy(() => import('./pages/Watch'));
+const SettingsPage = lazy(() => import('./pages/Settings'));
+const FavoritesPage = lazy(() => import('./pages/Favorites'));
+// const ReportsPage = lazy(() => import('./pages/Reports'));
+const WatchListPage = lazy(() => import('./pages/WatchList'));
 
 const MoviesPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -105,14 +106,16 @@ const MoviesPage = () => {
       <Menu />
       <Nav withSearchBar={pathname === '/'} />
 
-      <Routes>
-        <Route path='/' element={<Home />} />
-        <Route path='/watch/:slug' element={<WatchMoviePage />} />
-        <Route path='/settings' element={<SettingsPage />} />
-        <Route path='/favorites' element={<FavoritesPage />} />
-        <Route path='/reports' element={<ReportsPage />} />
-        <Route path='/watch-list' element={<WatchListPage />} />
-      </Routes>
+      <Suspense fallback={<SplashScreen />}>
+        <Routes>
+          <Route path='/' element={<Home />} />
+          <Route path='/watch/:slug' element={<WatchMoviePage />} />
+          <Route path='/settings' element={<SettingsPage />} />
+          <Route path='/favorites' element={<FavoritesPage />} />
+          {/* <Route path='/reports' element={<ReportsPage />} /> */}
+          <Route path='/watch-list' element={<WatchListPage />} />
+        </Routes>
+      </Suspense>
     </>
   )
 }

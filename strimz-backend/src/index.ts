@@ -25,8 +25,9 @@ const ioServer = new Server(httpServer, {
 });
 
 app.use(express.json());
-app.use(express.urlencoded({extended: true}));
-app.use(cors());
+app.use(cors({
+    origin: '*',
+}));
 app.use(morgan('dev'));
 
 app.use('/api/ping', (req: Request, res: Response) => {

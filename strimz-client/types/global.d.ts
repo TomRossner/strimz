@@ -21,6 +21,7 @@ declare global {
             getDownloadsFolderPath: () => Promise<string>;
             getSettings: () => Promise<Settings>;
             checkVpnConnection: () => Promise<boolean>;
+            checkDiskSpace: () => Promise<unknown>;
             
             onCheckingForUpdate: (cb) => void;
             onUpdateAvailable: (cb) => void;

@@ -13,7 +13,7 @@ export const getCorrected = (str: string): string => {
             if (spell.correct(part)) return part;
         
             const suggestions = spell.suggest(part);
-            console.log("Suggestions: ", suggestions);
+
             if (!suggestions.length) return '';
         
             const originalLength = part.length;
@@ -34,6 +34,6 @@ export const getCorrected = (str: string): string => {
             return suggestions[0];
         }).filter(Boolean).join(" ");
     }
-    console.log("Corrected: ", corrected);
+
     return corrected;
 }

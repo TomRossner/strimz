@@ -13,13 +13,29 @@ import BackButton from '@/components/BackButton';
 import CloseButton from '@/components/CloseButton';
 import PageDescription from '@/components/PageDescription';
 import OptionDescription from '@/components/OptionDescription';
+import { formatBytes, ONE_GB } from '@/utils/bytes';
+import LoadingIcon from '@/components/LoadingIcon';
+import { PiDownload } from 'react-icons/pi';
+import { twMerge } from 'tailwind-merge';
+
+interface DiskSpaceInfo {
+  diskPath: string;
+  free: number;
+  size: number;
+}
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
+    const navigate = useNavigate();
     const settings = useAppSelector(selectSettings);
     const [formValues, setFormValues] = useState<Settings>(DEFAULT_SETTINGS);
 
-    const navigate = useNavigate();
+    const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo | null>(null);
+    const [isLoadingDiskInfo, setIsLoadingDiskInfo] = useState<boolean>(false);
+
+    const usedBytes = diskSpace ? diskSpace.size - diskSpace.free : 0;
+    const usagePercent = diskSpace ? (usedBytes / diskSpace.size) * 100 : 0;
+    const hasEnoughSpace = diskSpace ? diskSpace.free > ONE_GB : null;
 
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
@@ -77,6 +93,23 @@ const SettingsPage = () => {
         dispatch(fetchUserSettings());
     }, [dispatch]);
 
+    useEffect(() => {
+        const getDiskSpace = async () => {
+        setIsLoadingDiskInfo(true);
+
+        try {
+            const diskInfo = await window.electronAPI.checkDiskSpace();
+            setDiskSpace(diskInfo as DiskSpaceInfo);
+        } catch (err) {
+            console.error('Failed to get disk space', err);
+        } finally {
+            setIsLoadingDiskInfo(false);
+        }
+    }
+
+    getDiskSpace();
+    }, [formValues.downloadsFolderPath]);
+
   return (
     <Page>
         <Container id='settingsPage'>
@@ -121,6 +154,32 @@ const SettingsPage = () => {
                             )}
 
                         </div>
+
+                        <div className='flex w-full gap-2'>
+                            <PiDownload className='text-xl text-white' />
+
+                            <div className='flex flex-col gap-1 w-1/3'>
+                                {isLoadingDiskInfo ? (
+                                    <p className='text-[12px] text-stone-400 flex items-center gap-2'>
+                                        <LoadingIcon size={15} />
+                                        <span>Loading disk information...</span>
+                                    </p>
+                                ) : (
+                                    <p className='text-[12px] text-stone-400'>
+                                        {diskSpace ? `${formatBytes(diskSpace.free)} available / ${formatBytes(diskSpace.size)} total` : 'Could not retrieve disk information'}
+                                    </p>
+                                )}
+
+                                <div className="w-full h-1 bg-gray-800 overflow-hidden">
+                                    <div
+                                        className={twMerge(`h-full transition-[width] duration-200 ${isLoadingDiskInfo ? 'opacity-40' : ''} ${hasEnoughSpace ? 'bg-blue-500' : 'bg-red-500'}`)}
+                                        style={{ width: `${usagePercent}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                        </div>
+
                     </div>
 
                     <div className='flex w-full gap-2 flex-col'>
