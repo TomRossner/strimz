@@ -28,6 +28,19 @@ app.whenReady().then(async () => {
       await waitForBackendReady();
       mainWindow = createMainWindow(isDev);
 
+      const torrentArg = process.argv.find(arg => arg.endsWith(".torrent"));
+
+      if (torrentArg) {
+        const win = mainWindow;
+
+        win.webContents.once('dom-ready', () => {
+          const timeout = setTimeout(() => {
+            win.webContents.send('external-torrent', torrentArg);
+            clearTimeout(timeout);
+          }, 2000);
+        })
+      }
+
       if (!isDev) {
         setupAutoUpdater(mainWindow, updateState);
         autoUpdater.autoInstallOnAppQuit = store.get("autoInstallOnQuit");

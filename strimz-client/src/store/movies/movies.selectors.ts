@@ -15,3 +15,5 @@ export const selectFavorites = (state: RootState) => state.movies.favorites;
 export const selectWatchList = (state: RootState) => state.movies.watchList;
 export const selectSubtitleFilePath = (state: RootState) => state.movies.subtitleFilePath;
 export const selectSubtitleLang = (state: RootState) => state.movies.subtitleLang;
+export const selectUseSubtitles = (state: RootState) => state.movies.useSubtitles;
+export const selectExternalTorrent = (state: RootState) => state.movies.externalTorrent;

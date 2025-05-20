@@ -53,7 +53,7 @@ const VpnReminderDialog = ({ isActive }: VpnReminderDialogProps) => {
             isOpen={isOpen}
             size='medium'
             title='⚠ Turn on your VPN !'
-            className='flex-col p-3 gap-3'
+            className='flex-col p-3 gap-3 z-[999]'
         >
             <p className='text-slate-400'>Please make sure your VPN is active before continuing.</p>
 

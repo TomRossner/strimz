@@ -5,8 +5,8 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setError, setIsLoading } from '../store/movies/movies.slice';
 import LoadingScreen from '../components/LoadingScreen';
 import { selectSettings } from '../store/settings/settings.selectors';
-import VidStackPlayer from '@/components/VidStackPlayer';
 import { selectSocket } from '@/store/socket/socket.selectors';
+import Player from '@/components/player/Player';
 
 const WatchMoviePage = () => {
     const [searchParams] = useSearchParams();
@@ -23,12 +23,11 @@ const WatchMoviePage = () => {
     const hash = searchParams.get('hash');
 
     const socket = useAppSelector(selectSocket);
-
-    const streamUrl = `${WATCH_MOVIE_URL}${slug}?hash=${hash}`;
     
     useEffect(() => {
         if (!socket?.id) return;
-
+        
+        const streamUrl = `${WATCH_MOVIE_URL}${slug}?hash=${hash}&sid=${socket.id}`;
         const statusUrl = `${API_URL}/sse/status/${slug}?hash=${hash}&title=${title}&dir=${settings.downloadsFolderPath}&sid=${socket.id}`;
         const eventSource = new EventSource(statusUrl);
     
@@ -63,7 +62,7 @@ const WatchMoviePage = () => {
     }, [socket?.id]);
 
     return videoSrc
-        ? <VidStackPlayer movieSrc={videoSrc} />
+        ? <Player src={videoSrc} />
         : <LoadingScreen hash={hash as string} />;
 }
 

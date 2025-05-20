@@ -3,6 +3,7 @@ import { selectSocket } from "@/store/socket/socket.selectors";
 import { useCallback, useEffect, useState } from "react";
 import { twMerge } from "tailwind-merge";
 import DownloadSpeed from "./DownloadSpeed";
+import { DownloadProgressData } from "@/utils/types";
 
 interface ProgressProps {
   hash: string;
@@ -11,16 +12,11 @@ interface ProgressProps {
   withDownloadSpeed?: boolean;
 }
 
-type ProgressData = {
-  progress: number;
-  hash: string;
-}
-
 const Progress = ({hash, progressOnly = false, className, withDownloadSpeed = false}: ProgressProps) => {
   const [progress, setProgress] = useState<number>(0.00);
   const socket = useAppSelector(selectSocket);
 
-  const handleProgress = useCallback((data: ProgressData) => {
+  const handleProgress = useCallback((data: DownloadProgressData) => {
     if (data.hash.toLowerCase() === hash.toLowerCase()) {
       setProgress(Number((data.progress * 100).toFixed(2)));
     }

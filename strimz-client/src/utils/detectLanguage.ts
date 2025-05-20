@@ -93,3 +93,5 @@ export const iso639_3ToLabelAndLang: Record<string, { label: string; lang: strin
 export function getSubtitleMetadata(iso3: string) {
   return iso639_3ToLabelAndLang[iso3] ?? { label: 'Subtitles', lang: '' };
 }
+
+export const RTLLanguages = ['he', 'ar', 'fa', 'ur']

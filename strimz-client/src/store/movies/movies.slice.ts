@@ -27,6 +27,8 @@ interface MoviesState {
   watchList: Map<string, Movie>;
   subtitleFilePath: string | null;
   subtitleLang: string | null;
+  useSubtitles: boolean;
+  externalTorrent: {hash: string, title: string} | null;
 }
 
 const initialState: MoviesState = {
@@ -45,6 +47,8 @@ const initialState: MoviesState = {
   watchList: new Map(),
   subtitleFilePath: null,
   subtitleLang: null,
+  useSubtitles: true,
+  externalTorrent: null,
 }
 
 type FetchMoviesAsync = {
@@ -203,6 +207,12 @@ const moviesSlice = createSlice({
     },
     setSubtitleLang: (state, action: PayloadAction<string | null>) => {
       state.subtitleLang = action.payload;
+    },
+    setUseSubtitles(state, action: PayloadAction<boolean>) {
+      state.useSubtitles = action.payload;
+    },
+    setExternalTorrent(state, action: PayloadAction<{hash: string, title: string} | null>) {
+      state.externalTorrent = action.payload;
     }
   },
   extraReducers: (builder) => {
@@ -282,6 +292,8 @@ export const {
   setWatchList,
   setSubtitleFilePath,
   setSubtitleLang,
+  setUseSubtitles,
+  setExternalTorrent,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

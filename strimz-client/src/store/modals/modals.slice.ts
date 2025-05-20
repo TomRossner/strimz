@@ -8,6 +8,7 @@ interface ModalsState {
   menu: boolean;
   error: boolean;
   vpn: boolean;
+  playTorrentPrompt: boolean;
 }
 
 const initialState: ModalsState = {
@@ -17,6 +18,7 @@ const initialState: ModalsState = {
   menu: false,
   error: false,
   vpn: false,
+  playTorrentPrompt: false,
 }
 
 const modalsSlice = createSlice({

@@ -9,7 +9,26 @@ import { RxCross2 } from 'react-icons/rx';
 import { detectLanguageFromSubtitle, extractTextFromSubtitle, getCountryCodeFromIso3, getFlagEmoji } from '@/utils/detectLanguage';
 import Flag from "react-world-flags";
 
-const SubtitlesSelector = () => {
+interface SubtitlesSelectorProps {
+    buttonOnly?: boolean;
+    buttonClassName?: string;
+    reverseButtonPosition?: boolean;
+    containerClassName?: string;
+    useOnSelect?: boolean;
+    onSelectSubtitle?: () => void;
+    subtitleContainerClassName?: string;
+    isSelected?: boolean;
+}
+
+const SubtitlesSelector = ({
+    buttonOnly = false,
+    buttonClassName,
+    reverseButtonPosition = false,
+    containerClassName,
+    subtitleContainerClassName,
+    onSelectSubtitle,
+    useOnSelect,
+}: SubtitlesSelectorProps) => {
     const dispatch = useAppDispatch();
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const subtitleLang = useAppSelector(selectSubtitleLang);
@@ -43,22 +62,36 @@ const SubtitlesSelector = () => {
     }, [subtitleFilePath, getSubtitleLanguage]);
 
   return (
-    <div className='flex w-full flex-col my-3 gap-1'>
+    <div className={twMerge(`flex w-full my-3 gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>
         <p className='text-white w-full flex items-center justify-between'>
-            <span className='flex gap-2 items-center'>
-                <PiSubtitles className='text-xl' />
-                Subtitles
-            </span>
+            {!buttonOnly && (
+                <span className='flex gap-2 items-center'>
+                    <PiSubtitles className='text-xl' />
+                    Subtitles
+                </span>
+            )}
             
             <Button
                 onClick={() => window.electronAPI.openSubtitleFileDialog().then(handleSubtitleFileUpload)}
-                className='px-3 py-0 text-sm text-blue-500 hover:text-blue-400 bg-transparent'
+                className={twMerge(`px-3 py-0 text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
             >
                 Choose subtitle file
             </Button>
         </p>
 
-        <div className={twMerge(`flex items-center gap-1 justify-between ${subtitleFilePath ? 'bg-stone-800' : 'bg-transparent'} px-1 rounded-sm`)}>
+        <div
+            onClick={onSelectSubtitle}
+            className={twMerge(`
+                flex
+                items-center
+                gap-1
+                justify-between
+                px-1
+                rounded-sm
+                ${subtitleFilePath ? 'bg-stone-800' : 'bg-transparent'}
+                ${subtitleContainerClassName}
+            `)}
+        >
             {subtitleFilePath && flag &&
                 <Flag
                     code={countryCode}
@@ -72,8 +105,9 @@ const SubtitlesSelector = () => {
                 type="text"
                 name="subtitles"
                 id="subtitles"
+                title={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
                 value={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
-                className='w-full text-white text-[10px] min-h-5 outline-0 border-none truncate'
+                className={twMerge(`w-full text-white text-[10px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
             />
 
             {subtitleFilePath &&

@@ -54,6 +54,35 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
                 return res.status(500).json({ error: "Stream failed. Please try again with a different torrent." });
             }
 
+            const {sid} = req.query;
+
+            if (sid) {
+                const targetSocket = ioServer.sockets.sockets.get(sid as string);
+
+                if (torrent.paused) {
+                    torrent.resume();
+                }
+
+                torrent.on("download", () => {
+                    if (targetSocket) {
+                        targetSocket.emit('downloadProgress', {
+                            hash,
+                            progress: torrent.progress,
+                            speed: torrent.downloadSpeed,
+                        });
+                    }
+                });
+
+                if (torrent.done) {
+                    if (targetSocket) {
+                        targetSocket.emit('downloadDone', {
+                            hash,
+                            done: torrent.done,
+                        });
+                    }
+                }
+            }
+
             stream.pipe(res);
 
             stream.on("error", (err) => {
@@ -140,13 +169,11 @@ export const watchMovieStatus = async (req: Request, res: Response) => {
     try {
         const { hash, title, dir, sid } = req.query;
 
-        if (!hash || !title || !dir || !sid) {
+        if (!dir || !sid || !hash || !title) {
             return res.status(400).json({ error: "Stream failed. Please restart the app and try again." });
         }
 
-        const hashStr = String(hash).toLowerCase();
         const requestedDir = path.resolve(dir as string);
-        const magnetLink = addTrackersToMagnet(encodeMovieNameToMagnet(hashStr, title as string));
 
         if (!fs.existsSync(requestedDir)) {
             fs.mkdirSync(requestedDir, { recursive: true });
@@ -173,6 +200,9 @@ export const watchMovieStatus = async (req: Request, res: Response) => {
             });
         }
 
+        const hashStr: string | null = hash.toString().toLowerCase();
+        const magnetLink: string | null = addTrackersToMagnet(encodeMovieNameToMagnet(hashStr, title as string));;
+
         // If torrent is already active, return early
         if (activeTorrents.has(hashStr)) {
             console.log("Torrent already active, sending ready");
@@ -193,7 +223,7 @@ export const watchMovieStatus = async (req: Request, res: Response) => {
         }
 
         const torrentPromise = new Promise<WebTorrent.Torrent>((resolve, reject) => {
-            client!.add(magnetLink, { path: requestedDir }, (torrent) => {
+            client!.add(magnetLink as string, { path: requestedDir }, (torrent) => {
                 torrent.on("error", (torrentErr) => {
                     console.error("Torrent Error:", torrentErr);
                     torrent.destroy();
@@ -239,6 +269,14 @@ export const watchMovieStatus = async (req: Request, res: Response) => {
                             hash: hashStr,
                             progress: torrent.progress,
                             speed: torrent.downloadSpeed,
+                        });
+                    }
+                });
+                torrent.on("done", () => {
+                    if (targetSocket) {
+                        targetSocket.emit('downloadDone', {
+                            hash: hashStr,
+                            done: torrent.done,
                         });
                     }
                 });
@@ -293,5 +331,70 @@ export const watchMovieStream = async (req: Request, res: Response) => {
         if (!res.headersSent) {
             res.status(500).send({ error: "Internal server error. Please restart the app and try again." });
         }
+    }
+}
+
+export const handleTorrentFromPath = async (req: Request, res: Response) => {
+    try {
+        const { torrentFilePath, dir } = req.body;
+
+        if (!dir) {
+            return res.status(400).json({ error: "Stream failed. Please restart the app and try again." });
+        }
+
+        const requestedDir = path.resolve(dir as string);
+
+        if (!torrentFilePath || !requestedDir) {
+            return res.status(400).json({ error: "Stream failed. Please restart the app and try again." });
+        }
+
+        if (!client) {
+            client = new WebTorrent();
+
+            client.on("error", (err) => {
+                if (!res.headersSent) {
+                    console.error("WebTorrent Client Error:", err);
+                    client?.destroy();
+                    client = null;
+                }
+            });
+        }
+
+        if (client.torrents.length) {
+            console.log("Has torrents")
+            if (client.torrents[0].infoHash) {
+                console.log(client.torrents[0].infoHash)
+                return res.status(200).json({
+                    hash: client.torrents[0].infoHash.toLowerCase(),
+                    title: client.torrents[0].name,
+                });
+            } else {
+                client.destroy();
+                client = null;
+                client = new WebTorrent();
+            }
+        }
+
+        client.add(torrentFilePath as string, { path: requestedDir }, (torrent) => {
+            torrent.on("error", (torrentErr) => {
+                console.error("Torrent Error:", torrentErr);
+                torrent.destroy();
+                return res.status(500).send(torrentErr);
+            });
+
+            const hash = torrent.infoHash.toLowerCase();
+            console.log(hash)
+            const title = torrent.name;
+            
+            addingTorrents.set(hash, new Promise((resolve, reject) => resolve(torrent)));
+
+            res.status(200).json({hash, title});
+
+            addingTorrents.delete(hash);
+            client?.remove(torrent);
+        });
+    } catch (error) {
+        console.error("General error:", error);
+        res.status(500).send({ error: "Internal server error. Please restart the app and try again." });
     }
 }

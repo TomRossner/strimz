@@ -32,6 +32,7 @@ declare global {
             onUpdateDownloaded: (cb) => void;
             onUpdateCheckSkipped: (cb) => void;
             onUpdateCheckFailed: (cb) => void;
+            onExternalTorrent: (cb) => void;
 
             offCheckingForUpdate: (cb) => void,
             offUpdateAvailable: (cb) => void,

@@ -127,3 +127,7 @@ export const stopDownload = async (hash: string) => {
 export const getMoviesByIds = async (ids: string[]) => {
     return await axios.post(`${MOVIES_FETCH_URL}`, {ids});
 }
+
+export const getTorrentData = async (torrentFilePath: string, dir: string) => {
+    return await axios.post(`${API_URL}/watch/get-torrent-data`, {torrentFilePath, dir});
+}

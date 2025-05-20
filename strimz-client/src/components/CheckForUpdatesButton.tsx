@@ -53,9 +53,13 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
 
     useEffect(() => {
         const downloadProgressHandler = (progressData: ProgressData) => {
+            console.log(progressData.percent + "%");
             dispatch(setUpdateStatus('available'));
             setProgress(progressData.percent);
-            console.log(progressData.percent + "%");
+            
+            if (progressData.percent === 100) {
+                dispatch(setUpdateStatus('downloaded'));
+            }
         }
     
         window.electronAPI.onDownloadProgress(downloadProgressHandler);

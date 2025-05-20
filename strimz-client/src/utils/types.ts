@@ -27,3 +27,15 @@ export type Filters = {
   limit: TLimit;
   page?: TPage;
 }
+
+export type DownloadProgressData = {
+  hash: string;
+  progress: number;
+  speed: number;
+}
+
+export type Cue = {
+  start: number;
+  end: number;
+  text: string;
+}

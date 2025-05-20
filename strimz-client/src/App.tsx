@@ -14,11 +14,13 @@ import MovieDialog from './components/dialog/MovieDialog';
 import TrailerPlayer from './components/TrailerPlayer';
 import { DEFAULT_PARAMS } from './utils/constants';
 import Overlay from './components/Overlay';
-import { selectFiltersModal, selectMenu, selectMovieModal, selectTrailerModal, selectVpnModal } from './store/modals/modals.selectors';
+import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayTorrentPrompt, selectTrailerModal, selectVpnModal } from './store/modals/modals.selectors';
 import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
 import { selectIsVpnActive } from './store/vpn/vpn.selectors';
+import PlayTorrentPrompt from './components/PlayTorrentPrompt';
+import { fetchUserSettings } from './store/settings/settings.slice';
 
 const WatchMoviePage = lazy(() => import('./pages/Watch'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
@@ -42,6 +44,7 @@ const MoviesPage = () => {
   const isTrailerDialogOpen = useAppSelector(selectTrailerModal);
   const isMenuOpen = useAppSelector(selectMenu);
   const isVpnDialogOpen = useAppSelector(selectVpnModal);
+  const isPlayTorrentPromptOpen = useAppSelector(selectPlayTorrentPrompt);
 
   const isOverlayActive = useMemo(() => {
     return (
@@ -49,14 +52,16 @@ const MoviesPage = () => {
       isMenuOpen ||
       isMovieDialogOpen ||
       isTrailerDialogOpen ||
-      isVpnDialogOpen
+      isVpnDialogOpen ||
+      isPlayTorrentPromptOpen
     );
   }, [
     isFiltersDialogOpen,
     isMenuOpen,
     isMovieDialogOpen,
     isTrailerDialogOpen,
-    isVpnDialogOpen
+    isVpnDialogOpen,
+    isPlayTorrentPromptOpen,
   ]);
 
   const isVpnActive = useAppSelector(selectIsVpnActive);
@@ -86,6 +91,7 @@ const MoviesPage = () => {
           : setIsLoading(false)
       ));
 
+    dispatch(fetchUserSettings());
     dispatch(fetchWatchListAsync(getWatchList()));
     dispatch(fetchFavoritesAsync(getFavorites()));
   }, []);
@@ -101,6 +107,7 @@ const MoviesPage = () => {
       <TrailerPlayer title={selectedMovie?.title ?? ""} yt_trailer_code={selectedMovie?.yt_trailer_code} />
       <MovieDialog />
       <FiltersDialog />
+      <PlayTorrentPrompt />
       <VpnReminderDialog isActive={isVpnActive} />
 
       <Menu />

@@ -10,6 +10,7 @@ const CHANNELS = {
   UPDATE_AUTO_INSTALL_SETTING: 'update-auto-install-setting',
   UPDATE_CLEAR_ON_EXIT_SETTING: 'update-clear-on-exit-setting',
   SAVE_SETTING: 'save-setting',
+  EXTERNAL_TORRENT: 'external-torrent',
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -40,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', cb),
   onUpdateCheckSkipped: (cb) => ipcRenderer.on('update-check-skipped', (_, msg) => cb(msg)),
   onUpdateCheckFailed: (cb) => ipcRenderer.on('update-check-failed', (_, msg) => cb(msg)),
+  onExternalTorrent: (cb) => ipcRenderer.on(CHANNELS.EXTERNAL_TORRENT, (_, filePath) => cb(filePath)),
 
   offCheckingForUpdate: (cb) => ipcRenderer.removeListener('checking-for-update', cb),
   offUpdateAvailable: (cb) => ipcRenderer.removeListener('update-available', cb),
