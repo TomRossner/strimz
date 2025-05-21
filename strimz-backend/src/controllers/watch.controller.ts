@@ -361,9 +361,7 @@ export const handleTorrentFromPath = async (req: Request, res: Response) => {
         }
 
         if (client.torrents.length) {
-            console.log("Has torrents")
             if (client.torrents[0].infoHash) {
-                console.log(client.torrents[0].infoHash)
                 return res.status(200).json({
                     hash: client.torrents[0].infoHash.toLowerCase(),
                     title: client.torrents[0].name,
@@ -383,7 +381,6 @@ export const handleTorrentFromPath = async (req: Request, res: Response) => {
             });
 
             const hash = torrent.infoHash.toLowerCase();
-            console.log(hash)
             const title = torrent.name;
             
             addingTorrents.set(hash, new Promise((resolve, reject) => resolve(torrent)));

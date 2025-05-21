@@ -70,7 +70,7 @@ const Home = () => {
       const checkingHandler = () => dispatch(setUpdateStatus('checking'));
       const availableHandler = () => dispatch(setUpdateStatus('available'));
       const notAvailableHandler = () => dispatch(setUpdateStatus('up-to-date'));
-      const downloadedHandler = () => dispatch(setUpdateStatus('downloaded'));
+      const updateDownloadedHandler = () => dispatch(setUpdateStatus('downloaded'));
       
       const skippedHandler = (msg: string) => {
           dispatch(setUpdateStatus('skipped'));
@@ -85,7 +85,7 @@ const Home = () => {
       window.electronAPI.onCheckingForUpdate(checkingHandler);
       window.electronAPI.onUpdateAvailable(availableHandler);
       window.electronAPI.onUpdateNotAvailable(notAvailableHandler);
-      window.electronAPI.onUpdateDownloaded(downloadedHandler);
+      window.electronAPI.onUpdateDownloaded(updateDownloadedHandler);
       window.electronAPI.onUpdateCheckSkipped(skippedHandler);
       window.electronAPI.onUpdateCheckFailed(failedHandler);
 
@@ -95,7 +95,7 @@ const Home = () => {
           window.electronAPI.offCheckingForUpdate(checkingHandler);
           window.electronAPI.offUpdateAvailable(availableHandler);
           window.electronAPI.offUpdateNotAvailable(notAvailableHandler);
-          window.electronAPI.offUpdateDownloaded(downloadedHandler);
+          window.electronAPI.offUpdateDownloaded(updateDownloadedHandler);
           window.electronAPI.offUpdateCheckSkipped(skippedHandler);
           window.electronAPI.offUpdateCheckFailed(failedHandler);
       }
