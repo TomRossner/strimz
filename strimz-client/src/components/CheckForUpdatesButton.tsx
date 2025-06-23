@@ -55,7 +55,7 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
         const updateDownloadedHandler = () => dispatch(setUpdateStatus('downloaded'));
 
         const downloadProgressHandler = (progressData: ProgressData) => {
-            dispatch(setUpdateStatus('available'));
+            dispatch(setUpdateStatus(progressData.percent === 100 ? 'downloaded' : 'available'));
             setProgress(progressData.percent);
         }
     
