@@ -115,7 +115,7 @@ export const searchMovies = async (query: string, params?: Params): Promise<Axio
         params: {
             ...params,
             query,
-            languages: ['en', 'fr']
+            languages: ['en', 'fr', 'he']
         },
     });
 }

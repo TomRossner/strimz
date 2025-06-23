@@ -14,6 +14,7 @@ import Button from './Button';
 import { BsChevronDown } from 'react-icons/bs';
 import { OrderBy, SortBy, TOrderBy, TSortBy } from '@/services/movies';
 import { selectFilters, selectQuery } from '@/store/movies/movies.selectors';
+import PageDescription from './PageDescription';
 
 type DropdownType = keyof Omit<Filters, "page" | "limit" | "query_term" | "sort_by">;
 
@@ -52,11 +53,11 @@ const setOrderByOption = (option: string) => {
         case 'asc':
             return 'Oldest';
         case 'date_added':
-            return 'Featured';
+            return 'Latest Added';
         case 'download_count':
-            return 'Downloads';
+            return 'Most Popular';
         case 'like_count':
-            return 'Likes';
+            return 'Most Likes';
         case 'peers':
             return 'Peers';
         case 'seeds':
@@ -64,9 +65,9 @@ const setOrderByOption = (option: string) => {
         case 'rating':
             return 'IMDb Rating';
         case 'title':
-            return 'Alphabetical';
+            return 'Alphabetical Order';
         case 'year':
-            return 'Release year';
+            return 'Release Year';
     
         default:
             return option;
@@ -114,7 +115,6 @@ const FiltersDialog = () => {
           order_by: sortBy === 'title' ? OrderBy.ASC : orderBy,
         };
       
-        console.log(values)
         dispatch(setFilters(values));
         dispatch(closeModal('filters'));
     }, [formValues, dispatch, filters, currentQuery]);
@@ -170,218 +170,222 @@ const FiltersDialog = () => {
   return (
     <Dialog isOpen={isOpen} size='fit' title={"Filters"} className='bg-stone-900 md:min-h-[220px]'>
         <CloseButton onClose={() => dispatch(closeModal('filters'))} className='md:block absolute p-1' />
+        
+        <div className='w-full flex flex-col'>
+            <PageDescription className='px-3'>Apply filters to customize your search.</PageDescription>
 
-        <form onSubmit={handleSubmit} className='w-full p-2 text-white flex gap-3 flex-wrap'>
-            <div className='w-full h-fit flex flex-wrap mb-5 gap-3 lg:gap-8 justify-center'>
-                <div className='flex gap-1 flex-col'>
-                    <p>Quality</p>
+            <form onSubmit={handleSubmit} className='w-full p-4 text-white flex flex-col justify-between grow'>
+                <div className='w-full h-fit flex flex-wrap mb-2 gap-3 lg:gap-8 justify-center'>
+                    <div className='flex gap-1 flex-col'>
+                        <p>Quality</p>
 
-                    <p
-                        onClick={() => toggleDropdown('quality')}
-                        className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
-                    >
-                        {!formValues.quality ? 'All' : formValues.quality}
-
-                        <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.quality && 'rotate-180'}`)}>
-                            <BsChevronDown />
-                        </span>
-                    </p>
-
-                    <div className='relative'>
-                        <ul
-                            className={twMerge(`
-                                absolute
-                                w-[130px]
-                                z-20
-                                bg-stone-800
-                                top-0
-                                left-0
-                                h-0
-                                transition-all
-                                duration-75
-                                overflow-auto
-                                rounded-bl-sm
-                                rounded-br-sm
-                                ${dropdownState.quality && 'h-[100px]'}
-                            `)}
+                        <p
+                            onClick={() => toggleDropdown('quality')}
+                            className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
                         >
-                            <li onClick={() => handleQualityChange('')} className='cursor-pointer px-2 py-1 hover:bg-blue-400'>All</li>
-                            
-                            {Object.values(QUALITIES)
-                                .toReversed()
-                                .map(q => (
+                            {!formValues.quality ? 'All' : formValues.quality}
+
+                            <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.quality && 'rotate-180'}`)}>
+                                <BsChevronDown />
+                            </span>
+                        </p>
+
+                        <div className='relative'>
+                            <ul
+                                className={twMerge(`
+                                    absolute
+                                    w-[130px]
+                                    z-20
+                                    bg-stone-800
+                                    top-0
+                                    left-0
+                                    h-0
+                                    transition-all
+                                    duration-75
+                                    overflow-auto
+                                    rounded-bl-sm
+                                    rounded-br-sm
+                                    ${dropdownState.quality && 'h-[100px]'}
+                                `)}
+                            >
+                                <li onClick={() => handleQualityChange('')} className='cursor-pointer px-2 py-1 hover:bg-blue-400'>All</li>
+                                
+                                {Object.values(QUALITIES)
+                                    .toReversed()
+                                    .map(q => (
+                                        <li
+                                            key={q}
+                                            onClick={() => handleQualityChange(q)}
+                                            className='cursor-pointer px-2 py-1 hover:bg-blue-400'
+                                        >
+                                            {q === '2160p' ? '4K' : q}
+                                        </li>
+                                    ))
+                                }
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className='flex gap-1 flex-col'>
+                        <p>Genre</p>
+
+                        <p
+                            onClick={() => toggleDropdown('genre')}
+                            className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
+                        >
+                            {!formValues.genre ? 'All' : formValues.genre}
+
+                            <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.genre && 'rotate-180'}`)}>
+                                <BsChevronDown />
+                            </span>
+                        </p>
+
+                        <div className='relative'>
+                            <ul
+                                className={twMerge(`
+                                    absolute
+                                    w-[130px]
+                                    z-20
+                                    bg-stone-800
+                                    top-0
+                                    left-0
+                                    h-0
+                                    transition-all
+                                    duration-75
+                                    overflow-auto
+                                    rounded-bl-sm
+                                    rounded-br-sm
+                                    ${dropdownState.genre && 'h-[100px]'}
+                                `)}
+                            >
+                                <li onClick={() => handleGenreChange('')} className='cursor-pointer px-2 py-1 hover:bg-blue-400'>All</li>
+
+                                {ALL_GENRES.map(g => (
                                     <li
-                                        key={q}
-                                        onClick={() => handleQualityChange(q)}
+                                        key={g}
+                                        onClick={() => handleGenreChange(g)}
                                         className='cursor-pointer px-2 py-1 hover:bg-blue-400'
                                     >
-                                        {q === '2160p' ? '4K' : q}
+                                        {g}
                                     </li>
-                                ))
-                            }
-                        </ul>
+                                ))}
+                            </ul>
+                        </div>
                     </div>
-                </div>
 
-                <div className='flex gap-1 flex-col'>
-                    <p>Genre</p>
-
-                    <p
-                        onClick={() => toggleDropdown('genre')}
-                        className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
-                    >
-                        {!formValues.genre ? 'All' : formValues.genre}
-
-                        <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.genre && 'rotate-180'}`)}>
-                            <BsChevronDown />
-                        </span>
-                    </p>
-
-                    <div className='relative'>
-                        <ul
-                            className={twMerge(`
-                                absolute
-                                w-[130px]
-                                z-20
-                                bg-stone-800
-                                top-0
-                                left-0
-                                h-0
-                                transition-all
-                                duration-75
-                                overflow-auto
-                                rounded-bl-sm
-                                rounded-br-sm
-                                ${dropdownState.genre && 'h-[100px]'}
-                            `)}
+                    <div className='flex gap-1 flex-col'>
+                        <p>Rating</p>
+                        
+                        <p
+                            onClick={() => toggleDropdown('minimum_rating')}
+                            className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
                         >
-                            <li onClick={() => handleGenreChange('')} className='cursor-pointer px-2 py-1 hover:bg-blue-400'>All</li>
+                            {!formValues.minimum_rating ? 'All' : formValues.minimum_rating + "+ Stars"}
 
-                            {ALL_GENRES.map(g => (
-                                <li
-                                    key={g}
-                                    onClick={() => handleGenreChange(g)}
-                                    className='cursor-pointer px-2 py-1 hover:bg-blue-400'
-                                >
-                                    {g}
-                                </li>
-                            ))}
-                        </ul>
+                            <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.minimum_rating && 'rotate-180'}`)}>
+                                <BsChevronDown />
+                            </span>
+                        </p>
+
+                        <div className='relative'>
+                            <ul
+                                className={twMerge(`
+                                    absolute
+                                    w-[130px]
+                                    z-20
+                                    bg-stone-800
+                                    top-0
+                                    left-0
+                                    h-0
+                                    transition-all
+                                    duration-75
+                                    overflow-auto
+                                    rounded-bl-sm
+                                    rounded-br-sm
+                                    ${dropdownState.minimum_rating && 'h-[100px]'}
+                                `)}
+                            >
+                                <li onClick={() => handleRatingChange(0)} className='cursor-pointer px-2 py-1 hover:bg-blue-400'>All</li>
+
+                                {[...Array((MAX_STARS * 2) - 1)].map((_, i) => {
+                                    const rating = (i + 1) * 0.5 !== MAX_STARS ? (i + 1) * 0.5 : 0;
+                                    return (
+                                        <li
+                                            key={i}
+                                            onClick={() => handleRatingChange(rating)}
+                                            className='cursor-pointer px-2 py-1 hover:bg-blue-400'
+                                        >
+                                            {rating > 0 && rating}{rating > 0 && "+ Stars"}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
                     </div>
-                </div>
 
-                <div className='flex gap-1 flex-col'>
-                    <p>Rating</p>
-                    
-                    <p
-                        onClick={() => toggleDropdown('minimum_rating')}
-                        className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
-                    >
-                        {!formValues.minimum_rating ? 'All' : formValues.minimum_rating + "+ Stars"}
-
-                        <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.minimum_rating && 'rotate-180'}`)}>
-                            <BsChevronDown />
-                        </span>
-                    </p>
-
-                    <div className='relative'>
-                        <ul
-                            className={twMerge(`
-                                absolute
-                                w-[130px]
-                                z-20
-                                bg-stone-800
-                                top-0
-                                left-0
-                                h-0
-                                transition-all
-                                duration-75
-                                overflow-auto
-                                rounded-bl-sm
-                                rounded-br-sm
-                                ${dropdownState.minimum_rating && 'h-[100px]'}
-                            `)}
+                    <div className='flex gap-1 flex-col'>
+                        <p>Order by</p>
+                        
+                        <p
+                            onClick={() => toggleDropdown('order_by')}
+                            className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer w-[160px] flex items-center justify-between gap-2 '
                         >
-                            <li onClick={() => handleRatingChange(0)} className='cursor-pointer px-2 py-1 hover:bg-blue-400'>All</li>
+                            <span className='truncate'>{setOrderByOption(formValues.order_by as string)}</span>
 
-                            {[...Array((MAX_STARS * 2) - 1)].map((_, i) => {
-                                const rating = (i + 1) * 0.5 !== MAX_STARS ? (i + 1) * 0.5 : 0;
-                                return (
+                            <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.order_by && 'rotate-180'}`)}>
+                                <BsChevronDown />
+                            </span>
+                        </p>
+
+                        <div className='relative'>
+                            <ul
+                                className={twMerge(`
+                                    absolute
+                                    w-[130px]
+                                    z-20
+                                    bg-stone-800
+                                    top-0
+                                    left-0
+                                    h-0
+                                    transition-all
+                                    duration-75
+                                    overflow-auto
+                                    rounded-bl-sm
+                                    rounded-br-sm
+                                    ${dropdownState.order_by && 'h-[100px]'}
+                                `)}
+                            >
+                                {[...Object.values(OrderBy).toReversed(), ...Object.values(SortBy).toReversed()].map(value => (
                                     <li
-                                        key={i}
-                                        onClick={() => handleRatingChange(rating)}
-                                        className='cursor-pointer px-2 py-1 hover:bg-blue-400'
+                                        key={value}
+                                        onClick={() => handleOrderByChange(value)}
+                                        className='cursor-pointer px-2 py-1 hover:bg-blue-400 truncate'
                                     >
-                                        {rating > 0 && rating}{rating > 0 && "+ Stars"}
+                                        {setOrderByOption(value)}
                                     </li>
-                                );
-                            })}
-                        </ul>
+                                ))}
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
-                <div className='flex gap-1 flex-col'>
-                    <p>Order by</p>
-                    
-                    <p
-                        onClick={() => toggleDropdown('order_by')}
-                        className='px-2 py-1 hover:bg-stone-700 bg-stone-800 rounded-sm cursor-pointer min-w-[130px] flex items-center justify-between gap-2'
+                <div className='bottom-1 right-1 flex gap-1 w-full justify-end items-end grow'>
+                    <Button
+                        type="submit"
+                        className='bg-blue-500 hover:bg-blue-400 active:bg-blue-400 active:text-white'
                     >
-                        {setOrderByOption(formValues.order_by as string)}
-
-                        <span className={twMerge(`text-white transition-all duration-75 ${dropdownState.order_by && 'rotate-180'}`)}>
-                            <BsChevronDown />
-                        </span>
-                    </p>
-
-                    <div className='relative'>
-                        <ul
-                            className={twMerge(`
-                                absolute
-                                w-[130px]
-                                z-20
-                                bg-stone-800
-                                top-0
-                                left-0
-                                h-0
-                                transition-all
-                                duration-75
-                                overflow-auto
-                                rounded-bl-sm
-                                rounded-br-sm
-                                ${dropdownState.order_by && 'h-[100px]'}
-                            `)}
-                        >
-                            {[...Object.values(OrderBy).toReversed(), ...Object.values(SortBy).toReversed()].map(value => (
-                                <li
-                                    key={value}
-                                    onClick={() => handleOrderByChange(value)}
-                                    className='cursor-pointer px-2 py-1 hover:bg-blue-400'
-                                >
-                                    {setOrderByOption(value)}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                        Apply filters
+                    </Button>
+                    <Button
+                        type="reset"
+                        onClick={() => dispatch(closeModal('filters'))}
+                        className='bg-stone-600 hover:bg-stone-700 active:bg-stone-700 active:text-white'
+                    >
+                        Close
+                    </Button>
                 </div>
-            </div>
-
-            <div className='bottom-1 right-1 flex gap-1 w-full justify-end items-end grow'>
-                <Button
-                    type="submit"
-                    className='bg-blue-500 hover:bg-blue-400 active:bg-blue-400 active:text-white'
-                >
-                    Apply changes
-                </Button>
-                <Button
-                    type="reset"
-                    onClick={() => dispatch(closeModal('filters'))}
-                    className='bg-stone-600 hover:bg-stone-700 active:bg-stone-700 active:text-white'
-                >
-                    Close
-                </Button>
-            </div>
-        </form>
+            </form>
+        </div>
     </Dialog>
   )
 }

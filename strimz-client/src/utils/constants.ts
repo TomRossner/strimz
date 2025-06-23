@@ -21,7 +21,7 @@ export const DEFAULT_SORT_BY: TSortBy = SortBy.DOWNLOAD_COUNT;
 export const DEFAULT_ORDER_BY: TOrderBy = OrderBy.DESC;
 
 export const DEFAULT_LANGUAGES: string[] = [
-  'en',
+  'en', 
   'fr',
   'he',
 ]

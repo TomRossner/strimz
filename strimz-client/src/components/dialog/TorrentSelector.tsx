@@ -3,6 +3,7 @@ import React from 'react';
 import { BiMovie } from 'react-icons/bi';
 import { BsInfoCircle } from 'react-icons/bs';
 import { twMerge } from 'tailwind-merge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface TorrentSelectorProps {
     torrents: object[];
@@ -18,7 +19,12 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
             <BiMovie className='text-xl' />
             <span className='flex items-center gap-2'>
                 Available torrents
-                <BsInfoCircle className='text-blue-500' title='Higher seed and peer counts mean faster, more reliable downloads.' />
+                <Tooltip delayDuration={200}>
+                    <TooltipTrigger className='text-blue-500'>
+                        <BsInfoCircle />
+                    </TooltipTrigger>
+                    <TooltipContent>Higher seed and peer counts mean faster, more reliable downloads.</TooltipContent>
+                </Tooltip>
             </span>
         </p>
 

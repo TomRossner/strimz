@@ -4,6 +4,7 @@ import { BsInfoCircle } from 'react-icons/bs';
 import { Torrent } from '@/utils/types';
 import { PiDownload } from "react-icons/pi";
 import { formatBytes, parseSize } from '@/utils/bytes';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface FileSizeProps {
   size?: string;
@@ -57,10 +58,15 @@ const FileSize = ({ size = 'N/A', selectedTorrent }: FileSizeProps) => {
             {diskSpace ? (
               <span className={`flex items gap-1 ml-1 font-semibold ${hasEnoughSpace ? 'text-gray-300' : 'text-red-500'}`}>
                 {`${formatBytes(fileSizeInBytes)} required / `}
-                <span title='Shows the available space on the drive where the file will be saved.' className='cursor-pointer underline text-blue-500 flex items-center gap-1'>
-                  {formatBytes(diskSpace.free)} available
-                  <BsInfoCircle title='Shows the available space on the drive where the file will be saved.' />
-                </span>
+                <Tooltip delayDuration={200}>
+                  <TooltipTrigger>
+                    <span className='underline text-blue-500 flex items-center gap-1'>
+                      {formatBytes(diskSpace.free)} available
+                      <BsInfoCircle />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Shows the available space on the drive where the file will be saved.</TooltipContent>
+                </Tooltip>
               </span>
             ) : (
               selectedTorrent ? 'Could not retrieve disk information' : 'No file selected - select a file to verify disk space'

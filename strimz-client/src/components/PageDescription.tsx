@@ -1,12 +1,14 @@
 import React, { ReactNode } from 'react';
+import { twMerge } from 'tailwind-merge';
 
 interface PageDescriptionProps {
     children: ReactNode;
+    className?: string;
 }
 
-const PageDescription = ({children}: PageDescriptionProps) => {
+const PageDescription = ({children, className}: PageDescriptionProps) => {
   return (
-    <p className='text-slate-200 italic font-light text-sm mb-5'>{children}</p>
+    <p className={twMerge(`text-slate-200 italic font-light text-sm mb-5 ${className}`)}>{children}</p>
   )
 }
 

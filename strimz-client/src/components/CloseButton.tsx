@@ -10,7 +10,7 @@ interface CloseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
 }
 
-const CloseButton = ({onClose, className, text, icon, title = 'Close'}: CloseButtonProps) => {
+const CloseButton = ({onClose, className, text, icon, title}: CloseButtonProps) => {
   return (
     <Button
       className={twMerge(`

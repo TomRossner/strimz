@@ -141,13 +141,15 @@ const Metadata = ({movie}: MetadataProps) => {
         <div className='w-full flex items-center gap-2'>
             <Button
                 onClick={() => handleWatchList(id)}
-                className='w-full gap-2 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group'
+                className='w-full gap-2 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group py-0.5'
                 title={watchList?.has(slug) ? 'Remove from Watch list' : 'Add to Watch list'}
             >
-                {watchList?.has(slug)
-                    ? <TbPlaylistX className='group-hover:scale-120 transition-all duration-100 group-hover:text-blue-500 text-2xl' />
-                    : <TbPlaylistAdd className='group-hover:scale-120 transition-all duration-100 group-hover:text-blue-500 text-2xl' />
-                }
+                <span className='group-hover:scale-120 transition-all duration-100 group-hover:text-blue-500 text-2xl'>
+                    {watchList?.has(slug)
+                        ? <TbPlaylistX />
+                        : <TbPlaylistAdd />
+                    }
+                </span>
             </Button>
 
             <Button
@@ -155,10 +157,12 @@ const Metadata = ({movie}: MetadataProps) => {
                 className='w-full gap-2 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group'
                 title={favorites?.has(slug) ? 'Remove from Favorites' : 'Add to Favorites'}
             >
-                {favorites?.has(slug)
-                    ? <MdFavorite className='group-hover:scale-120 transition-all duration-100 text-red-500 text-xl' />
-                    : <MdFavoriteBorder className='group-hover:scale-120 transition-all duration-100 group-hover:text-red-500 text-xl' />
-                }
+                <span className='group-hover:scale-120 transition-all duration-100 text-red-500 text-xl'>
+                    {favorites?.has(slug)
+                        ? <MdFavorite />
+                        : <MdFavoriteBorder />
+                    }
+                </span>
             </Button>
         </div>
     </div>

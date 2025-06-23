@@ -1,5 +1,6 @@
 import React from 'react';
 import { twMerge } from 'tailwind-merge';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     children: React.ReactNode;
@@ -23,7 +24,21 @@ const Button = ({
         hidden ? 'hidden' : '',
         className
     );
-  return (
+  return title.length ? (
+    <Tooltip delayDuration={300}>
+        <TooltipTrigger
+            type={type}
+            onClick={onClick}
+            onMouseDown={onMouseDown}
+            hidden={hidden}
+            disabled={disabled}
+            className={finalClass}
+        >
+            {children}
+        </TooltipTrigger>
+        <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
+  ) : (
     <button
         type={type}
         onClick={onClick}

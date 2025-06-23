@@ -57,7 +57,7 @@ const getBestTorrentQuality = (torrents: Torrent[]): Qualities => {
   } else return Qualities['3D'];
 }
 
-const MovieCard = ({movie, setOpen}: Props) => {
+const MovieCard = ({ movie, setOpen }: Props) => {
   const {
     id,
     title,
@@ -66,13 +66,12 @@ const MovieCard = ({movie, setOpen}: Props) => {
   } = movie;
 
   const dispatch = useAppDispatch();
-
   const favorites = useAppSelector(selectFavorites);
 
   const handleClick = () => {
     dispatch(setSelectedMovie(movie));
     setOpen();
-  }
+  };
 
   return (
     <Button

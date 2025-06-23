@@ -17,6 +17,7 @@ import { formatBytes, ONE_GB } from '@/utils/bytes';
 import LoadingIcon from '@/components/LoadingIcon';
 import { PiDownload } from 'react-icons/pi';
 import { twMerge } from 'tailwind-merge';
+import Footer from '@/components/Footer';
 
 interface DiskSpaceInfo {
   diskPath: string;
@@ -95,19 +96,19 @@ const SettingsPage = () => {
 
     useEffect(() => {
         const getDiskSpace = async () => {
-        setIsLoadingDiskInfo(true);
+            setIsLoadingDiskInfo(true);
 
-        try {
-            const diskInfo = await window.electronAPI.checkDiskSpace();
-            setDiskSpace(diskInfo as DiskSpaceInfo);
-        } catch (err) {
-            console.error('Failed to get disk space', err);
-        } finally {
-            setIsLoadingDiskInfo(false);
+            try {
+                const diskInfo = await window.electronAPI.checkDiskSpace();
+                setDiskSpace(diskInfo as DiskSpaceInfo);
+            } catch (err) {
+                console.error('Failed to get disk space', err);
+            } finally {
+                setIsLoadingDiskInfo(false);
+            }
         }
-    }
 
-    getDiskSpace();
+        getDiskSpace();
     }, [formValues.downloadsFolderPath]);
 
   return (
@@ -280,6 +281,8 @@ const SettingsPage = () => {
                     </div>
                 </form>
             </div>
+
+            <Footer />
         </Container>
     </Page>
   )

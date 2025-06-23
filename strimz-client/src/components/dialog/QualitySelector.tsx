@@ -4,6 +4,7 @@ import React, { ChangeEvent } from 'react';
 import { BsInfoCircle } from 'react-icons/bs';
 import { MdOutlineHighQuality } from 'react-icons/md';
 import { twMerge } from 'tailwind-merge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 const getMovieQualities = (torrents: Torrent[]): string[] => {
     const qualities = new Set<string>();
@@ -30,7 +31,12 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
             <MdOutlineHighQuality className='text-2xl' />
             <span className='flex items-center gap-2'>
                 Quality
-                <BsInfoCircle className='text-blue-500' title='Higher quality torrents may take more time to load.' />
+                <Tooltip delayDuration={200}>
+                    <TooltipTrigger className='text-blue-500'>
+                        <BsInfoCircle />
+                    </TooltipTrigger>
+                    <TooltipContent>Higher quality torrents may take more time to load.</TooltipContent>
+                </Tooltip>
             </span>
         </p>
 
