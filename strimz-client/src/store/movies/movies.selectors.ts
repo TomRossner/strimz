@@ -17,3 +17,4 @@ export const selectSubtitleFilePath = (state: RootState) => state.movies.subtitl
 export const selectSubtitleLang = (state: RootState) => state.movies.subtitleLang;
 export const selectUseSubtitles = (state: RootState) => state.movies.useSubtitles;
 export const selectExternalTorrent = (state: RootState) => state.movies.externalTorrent;
+export const selectSubtitlesSize = (state: RootState) => state.movies.subtitlesSize;

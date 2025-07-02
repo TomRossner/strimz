@@ -1,8 +1,8 @@
 {
     "name": "strimz",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "main": "src/main.js",
-    "description": "Strimz v1.3.0",
+    "description": "Strimz v1.3.1",
     "type": "module",
     "license": "MIT",
     "repository": {
@@ -16,9 +16,11 @@
     },
     "scripts": {
         "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:electron\"",
+        "dev:with-torrent": "concurrently \"npm run dev:frontend\" \"npm run dev:electron-with-torrent\"",
         "dev:backend": "cd strimz-backend && npm run start",
         "dev:frontend": "cd strimz-client && npm run dev",
-        "dev:electron": "wait-on http://localhost:5173 && electron . -- \"C:\\Users\\tomro\\Downloads\\No Hard Feelings (2023) [2160p] [WEBRip] [x265] [10bit] [5.1] [YTS.MX].torrent\"",
+        "dev:electron-with-torrent": "wait-on http://localhost:5173 && electron . -- \"C:\\Users\\tomro\\Downloads\\No Hard Feelings (2023) [2160p] [WEBRip] [x265] [10bit] [5.1] [YTS.MX].torrent\"",
+        "dev:electron": "wait-on http://localhost:5173 && electron .",
         "build:frontend": "cd strimz-client && rimraf dist && npm run build",
         "build:backend": "cd strimz-backend && rimraf dist && npm run build",
         "build:electron": "rimraf dist && npm run build:frontend && npm run build:backend && electron-builder",

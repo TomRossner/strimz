@@ -9,6 +9,8 @@ interface ModalsState {
   error: boolean;
   vpn: boolean;
   playTorrentPrompt: boolean;
+  subtitlesSize: boolean;
+  movieDownloadInfo: boolean;
 }
 
 const initialState: ModalsState = {
@@ -19,6 +21,8 @@ const initialState: ModalsState = {
   error: false,
   vpn: false,
   playTorrentPrompt: false,
+  subtitlesSize: false,
+  movieDownloadInfo: false,
 }
 
 const modalsSlice = createSlice({
@@ -32,7 +36,7 @@ const modalsSlice = createSlice({
         state[action.payload] = false;
     }
   },
- });
+});
 
 export const { openModal, closeModal } = modalsSlice.actions;
 export default modalsSlice.reducer;

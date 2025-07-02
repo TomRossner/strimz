@@ -1,6 +1,6 @@
 import { getMoviesByIds } from '@/services/movies';
 import { Movie } from '../../components/MovieCard';
-import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_LANGUAGES } from '../../utils/constants';
+import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_LANGUAGES, DEFAULT_SUBTITLES_SIZE } from '../../utils/constants';
 import { fetchMovies } from '../../utils/fetchMovies';
 import { filterByLanguage } from '../../utils/filterByLanguage';
 import { Filters } from '../../utils/types';
@@ -29,6 +29,7 @@ interface MoviesState {
   subtitleLang: string | null;
   useSubtitles: boolean;
   externalTorrent: {hash: string, title: string} | null;
+  subtitlesSize: number;
 }
 
 const initialState: MoviesState = {
@@ -49,6 +50,7 @@ const initialState: MoviesState = {
   subtitleLang: null,
   useSubtitles: true,
   externalTorrent: null,
+  subtitlesSize: DEFAULT_SUBTITLES_SIZE,
 }
 
 type FetchMoviesAsync = {
@@ -213,7 +215,10 @@ const moviesSlice = createSlice({
     },
     setExternalTorrent(state, action: PayloadAction<{hash: string, title: string} | null>) {
       state.externalTorrent = action.payload;
-    }
+    },
+    setSubtitlesSize(state, action: PayloadAction<number>) {
+      state.subtitlesSize = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -294,6 +299,7 @@ export const {
   setSubtitleLang,
   setUseSubtitles,
   setExternalTorrent,
+  setSubtitlesSize,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

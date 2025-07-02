@@ -1,15 +1,20 @@
-import React, { ChangeEvent, RefObject, useEffect, useRef, useState } from 'react';
+import React, { ChangeEvent, RefObject, useEffect, useState } from 'react';
 import Button from '../Button';
 import { BsPause, BsPlay } from 'react-icons/bs';
 import { IoCheckmark, IoExpandOutline, IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
 import { twMerge } from 'tailwind-merge';
 import TimeTrack from './TimeTrack';
 import VolumeSlider from './VolumeSlider';
-import { PiSubtitlesLight } from 'react-icons/pi';
+import { PiArrowArcLeft, PiArrowArcRight, PiSubtitlesLight } from 'react-icons/pi';
 import SubtitlesSelector from '../dialog/SubtitlesSelector';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectSubtitleFilePath, selectSubtitlesSize, selectUseSubtitles } from '@/store/movies/movies.selectors';
 import { setUseSubtitles } from '@/store/movies/movies.slice';
+import { VscTextSize } from "react-icons/vsc";
+import { openModal } from '@/store/modals/modals.slice';
+import SubtitlesSizeDialog from './SubtitlesSizeDialog';
+import { selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
+import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 
 interface ControlsProps {
     ref: RefObject<HTMLVideoElement>;
@@ -25,6 +30,8 @@ interface ControlsProps {
     duration: number;
     currentTime: number;
     handleFullScreen: () => void;
+    handleSkipForward: () => void;
+    handleSkipBackward: () => void;
 }
 
 const Controls = ({
@@ -32,7 +39,6 @@ const Controls = ({
     isMuted,
     setIsMuted,
     controlsVisible,
-    setControlsVisible,
     isPlaying,
     setIsPlaying,
     playbackWidth,
@@ -41,34 +47,22 @@ const Controls = ({
     duration,
     currentTime,
     handleFullScreen,
+    handleSkipForward,
+    handleSkipBackward,
 }: ControlsProps) => {
     const dispatch = useAppDispatch();
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [subtitleSelectorVisible, setSubtitleSelectorVisible] = useState<boolean>(false);
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const useSubtitles = useAppSelector(selectUseSubtitles);
-
-    useEffect(() => {
-        const handleMouseMove = () => {
-            setControlsVisible(true);
-
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-            timeoutRef.current = setTimeout(() => {
-                setControlsVisible(false);
-            }, 2000);
-        }
-
-        window.addEventListener('mousemove', handleMouseMove);
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        }
-    }, []);
+    const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
+    const subtitlesSize = useAppSelector(selectSubtitlesSize);
 
     const handleVolumeMute = () => {
-        setIsMuted(!videoRef.current?.muted as boolean);
+        if (!videoRef.current) return;
+        const newMuted = !videoRef.current.muted;
+        videoRef.current.muted = newMuted;
+
+        setIsMuted(newMuted);
     }
 
     const [volume, setVolume] = useState<number>(100);
@@ -81,46 +75,102 @@ const Controls = ({
 
     useEffect(() => {
         const video = videoRef.current;
-        if (video) {
+        if (video && Math.round(video.volume * 100) !== volume) {
             video.volume = volume / 100;
-            if (volume > 0) {
-                video.muted = false;
-                setIsMuted(false);
-            } else {
-                video.muted = true;
-                setIsMuted(true);
-            }
         }
-    }, [volume]);
+    }, [volume, videoRef]);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const handleVolumeChangeEvent = () => {
+            setVolume(Math.round(video.volume * 100));
+            setIsMuted(video.muted);
+        }
+
+        video.addEventListener('volumechange', handleVolumeChangeEvent);
+        return () => video.removeEventListener('volumechange', handleVolumeChangeEvent);
+    }, [videoRef, setIsMuted]);
+
 
     useEffect(() => {
         dispatch(setUseSubtitles(!!subtitleFilePath));
     }, [subtitleFilePath, dispatch]);
+
+    const [videoHeight, setVideoHeight] = useState<number>(0);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const updateHeight = () => {
+            setVideoHeight(video.clientHeight);
+        };
+
+        const observer = new ResizeObserver(() => {
+            updateHeight();
+        });
+
+        observer.observe(video);
+        updateHeight();
+
+        return () => observer.disconnect();
+    }, [videoRef]);
     
   return (
     <div
         className={twMerge(`
             absolute
-            bottom-3
+            bottom-0
             transition-all
             duration-300
-            h-20
             py-4
             px-3
             w-full
             flex
             gap-2
             items-end
-            ${controlsVisible ? 'opacity-100' : 'opacity-0'}
         `)}
-        style={{ background: 'linear-gradient(to top, black 0%, transparent 100%)' }}
+        style={{
+            background: 'linear-gradient(to top, black 0%, transparent 100%)',
+            opacity: controlsVisible ? 1 : 0,
+            pointerEvents: controlsVisible ? 'all' : 'none',
+            willChange: 'opacity',
+            height: `${videoHeight * 0.15}px`,
+        }}
+
     >
         <Button
-            title={isPlaying ? 'Pause' : 'Play'}
+            title={`${isPlaying ? 'Pause' : 'Play'} (${PLAYER_CONTROLS_KEY_BINDS.PLAY_PAUSE === ' ' ? 'SPACE' : PLAYER_CONTROLS_KEY_BINDS.PLAY_PAUSE.toUpperCase()})`}
             onClick={() => setIsPlaying(videoRef.current?.paused as boolean)}
             className='w-9 h-9 bg-transparent aspect-square justify-center p-0 text-white text-3xl hover:bg-stone-800 duration-200'
         >
             {isPlaying ? <BsPause /> : <BsPlay />}
+        </Button>
+        
+        <Button
+            title={`Skip Backward (${SKIP_BACK_SECONDS}s)`}
+            onClick={handleSkipBackward}
+            className='w-9 h-9 relative bg-transparent aspect-square justify-center p-0 text-white hover:bg-stone-800 duration-200'
+        >
+            <div className='flex flex-col items-center justify-center'>
+                <PiArrowArcLeft className='absolute top-1 text-lg -rotate-12' />
+                <span className='text-[10px] absolute bottom-1.5'>{SKIP_BACK_SECONDS}s</span>
+            </div>
+            {/* <BsSkipBackward className='text-2xl' /> */}
+        </Button>
+
+        <Button
+            title={`Skip Forward (${SKIP_FORWARD_SECONDS}s)`}
+            onClick={handleSkipForward}
+            className='w-9 h-9 relative bg-transparent aspect-square justify-center p-0 text-white hover:bg-stone-800 duration-200'
+        >
+            <div className='flex flex-col items-center justify-center'>
+                <PiArrowArcRight className='absolute top-1 text-lg rotate-12' />
+                <span className='text-[10px] absolute bottom-1.5'>{SKIP_FORWARD_SECONDS}s</span>
+            </div>
+            {/* <BsSkipForward className='text-2xl' /> */}
         </Button>
 
         <TimeTrack
@@ -137,7 +187,7 @@ const Controls = ({
                 <IoSettingsOutline />
             </Button> */}
             <Button
-                title='Subtitles'
+                title={`Subtitles - ${useSubtitles ? 'On' : 'Off'} (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_SUBTITLES.toUpperCase()})`}
                 onClick={() => setSubtitleSelectorVisible(!subtitleSelectorVisible)}
                 className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
             >
@@ -149,7 +199,7 @@ const Controls = ({
                 onClick={() => setVolumeSliderVisible(!volumeSliderVisible)}
             >
                 <Button
-                    title='Volume'
+                    title={`Volume ${isMuted ? '(muted)' : `(${Math.round(volume)}%)`}`}
                     className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
                 >
                     {isMuted ? (
@@ -165,7 +215,7 @@ const Controls = ({
             </div>
 
             <Button
-                title='Toggle fullscreen'
+                title={`Toggle Fullscreen (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_FULLSCREEN.toUpperCase()})`}
                 className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
                 onClick={handleFullScreen}
             >
@@ -203,7 +253,17 @@ const Controls = ({
                     ${subtitleSelectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}
                 `)}
             >
-                <span className='text-start w-full text-sm text-stone-400'>Subtitles</span>
+                <div className='flex items-center w-full justify-between'>
+                    <span className='text-start w-full text-sm text-stone-400'>Subtitles</span>
+                    <div className='grow flex justify-end items-center text-sm text-nowrap gap-1'>
+                        <Button onClick={() => dispatch(openModal('subtitlesSize'))} title='Subtitles size' className='hover:bg-stone-600'>
+                            <VscTextSize className='text-2xl' />
+                        </Button>
+                        <span className='text-stone-500 italic'>Set to {subtitlesSize}px</span>
+                    </div>
+                </div>
+                
+                <SubtitlesSizeDialog isOpen={isSubtitlesSizeModalOpen} />
                 
                 <input
                     type="checkbox"

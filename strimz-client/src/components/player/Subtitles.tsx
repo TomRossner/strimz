@@ -1,25 +1,29 @@
 import { useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitleLang, selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectSubtitleFilePath, selectSubtitleLang, selectSubtitlesSize, selectUseSubtitles } from '@/store/movies/movies.selectors';
 import { getSubtitleMetadata } from '@/utils/detectLanguage';
 import { getFileExtension } from '@/utils/getFileExtension';
 import { isRTL, parseSRTtoVTT } from '@/utils/subtitles';
 import { Cue } from '@/utils/types';
 import React, {  useEffect, useMemo, useRef } from 'react';
+import { twMerge } from 'tailwind-merge';
 
 interface SubtitlesProps {
     parsedSubtitles: Cue[];
     setParsedSubtitles: (cueArr: Cue[]) => void;
     currentSubtitle: string;
     setCurrentSubtitle: (str: string) => void;
+    videoDimensions: { width: number, height: number };
 }
 
-const Subtitles = ({setParsedSubtitles, currentSubtitle, setCurrentSubtitle}: SubtitlesProps) => {
+const Subtitles = ({setParsedSubtitles, currentSubtitle, setCurrentSubtitle, videoDimensions: { width = 0, height = 0 }}: SubtitlesProps) => {
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const { lang } = useMemo(() => getSubtitleMetadata(subtitleLang as string), [subtitleLang]);
-    const useSubtitles = useAppSelector(selectUseSubtitles);
+    const hasSubtitles = useAppSelector(selectUseSubtitles);
 
     const subtitlesContainerRef = useRef<HTMLDivElement | null>(null);
+
+    const subtitlesSize = useAppSelector(selectSubtitlesSize);
 
     useEffect(() => {
             const cleanup = () => {
@@ -57,20 +61,30 @@ const Subtitles = ({setParsedSubtitles, currentSubtitle, setCurrentSubtitle}: Su
             return cleanup;
     }, [subtitleFilePath, lang]);
     
-  return useSubtitles ? (
+  return hasSubtitles ? (
     <div
         ref={subtitlesContainerRef}
         dir={isRTL(lang) ? 'rtl' : 'ltr'}
-        className="absolute bottom-[22%] lg:bottom-[14%] lg:text-2xl w-full text-center text-white text-xl px-4 z-10 h-auto"
+        className={twMerge(`w-full text-center text-white px-4 z-10`)}
         style={{
             direction: isRTL(lang as string) ? 'rtl' : 'ltr',
             unicodeBidi: 'embed',
             textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
-            whiteSpace: 'pre-line'
+            whiteSpace: 'pre-line',
+            fontSize: `${subtitlesSize}px`,
+            maxHeight: `${height * 0.25}px`,
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            position: 'absolute',
+            userSelect: 'none',
+            bottom: width > 1280 && !document.fullscreenElement
+                ? `${height * 0.09}px`
+                : `${height * (document.fullscreenElement ? 0.13 : 0.18)}px`,
         }}
-    >
-        {currentSubtitle}
-    </div>
+        dangerouslySetInnerHTML={{ __html: currentSubtitle }}
+    />
   ) : null
 }
 

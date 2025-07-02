@@ -1,10 +1,31 @@
 import { RTLLanguages } from "./detectLanguage";
 import { Cue } from "./types";
+import DOMPurify from 'dompurify';
 
 export const isRTL = (lang: string): boolean => {
   const langCode = lang.split('-')[0].toLowerCase();
   return RTLLanguages.includes(langCode);
 }
+
+const convertLegacyStylingToHTML = (text: string): string => {
+    // Convert italics
+    text = text.replace(/\{\\i1\}/g, '<i>');
+    text = text.replace(/\{\\i0\}/g, '</i>');
+
+    // Convert bold
+    text = text.replace(/\{\\b1\}/g, '<b>');
+    text = text.replace(/\{\\b0\}/g, '</b>');
+
+    // Convert underline
+    text = text.replace(/\{\\u1\}/g, '<u>');
+    text = text.replace(/\{\\u0\}/g, '</u>');
+
+    // Remove any other unsupported {...} tags
+    text = text.replace(/\{[^}]+\}/g, '');
+
+    return text;
+}
+
 
 export const parseSRTtoVTT = (data: string, lang: string): Cue[] => {
     const isLangRTL = isRTL(lang);
@@ -90,13 +111,20 @@ export const parseSRTtoVTT = (data: string, lang: string): Cue[] => {
         const textContentLines = lines.slice(timeLineIndex + 1);
         let text = textContentLines.join('\n').trim();
 
+        // First, convert legacy styling tags to HTML tags
+        text = convertLegacyStylingToHTML(text);
+
+        // Then apply your RTL/LTR processing
         const processedLines = text.split('\n').map(processRTLText);
         text = processedLines.join('\n');
+
+        // Sanitize to remove unsafe HTML but allow <i>, <b>, <u>
+        const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: ['i', 'b', 'u'] });
 
         cues.push({
             start,
             end,
-            text,
+            text: sanitizedText,
         });
     }
 

@@ -51,3 +51,19 @@ export const DEFAULT_PARAMS: Filters & {page: number} = {
   query_term: '',
   sort_by: DEFAULT_SORT_BY,
 }
+
+export const DEFAULT_SUBTITLES_SIZE: number = 30; // px
+
+export const PLAYER_CONTROLS_KEY_BINDS = {
+  PLAY_PAUSE: ' ', // Space
+  MUTE_UNMUTE: 'm',
+  TOGGLE_FULLSCREEN: 'f',
+  TOGGLE_SUBTITLES: 'c',
+  VOLUME_UP: 'ArrowUp',
+  VOLUME_DOWN: 'ArrowDown',
+  SEEK_FORWARD: 'ArrowRight',
+  SEEK_BACKWARD: 'ArrowLeft',
+}
+
+export const SKIP_BACK_SECONDS: number = 10;
+export const SKIP_FORWARD_SECONDS: number = 15;
