@@ -69,6 +69,9 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
                             hash,
                             progress: torrent.progress,
                             speed: torrent.downloadSpeed,
+                            peers: torrent.numPeers,
+                            downloaded: torrent.downloaded,
+                            done: false,
                         });
                     }
                 });
@@ -77,6 +80,10 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
                     if (targetSocket) {
                         targetSocket.emit('downloadDone', {
                             hash,
+                            progress: torrent.progress,
+                            speed: torrent.downloadSpeed,
+                            peers: torrent.numPeers,
+                            downloaded: torrent.downloaded,
                             done: torrent.done,
                         });
                     }

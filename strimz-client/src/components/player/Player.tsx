@@ -5,8 +5,6 @@ import React, { RefObject, useCallback, useEffect, useRef, useState } from 'reac
 import { useSearchParams } from 'react-router-dom';
 import Page from '../Page';
 import Container from '../Container';
-import BackButton from '../BackButton';
-import { openModal } from '@/store/modals/modals.slice';
 import LoadingIcon from '../LoadingIcon';
 import Progress from '../Progress';
 import { twMerge } from 'tailwind-merge';
@@ -14,13 +12,13 @@ import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
 import Subtitles from './Subtitles';
-import { selectExternalTorrent, selectMovie, selectSubtitleFilePath, selectUseSubtitles } from '@/store/movies/movies.selectors';
-import { selectMovieDownloadInfoPanel, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
+import { selectMovie, selectSubtitleFilePath, selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { setUseSubtitles } from '@/store/movies/movies.slice';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
-import { BsInfoCircle } from 'react-icons/bs';
-import Button from '../Button';
-import InfoPanel from './InfoPanel';
+import TopOverlay from './TopOverlay';
+import ShortcutActionDisplay from './ShortcutActionDisplay';
+import throttle from 'lodash.throttle';
 
 const {
     PLAY_PAUSE,
@@ -50,19 +48,15 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     
-    const [bufferWidth, setBufferWidth] = useState<number>(0);
-    
     const [controlsVisible, setControlsVisible] = useState<boolean>(false);
     const [currentTime, setCurrentTime] = useState<number>(0);
     const [duration, setDuration] = useState<number>(0);
     const [playbackWidth, setPlaybackWidth] = useState<number>(0);
     const [isMuted, setIsMuted] = useState<boolean>(false);
 
-    const externalTorrent = useAppSelector(selectExternalTorrent);
-
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
 
     const useSubtitles = useAppSelector(selectUseSubtitles);
@@ -70,9 +64,18 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     const isInfoPanelOpen = useAppSelector(selectMovieDownloadInfoPanel);
     
-    const movie = useAppSelector(selectMovie); 
+    const movie = useAppSelector(selectMovie);
 
-    const handleFullScreen = () => {
+    const [hasUsedKeyboardShortcut, setHasUsedKeyboardShortcut] = useState<boolean>(false);
+    const keyboardShortcutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [keyboardShortcut, setKeyboardShortcut] = useState<string | null>(null);
+
+    const subtitlesSelectorTabOpen = useAppSelector(selectSubtitlesSelectorTab);
+
+    const [downloadInfo, setDownloadInfo] = useState<DownloadProgressData | null>(null);
+    const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
+
+    const toggleFullscreen = () => {
         const container = containerRef.current;
 
         if (!container) return;
@@ -128,98 +131,117 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const handleMouseMove = useCallback(() => {
         setControlsVisible(true);
         
-        if (isSubtitlesSizeModalOpen || isInfoPanelOpen) return;
+        if (isSubtitlesSizeModalOpen || isInfoPanelOpen || subtitlesSelectorTabOpen) return;
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (mouseMoveTimeoutRef.current) clearTimeout(mouseMoveTimeoutRef.current);
 
-        timeoutRef.current = setTimeout(() => {
-            if (isSubtitlesSizeModalOpen || isInfoPanelOpen) return;
+        mouseMoveTimeoutRef.current = setTimeout(() => {
+            if (isSubtitlesSizeModalOpen || isInfoPanelOpen || subtitlesSelectorTabOpen) return;
             setControlsVisible(false);
         }, 2000);
-    }, [isSubtitlesSizeModalOpen, isInfoPanelOpen]);
+    }, [isSubtitlesSizeModalOpen, isInfoPanelOpen, subtitlesSelectorTabOpen]);
 
     useEffect(() => {
         if (videoRef.current) {
             if (isPlaying) {
-                videoRef.current?.play().catch(console.log);
+                videoRef.current?.play().catch(console.error);
             } else videoRef.current?.pause();
         }
     }, [isPlaying, videoRef]);
 
+    const throttledSetDownloadInfo = useRef(
+        throttle((data: DownloadProgressData) => {
+            setDownloadInfo(data);
+        }, 500)
+    ).current;
+
     useEffect(() => {
         if (!socket?.id || !hash) return;
 
-        socket.on('downloadProgress', (data: DownloadProgressData) => {
+        const handleProgress = (data: DownloadProgressData) => {
             if (data.hash.toLowerCase() === hash.toLowerCase()) {
-                setBufferWidth(Number((data.progress * 100).toFixed(2)));
+                throttledSetDownloadInfo(data);
             }
-        })
-        socket.on('downloadDone', (data: { hash: string, done: boolean }) => {
-            if (data.hash.toLowerCase() === hash.toLowerCase()) {
-                setBufferWidth(100);
-            }
-        })
-    }, [socket, hash]);
+        }
+
+        socket.on('downloadProgress', handleProgress);
+        socket.on('downloadDone', handleProgress);
+
+        return () => {
+            socket.off('downloadProgress', handleProgress);
+            socket.off('downloadDone', handleProgress);
+        }
+    }, [socket, hash, throttledSetDownloadInfo]);
 
     useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove);
 
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            if (mouseMoveTimeoutRef.current) clearTimeout(mouseMoveTimeoutRef.current);
         }
     }, [handleMouseMove]);
-
 
     const adjustVolume = (video: HTMLVideoElement, delta: number) => {
         const newVolume = Math.min(Math.max(video.volume + delta, 0), 1);
         video.volume = Math.round(newVolume * 100) / 100;
     }
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            const video = videoRef.current;
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        const video = videoRef.current;
 
-            if (!video || isSubtitlesSizeModalOpen) return;
+        if (!video || isSubtitlesSizeModalOpen) return;
 
-            switch (e.key) {
-                case PLAY_PAUSE:
-                    e.preventDefault();
-                    setIsPlaying(prev => !prev);
-                    break;
-                case TOGGLE_FULLSCREEN:
-                    e.preventDefault();
-                    handleFullScreen();
-                    break;
-                case SEEK_BACKWARD:
-                    e.preventDefault();
-                    handleSkipBackward();
-                    break;
-                case SEEK_FORWARD:
-                    e.preventDefault();
-                    handleSkipForward();
-                    break;
-                case VOLUME_UP:
-                    e.preventDefault();
-                    adjustVolume(video, 0.01);
-                    break;
-                case VOLUME_DOWN:
-                    e.preventDefault();
-                    adjustVolume(video, -0.01);
-                    break;
-                case MUTE_UNMUTE:
-                    e.preventDefault();
-                    setIsMuted(prev => !prev);
-                    break;
-                case TOGGLE_SUBTITLES:
-                    e.preventDefault();
-                    dispatch(setUseSubtitles(hasSubtitles ? !useSubtitles : useSubtitles));
-                    break;
-            }
+        switch (e.key) {
+            case PLAY_PAUSE:
+                e.preventDefault();
+                setIsPlaying(prev => !prev);
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case TOGGLE_FULLSCREEN:
+                e.preventDefault();
+                toggleFullscreen();
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case SEEK_BACKWARD:
+                e.preventDefault();
+                handleSkipBackward();
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case SEEK_FORWARD:
+                e.preventDefault();
+                handleSkipForward();
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case VOLUME_UP:
+                e.preventDefault();
+                adjustVolume(video, 0.01);
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case VOLUME_DOWN:
+                e.preventDefault();
+                adjustVolume(video, -0.01);
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case MUTE_UNMUTE:
+                e.preventDefault();
+                setIsMuted(prev => !prev);
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
+            case TOGGLE_SUBTITLES:
+                e.preventDefault();
+                dispatch(setUseSubtitles(hasSubtitles ? !useSubtitles : useSubtitles));
+                setHasUsedKeyboardShortcut(true);
+                setKeyboardShortcut(e.key);
+                break;
         }
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [
         isSubtitlesSizeModalOpen,
         useSubtitles,
@@ -228,10 +250,25 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     ]);
 
     useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleKeyDown]);
+
+    useEffect(() => {
         if (isReadyToPlay && !isPlaying) {
             setIsPlaying(true);
         }
     }, [isReadyToPlay]);
+
+    useEffect(() => {
+        if (hasUsedKeyboardShortcut) {
+            if (keyboardShortcutTimeoutRef.current) clearTimeout(keyboardShortcutTimeoutRef.current);
+
+            keyboardShortcutTimeoutRef.current = setTimeout(() => {
+                setHasUsedKeyboardShortcut(false);
+            }, 2000);
+        }
+    }, [hasUsedKeyboardShortcut]);
 
     return (
         <Page>
@@ -242,46 +279,23 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                         onMouseLeave={() => setControlsVisible(false)}
                         className='flex flex-col justify-center w-full h-[98vh] relative'
                     >
-                        <div
-                            className={`
-                                absolute
-                                top-0
-                                text-lg
-                                font-medium
-                                text-white
-                                transition-all
-                                duration-300
-                                py-4
-                                px-3
-                                w-full
-                                flex
-                                justify-between
-                                gap-2
-                                z-[9999]
-                            `}
-                            style={{
-                                background: 'linear-gradient(to bottom, black 0%, transparent 100%)',
-                                opacity: controlsVisible ? 1 : 0,
-                                pointerEvents: controlsVisible ? 'all' : 'none',
-                                willChange: 'opacity',
-                                height: `${videoRef.current?.clientHeight as number * 0.15}px`,
+                        <TopOverlay
+                            isVisible={controlsVisible}
+                            title={`${title} (${movie?.year})`}
+                            downloadInfo={downloadInfo}
+                            videoDimensions={{
+                                height: videoRef.current?.clientHeight || 0,
+                                width: videoRef.current?.clientWidth || 0,
                             }}
-                        >
-                            <p className='flex items-start gap-2'>
-                                <BackButton cb={() => !externalTorrent ? dispatch(openModal('movie')) : undefined} />
-                                {title} ({movie?.year})
-                            </p>
+                        />
 
-                            <Button
-                                title='Info'
-                                onClick={() => dispatch(openModal('movieDownloadInfo'))}
-                                className='w-9 h-9 bg-transparent aspect-square justify-center p-0 text-white text-2xl hover:bg-stone-800 duration-200 cursor-pointer'
-                            >
-                                <BsInfoCircle />
-                            </Button>
-
-                            <InfoPanel isOpen={isInfoPanelOpen} />
-                        </div>
+                        <ShortcutActionDisplay
+                            isVisible={hasUsedKeyboardShortcut}
+                            isMuted={isMuted}
+                            isPlaying={isPlaying}
+                            shortcut={keyboardShortcut}
+                            videoRef={videoRef as RefObject<HTMLVideoElement>}
+                        />
 
                         <video
                             autoPlay
@@ -289,10 +303,16 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             ref={videoRef}
                             poster={poster ?? ''}
                             onCanPlay={() => setIsPlaying(true)}
-                            className={twMerge(`aspect-video w-full mx-auto will-change-[cursor] ${controlsVisible ? 'cursor-default' : 'cursor-none'}`)}
                             onTimeUpdate={handleTimeUpdate}
                             onClick={() => setIsPlaying(videoRef.current?.paused as boolean)}
-                            onDoubleClick={handleFullScreen}
+                            onDoubleClick={toggleFullscreen}
+                            className={twMerge(`
+                                aspect-video
+                                w-full
+                                mx-auto
+                                will-change-[cursor]
+                                ${controlsVisible ? 'cursor-default' : 'cursor-none'}
+                            `)}
                         >
                             <source src={src || undefined} type='video/mp4' />
                         </video>
@@ -321,7 +341,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             currentTime={currentTime}
                             duration={duration}
                             bufferWidth={bufferWidth}
-                            handleFullScreen={handleFullScreen}
+                            handleFullScreen={toggleFullscreen}
                             handleSkipForward={handleSkipForward}
                             handleSkipBackward={handleSkipBackward}
                         />

@@ -36,7 +36,7 @@ const Button = ({
         >
             {children}
         </TooltipTrigger>
-        <TooltipContent>{title}</TooltipContent>
+        <TooltipContent className='z-[9999]'>{title}</TooltipContent>
     </Tooltip>
   ) : (
     <button

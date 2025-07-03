@@ -11,9 +11,9 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSubtitleFilePath, selectSubtitlesSize, selectUseSubtitles } from '@/store/movies/movies.selectors';
 import { setUseSubtitles } from '@/store/movies/movies.slice';
 import { VscTextSize } from "react-icons/vsc";
-import { openModal } from '@/store/modals/modals.slice';
+import { closeModal, openModal } from '@/store/modals/modals.slice';
 import SubtitlesSizeDialog from './SubtitlesSizeDialog';
-import { selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
+import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 
 interface ControlsProps {
@@ -51,7 +51,7 @@ const Controls = ({
     handleSkipBackward,
 }: ControlsProps) => {
     const dispatch = useAppDispatch();
-    const [subtitleSelectorVisible, setSubtitleSelectorVisible] = useState<boolean>(false);
+    const subtitlesSelectorTabOpen = useAppSelector(selectSubtitlesSelectorTab);
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const useSubtitles = useAppSelector(selectUseSubtitles);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
@@ -188,7 +188,7 @@ const Controls = ({
             </Button> */}
             <Button
                 title={`Subtitles - ${useSubtitles ? 'On' : 'Off'} (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_SUBTITLES.toUpperCase()})`}
-                onClick={() => setSubtitleSelectorVisible(!subtitleSelectorVisible)}
+                onClick={() => dispatch(openModal('subtitlesSelectorTab'))}
                 className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
             >
                 <PiSubtitlesLight />
@@ -232,7 +232,7 @@ const Controls = ({
             />
 
             <div
-                onMouseLeave={() => setTimeout(() => setSubtitleSelectorVisible(false), 1000)}
+                onMouseLeave={() => setTimeout(() => dispatch(closeModal('subtitlesSelectorTab')), 2000)}
                 className={twMerge(`
                     absolute
                     w-[300px]
@@ -250,7 +250,8 @@ const Controls = ({
                     bg-stone-800
                     transition-all
                     duration-150
-                    ${subtitleSelectorVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+                    will-change-[opacity]
+                    ${subtitlesSelectorTabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
                 `)}
             >
                 <div className='flex items-center w-full justify-between'>

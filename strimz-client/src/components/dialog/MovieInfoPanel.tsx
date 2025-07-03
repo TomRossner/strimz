@@ -10,7 +10,7 @@ import MobileCoverSpacer from './MobileCoverSpacer';
 import Metadata from './Metadata';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/store/hooks';
-import { setSubtitleFilePath } from '@/store/movies/movies.slice';
+import { setSelectedTorrent, setSubtitleFilePath } from '@/store/movies/movies.slice';
 import SubtitlesSelector from './SubtitlesSelector';
 
 interface MovieInfoPanelProps {
@@ -35,11 +35,17 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         const torrents = movie?.torrents as Torrent[];
 
         if (hash && selectedQuality) {
-            return torrents.find(t => (t.quality === selectedQuality) && (t.hash === hash)) as Torrent ?? null;
+            const torrent: Torrent | undefined = torrents.find(t => (t.quality === selectedQuality) && (t.hash === hash));
+            
+            if (torrent) {
+                dispatch(setSelectedTorrent(torrent));
+            }
+
+            return torrent || null;
         }
 
         return null;
-    }, [hash, selectedQuality, movie?.torrents]);
+    }, [hash, selectedQuality, movie?.torrents, dispatch]);
 
 
     const handleClose = () => {

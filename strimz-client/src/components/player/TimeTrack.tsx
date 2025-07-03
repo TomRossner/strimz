@@ -45,6 +45,7 @@ const TimeTrack = ({
             className='relative w-full h-1 bg-stone-700 my-2'
         >
             <input
+                title={''} // For overriding default title
                 type="range"
                 name="playback"
                 id="playback"

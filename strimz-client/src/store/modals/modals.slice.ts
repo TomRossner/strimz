@@ -11,6 +11,7 @@ interface ModalsState {
   playTorrentPrompt: boolean;
   subtitlesSize: boolean;
   movieDownloadInfo: boolean;
+  subtitlesSelectorTab: boolean;
 }
 
 const initialState: ModalsState = {
@@ -23,6 +24,7 @@ const initialState: ModalsState = {
   playTorrentPrompt: false,
   subtitlesSize: false,
   movieDownloadInfo: false,
+  subtitlesSelectorTab: false,
 }
 
 const modalsSlice = createSlice({

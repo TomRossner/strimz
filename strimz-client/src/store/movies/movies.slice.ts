@@ -3,7 +3,7 @@ import { Movie } from '../../components/MovieCard';
 import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_LANGUAGES, DEFAULT_SUBTITLES_SIZE } from '../../utils/constants';
 import { fetchMovies } from '../../utils/fetchMovies';
 import { filterByLanguage } from '../../utils/filterByLanguage';
-import { Filters } from '../../utils/types';
+import { Filters, Torrent } from '../../utils/types';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { isAxiosError } from 'axios';
@@ -30,6 +30,7 @@ interface MoviesState {
   useSubtitles: boolean;
   externalTorrent: {hash: string, title: string} | null;
   subtitlesSize: number;
+  selectedTorrent: Torrent | null;
 }
 
 const initialState: MoviesState = {
@@ -51,6 +52,7 @@ const initialState: MoviesState = {
   useSubtitles: true,
   externalTorrent: null,
   subtitlesSize: DEFAULT_SUBTITLES_SIZE,
+  selectedTorrent: null,
 }
 
 type FetchMoviesAsync = {
@@ -219,6 +221,9 @@ const moviesSlice = createSlice({
     setSubtitlesSize(state, action: PayloadAction<number>) {
       state.subtitlesSize = action.payload;
     },
+    setSelectedTorrent(state, action: PayloadAction<Torrent | null>) {
+      state.selectedTorrent = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -300,6 +305,7 @@ export const {
   setUseSubtitles,
   setExternalTorrent,
   setSubtitlesSize,
+  setSelectedTorrent,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

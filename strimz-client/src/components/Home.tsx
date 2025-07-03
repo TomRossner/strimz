@@ -46,7 +46,7 @@ const Home = () => {
 
         dispatch(setSocket(newSocket));
       }
-    }, [socket, dispatch]);
+    }, []);
 
     const handleGetTorrentData = useCallback(async (path: string) => {
         if (!settings.downloadsFolderPath.length || externalTorrent) {

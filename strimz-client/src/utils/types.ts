@@ -32,6 +32,9 @@ export type DownloadProgressData = {
   hash: string;
   progress: number;
   speed: number;
+  peers: number;
+  done: boolean;
+  downloaded: number;
 }
 
 export type Cue = {

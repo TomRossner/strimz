@@ -8,3 +8,4 @@ export const selectVpnModal = (state: RootState): boolean => state.modals.vpn;
 export const selectPlayTorrentPrompt = (state: RootState): boolean => state.modals.playTorrentPrompt;
 export const selectSubtitlesSizeModal = (state: RootState): boolean => state.modals.subtitlesSize;
 export const selectMovieDownloadInfoPanel = (state: RootState): boolean => state.modals.movieDownloadInfo;
+export const selectSubtitlesSelectorTab = (state: RootState): boolean => state.modals.subtitlesSelectorTab;
