@@ -13,7 +13,7 @@ import iconv from "iconv-lite";
 
 const { autoUpdater } = electronUpdater;
 
-export function attachIPCHandlers(isDev) {
+export function attachIPCHandlers(isDev, updateState) {
   ipcMain.handle('get-auto-install-setting', () => {
     return store.get("autoInstallOnQuit");
   });
@@ -97,7 +97,7 @@ export function attachIPCHandlers(isDev) {
 
   ipcMain.on('subscribe-to-updates', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    setupAutoUpdater(win);
+    setupAutoUpdater(win, updateState);
   });
   
   ipcMain.on('save-setting', (event, key, value) => {
