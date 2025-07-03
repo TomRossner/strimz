@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import TitleWrapper from './TitleWrapper';
 import { Movie } from '../MovieCard';
 import { Torrent } from '../../utils/types';
@@ -59,10 +59,8 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         setHash(hash);
     }
 
-    const handleQualityChange = (ev: ChangeEvent<HTMLSelectElement>) => {
-        const {currentTarget: {value}} = ev;
-
-        setSelectedQuality(value);
+    const handleQualityChange = (quality: string) => {
+        setSelectedQuality(quality);
         setHash('');
     }
 
@@ -78,7 +76,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
             <TitleWrapper onClose={handleClose} title={title} />
             <Metadata movie={movie} />
 
-            <div className='py-2 flex w-full gap-4 md:h-full min-h-32 justify-between md:flex-row flex-col'>
+            <div className='py-1 flex w-full gap-3 md:h-full h-32 flex-col'>
                 <QualitySelector selected={selectedQuality} torrents={torrents} handleSelect={handleQualityChange} />
                 <TorrentSelector handleSelect={handleTorrentSelect} quality={selectedQuality} torrents={torrents} hash={hash} />
             </div>

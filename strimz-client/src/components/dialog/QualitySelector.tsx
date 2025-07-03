@@ -1,6 +1,6 @@
-import { Qualities } from '../../utils/qualities';
+import { QUALITIES, Qualities } from '../../utils/qualities';
 import { Torrent } from '../../utils/types';
-import React, { ChangeEvent } from 'react';
+import React from 'react';
 import { BsInfoCircle } from 'react-icons/bs';
 import { MdOutlineHighQuality } from 'react-icons/md';
 import { twMerge } from 'tailwind-merge';
@@ -20,13 +20,13 @@ const getMovieQualities = (torrents: Torrent[]): string[] => {
 
 interface QualitySelectorProps {
     torrents: object[];
-    handleSelect: (ev: ChangeEvent<HTMLSelectElement>) => void;
+    handleSelect: (quality: string) => void;
     selected: string;
 }
 
 const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProps) => {
   return (
-    <div className='flex flex-col gap-5 w-full'>
+    <div className='flex flex-col gap-2 w-full'>
         <p className='text-white flex items-center gap-1'>
             <MdOutlineHighQuality className='text-2xl' />
             <span className='flex items-center gap-2'>
@@ -40,31 +40,48 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
             </span>
         </p>
 
-        <select
-            name="qualities"
-            id="qualities"
-            onChange={handleSelect}
-            className='cursor-pointer min-w-fit p-1 w-full outline-none rounded-sm text-white bg-stone-800 hover:bg-stone-700'
-        >
-            <option className='text-white cursor-pointer' value={undefined}>Select quality</option>
-            {(getMovieQualities(torrents as Torrent[]))
-                .toReversed()
-                .map(q => (
-                    <option
-                        key={q}
-                        value={q}
-                        className={twMerge(`
-                            ${q === selected
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-stone-800 text-white'
-                            }
-                        `)}
-                    >
-                        {q === '2160p' ? Qualities['4K'] : q}
-                    </option>
-                ))
+        <div className='min-w-fit p-1 w-full rounded-sm text-white flex items-center gap-1'>
+            {Array.from(Object.values(QUALITIES))
+                .map(q => {
+                    const isAvailable: boolean = getMovieQualities(torrents as Torrent[]).some(qual => qual === q);
+                    return (
+                        <div key={q} className='flex gap-2 items-center w-fit rounded-md'>
+                            <input
+                                hidden
+                                type="radio"
+                                name="qualities"
+                                id={q}
+                                onChange={(ev) => isAvailable ? handleSelect(ev.target.value) : undefined}
+                                value={q}
+                            />
+
+                            <label
+                                htmlFor={q}
+                                className={twMerge(`
+                                    cursor-pointer
+                                    w-full
+                                    text-center
+                                    rounded-sm
+                                    text-white
+                                    px-2
+                                    py-1
+                                    flex
+                                    items-center
+                                    justify-between
+                                    ${q === selected ? 'bg-blue-500 hover:bg-blue-400' : 'bg-stone-800 hover:bg-stone-700'}
+                                `)}
+                                style={{
+                                    pointerEvents: isAvailable ? 'all' : 'none',
+                                    opacity: isAvailable ? '1' : '0.5',
+                                }}
+                            >
+                                <p className='truncate text-sm font-light'>{q.toLowerCase() === '2160p' ? Qualities['4K'] : q}</p>
+                            </label>
+                        </div>
+                    )
+                })
             }
-        </select>
+        </div>
     </div>
   )
 }

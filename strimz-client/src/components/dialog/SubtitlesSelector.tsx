@@ -8,6 +8,8 @@ import { twMerge } from 'tailwind-merge';
 import { RxCross2 } from 'react-icons/rx';
 import { detectLanguageFromSubtitle, extractTextFromSubtitle, getCountryCodeFromIso3, getFlagEmoji } from '@/utils/detectLanguage';
 import Flag from "react-world-flags";
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { BsInfoCircle } from 'react-icons/bs';
 
 interface SubtitlesSelectorProps {
     buttonOnly?: boolean;
@@ -62,7 +64,7 @@ const SubtitlesSelector = ({
     }, [subtitleFilePath, getSubtitleLanguage]);
 
   return (
-    <div className={twMerge(`flex w-full my-3 gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>
+    <div className={twMerge(`flex w-full my-2 gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>
         <p className='text-white w-full flex items-center justify-between'>
             {!buttonOnly && (
                 <span className='flex gap-2 items-center'>
@@ -73,9 +75,15 @@ const SubtitlesSelector = ({
             
             <Button
                 onClick={() => window.electronAPI.openSubtitleFileDialog().then(handleSubtitleFileUpload)}
-                className={twMerge(`px-3 py-0 text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
+                className={twMerge(`px-3 py-0 gap-2 text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
             >
                 Choose subtitle file
+                <Tooltip delayDuration={200}>
+                    <TooltipTrigger className='text-blue-500'>
+                        <BsInfoCircle />
+                    </TooltipTrigger>
+                    <TooltipContent>Only .SRT files are supported.</TooltipContent>
+                </Tooltip>
             </Button>
         </p>
 
