@@ -22,8 +22,6 @@ const TimeTrack = ({
     const [hoverTime, setHoverTime] = useState<number | null>(null);
     const [hoverX, setHoverX] = useState<number>(0);
 
-    const [xPosition, setXPosition] = useState<number>(0);
-
     const handleMouseMove = (ev: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         if (!trackRef.current || !duration) return;
         const rect = trackRef.current.getBoundingClientRect();
@@ -56,14 +54,10 @@ const TimeTrack = ({
                     if (!trackRef.current || !videoRef.current || !videoRef.current.duration) return;
                     const rect = trackRef.current.getBoundingClientRect();
                     const x = ev.clientX - rect.left;
-                    setXPosition(x);
-                }}
-                onChange={() => {
-                    if (!trackRef.current || !videoRef.current || !videoRef.current.duration) return;
-                    const rect = trackRef.current.getBoundingClientRect();
-                    const percentage = Math.min(Math.max(xPosition / rect.width, 0), 1);
+                    const percentage = Math.min(Math.max(x / rect.width, 0), 1);
                     videoRef.current.currentTime = percentage * videoRef.current.duration;
                 }}
+                onChange={() => {}}
                 style={{
                     background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${playbackWidth}%, transparent ${playbackWidth}%, transparent 100%)`
                 }}
