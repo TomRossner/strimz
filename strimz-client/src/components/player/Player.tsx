@@ -160,7 +160,14 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
         const handleProgress = (data: DownloadProgressData) => {
             if (data.hash.toLowerCase() === hash.toLowerCase()) {
-                throttledSetDownloadInfo(data);
+                throttledSetDownloadInfo({
+                    ...data,
+                    downloaded: data.downloaded || downloadInfo?.downloaded || 0,
+                    peers: data.peers || downloadInfo?.peers || 0,
+                    timeRemaining: data.timeRemaining || downloadInfo?.timeRemaining || 0,
+                    fileName: data.fileName ? data.fileName : downloadInfo?.fileName || '',
+                    done: data.done,
+                } satisfies DownloadProgressData);
             }
         }
 
@@ -171,7 +178,16 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             socket.off('downloadProgress', handleProgress);
             socket.off('downloadDone', handleProgress);
         }
-    }, [socket, hash, throttledSetDownloadInfo]);
+    }, [
+        socket,
+        hash,
+        throttledSetDownloadInfo,
+        downloadInfo?.downloaded,
+        downloadInfo?.peers,
+        downloadInfo?.timeRemaining,
+        downloadInfo?.done,
+        downloadInfo?.fileName,
+    ]);
 
     useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove);
@@ -283,6 +299,8 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             isVisible={controlsVisible}
                             title={`${title} (${movie?.year})`}
                             downloadInfo={downloadInfo}
+                            // isDone={isDone}
+                            // torrentFileName={torrentFileName}
                             videoDimensions={{
                                 height: videoRef.current?.clientHeight || 0,
                                 width: videoRef.current?.clientWidth || 0,

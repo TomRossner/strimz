@@ -3,12 +3,11 @@ import { twMerge } from 'tailwind-merge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface SummaryProps {
-  isExpanded: boolean;
   onClick: () => void;
   summary: string;
 }
 
-const Summary = ({isExpanded = false, onClick, summary = ''}: SummaryProps) => {
+const Summary = ({onClick, summary = ''}: SummaryProps) => {
   return (
     <Tooltip>
       <TooltipTrigger className='text-start'>
@@ -27,20 +26,15 @@ const Summary = ({isExpanded = false, onClick, summary = ''}: SummaryProps) => {
             hover:bg-stone-600
             font-thin
             max-h-36
-            overflow-y-auto
-            ${!isExpanded && 'line-clamp-3 overflow-y-clip'}
+            overflow-y-clip
+            line-clamp-2
           `)}
         >
           <p className='font-semibold mb-1'>Summary:</p>
           {summary}
         </summary>
       </TooltipTrigger>
-      <TooltipContent>
-        {isExpanded
-          ? 'Click to collapse'
-          : 'Click to expand'
-        }
-      </TooltipContent>
+      <TooltipContent>Read more</TooltipContent>
     </Tooltip>
   )
 }

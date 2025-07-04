@@ -10,11 +10,11 @@ import SubtitlesSelector from '../dialog/SubtitlesSelector';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSubtitleFilePath, selectSubtitlesSize, selectUseSubtitles } from '@/store/movies/movies.selectors';
 import { setUseSubtitles } from '@/store/movies/movies.slice';
-import { VscTextSize } from "react-icons/vsc";
 import { closeModal, openModal } from '@/store/modals/modals.slice';
 import SubtitlesSizeDialog from './SubtitlesSizeDialog';
 import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
+import { MdEdit } from 'react-icons/md';
 
 interface ControlsProps {
     ref: RefObject<HTMLVideoElement>;
@@ -254,13 +254,20 @@ const Controls = ({
                     ${subtitlesSelectorTabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
                 `)}
             >
-                <div className='flex items-center w-full justify-between'>
-                    <span className='text-start w-full text-sm text-stone-400'>Subtitles</span>
-                    <div className='grow flex justify-end items-center text-sm text-nowrap gap-1'>
-                        <Button onClick={() => dispatch(openModal('subtitlesSize'))} title='Subtitles size' className='hover:bg-stone-600'>
-                            <VscTextSize className='text-2xl' />
-                        </Button>
-                        <span className='text-stone-500 italic'>Set to {subtitlesSize}px</span>
+                <div className='flex w-full flex-col gap-1'>
+                    <p className='text-start w-full text-base text-white'>Subtitles</p>
+                    
+                    <div className='border-y border-stone-500 py-1 flex flex-col'>
+                        <span className='text-start text-sm text-stone-400'>Font size</span>
+                        
+                        <span className='w-full flex justify-between px-2'>
+                            <span className='text-base font-medium text-stone-300'>{subtitlesSize}px</span>
+                            
+                            <Button onClick={() => dispatch(openModal('subtitlesSize'))} className='bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'>
+                                <MdEdit />
+                                Edit
+                            </Button>
+                        </span>
                     </div>
                 </div>
                 

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo } from 'react';
 import Button from '../Button';
 import { PiSubtitles } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitleLang } from '@/store/movies/movies.selectors';
+import { selectSubtitleFilePath, selectSubtitleLang, selectUseSubtitles } from '@/store/movies/movies.selectors';
 import { setSubtitleFilePath, setSubtitleLang } from '@/store/movies/movies.slice';
 import { twMerge } from 'tailwind-merge';
 import { RxCross2 } from 'react-icons/rx';
@@ -37,6 +37,8 @@ const SubtitlesSelector = ({
 
     const countryCode = useMemo(() => getCountryCodeFromIso3(subtitleLang as string), [subtitleLang]);
     const flag = useMemo(() => countryCode ? getFlagEmoji(countryCode) : '', [countryCode]);
+
+    const useSubtitles = useAppSelector(selectUseSubtitles);
 
     const handleSubtitleFileUpload = (path: string | null) => {
         if (!path) return;
@@ -73,18 +75,23 @@ const SubtitlesSelector = ({
                 </span>
             )}
             
-            <Button
-                onClick={() => window.electronAPI.openSubtitleFileDialog().then(handleSubtitleFileUpload)}
-                className={twMerge(`px-3 py-0 gap-2 text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
-            >
-                Choose subtitle file
-                <Tooltip delayDuration={200}>
-                    <TooltipTrigger className='text-blue-500'>
-                        <BsInfoCircle />
-                    </TooltipTrigger>
-                    <TooltipContent>Only .SRT files are supported.</TooltipContent>
-                </Tooltip>
-            </Button>
+            <span className='flex items-center py-0 gap-1 w-full justify-end'>
+                <Button
+                    onClick={() => window.electronAPI.openSubtitleFileDialog().then(handleSubtitleFileUpload)}
+                    className={twMerge(`text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
+                >
+                    Choose subtitle file
+                </Button>
+
+                {!buttonOnly && (
+                    <Tooltip delayDuration={200}>
+                        <TooltipTrigger className='text-blue-500'>
+                            <BsInfoCircle />
+                        </TooltipTrigger>
+                        <TooltipContent>Only .SRT files are supported.</TooltipContent>
+                    </Tooltip>
+                )}
+            </span>
         </p>
 
         <div
@@ -98,6 +105,7 @@ const SubtitlesSelector = ({
                 rounded-sm
                 ${subtitleFilePath ? 'bg-stone-800' : 'bg-transparent'}
                 ${subtitleContainerClassName}
+                ${useSubtitles && subtitleFilePath ? 'bg-blue-500 hover:bg-blue-400' : ''}
             `)}
         >
             {subtitleFilePath && flag &&
@@ -115,12 +123,12 @@ const SubtitlesSelector = ({
                 id="subtitles"
                 title={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
                 value={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
-                className={twMerge(`w-full text-white text-[10px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
+                className={twMerge(`w-full text-white text-[11px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
             />
 
             {subtitleFilePath &&
                 <Button
-                    className='text-[10px] px-0.5 py-0.5 bg-transparent hover:bg-stone-700'
+                    className='text-[12px] px-0.5 py-0.5 bg-stone-800 hover:bg-stone-700'
                     onClick={() => dispatch(setSubtitleFilePath(null))}
                 >
                     <RxCross2 />

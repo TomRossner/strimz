@@ -35,10 +35,18 @@ export type DownloadProgressData = {
   peers: number;
   done: boolean;
   downloaded: number;
+  timeRemaining: number;
+  fileName: string;
 }
 
 export type Cue = {
   start: number;
   end: number;
   text: string;
+}
+
+export type DiskSpaceInfo = {
+  diskPath: string;
+  free: number;
+  size: number;
 }

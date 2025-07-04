@@ -1,25 +1,22 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { closeModal } from '@/store/modals/modals.slice';
-import { useSearchParams } from 'react-router-dom';
 import { DownloadProgressData } from '@/utils/types';
-import { selectMovie, selectSelectedTorrent } from '@/store/movies/movies.selectors';
+import { selectSelectedTorrent } from '@/store/movies/movies.selectors';
 import { formatBytes, formatBytesPerSecond } from '@/utils/bytes';
 import CloseButton from '../CloseButton';
 import Button from '../Button';
 import { MdOpenInNew } from 'react-icons/md';
 import { selectSettings } from '@/store/settings/settings.selectors';
+import { msToReadableTime } from '@/utils/formatTime';
 
 interface MovieInfoPanelProps {
     isOpen: boolean;
     downloadInfo: DownloadProgressData | null;
 }
 
-const MovieInfoPanel = ({ isOpen, downloadInfo }: MovieInfoPanelProps) => {
+const MovieInfoPanel = ({ isOpen, downloadInfo, }: MovieInfoPanelProps) => {
     const dispatch = useAppDispatch();
-    const [searchParams] = useSearchParams();
-    const title = searchParams.get('title');
-    const currentMovie = useAppSelector(selectMovie);
     const selectedTorrent = useAppSelector(selectSelectedTorrent);
 
     const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
@@ -46,11 +43,16 @@ const MovieInfoPanel = ({ isOpen, downloadInfo }: MovieInfoPanelProps) => {
                 />
             </div>
             <p className='font-light text-sm text-white flex justify-between items-center'>
-                {title} ({currentMovie?.year}) {selectedTorrent?.quality === '2160p' ? '4K' : selectedTorrent?.quality}
+                {downloadInfo?.fileName}
             </p>
 
             <div className='w-full flex flex-col text-sm font-light'>
                 <p>Active peers: {downloadInfo?.peers ?? '-'}</p>
+
+                <p className='text-sm font-light'>
+                    Time remaining: {downloadInfo?.timeRemaining ? msToReadableTime(downloadInfo.timeRemaining as number) : '-'}
+                </p>
+
                 <p className='flex justify-between w-full items-center'>
                     Downloaded: {formatBytes(downloadInfo?.downloaded ?? 0)} / {selectedTorrent?.size ?? '-'}
                     
@@ -75,7 +77,7 @@ const MovieInfoPanel = ({ isOpen, downloadInfo }: MovieInfoPanelProps) => {
                     />
                 </div>
                 <p className='text-xs italic text-stone-200 font-light flex justify-between'>
-                    <span>{isDownloading ? `Downloading... ${bufferWidth}%` : 'Download done'}</span>
+                    <span>{!downloadInfo?.done ? `Downloading... ${bufferWidth}%` : 'Download done'}</span>
                     {isDownloading && <span>{downloadSpeed}</span>}
                 </p>
             </div>

@@ -24,8 +24,10 @@ export const formatBytesPerSecond = (bytesPerSecond: number) => {
   const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
   const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
 
-  const formatted = parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(0));
+  const formatted = parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2));
   return `${formatted} ${sizes[i]}`;
 }
 
 export const ONE_GB = 1024 * 1024 * 1024;
+export const FREE_PERCENTAGE_REQUIRED: number = 10; // %
+export const FREE_GB_REQUIRED: number = 25; // Gb

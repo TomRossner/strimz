@@ -59,7 +59,7 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
             if (sid) {
                 const targetSocket = ioServer.sockets.sockets.get(sid as string);
 
-                if (torrent.paused) {
+                if (torrent.paused && !torrent.done) {
                     torrent.resume();
                 }
 
@@ -71,7 +71,9 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
                             speed: torrent.downloadSpeed,
                             peers: torrent.numPeers,
                             downloaded: torrent.downloaded,
-                            done: false,
+                            done: torrent.done,
+                            fileName: torrent.name,
+                            timeRemaining: torrent.timeRemaining,
                         });
                     }
                 });
@@ -85,8 +87,12 @@ const handleTorrent = (req: Request, res: Response, torrent: WebTorrent.Torrent)
                             peers: torrent.numPeers,
                             downloaded: torrent.downloaded,
                             done: torrent.done,
+                            fileName: torrent.name,
+                            timeRemaining: torrent.timeRemaining,
                         });
                     }
+
+                    torrent.pause();
                 }
             }
 

@@ -13,17 +13,13 @@ import BackButton from '@/components/BackButton';
 import CloseButton from '@/components/CloseButton';
 import PageDescription from '@/components/PageDescription';
 import OptionDescription from '@/components/OptionDescription';
-import { formatBytes, ONE_GB } from '@/utils/bytes';
+import { formatBytes, FREE_GB_REQUIRED, FREE_PERCENTAGE_REQUIRED, ONE_GB } from '@/utils/bytes';
 import LoadingIcon from '@/components/LoadingIcon';
 import { PiDownload } from 'react-icons/pi';
 import { twMerge } from 'tailwind-merge';
 import Footer from '@/components/Footer';
-
-interface DiskSpaceInfo {
-  diskPath: string;
-  free: number;
-  size: number;
-}
+import { IoWarningOutline } from 'react-icons/io5';
+import { DiskSpaceInfo } from '@/utils/types';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -36,7 +32,12 @@ const SettingsPage = () => {
 
     const usedBytes = diskSpace ? diskSpace.size - diskSpace.free : 0;
     const usagePercent = diskSpace ? (usedBytes / diskSpace.size) * 100 : 0;
-    const hasEnoughSpace = diskSpace ? diskSpace.free > ONE_GB : null;
+    const freePercent = diskSpace ? (diskSpace.free / diskSpace.size) * 100 : 0;
+    const freeSpaceGB = diskSpace ? diskSpace.free / ONE_GB : 0;
+
+    const hasEnoughSpace = diskSpace ? (freePercent >= FREE_PERCENTAGE_REQUIRED || freeSpaceGB >= FREE_GB_REQUIRED) : false;
+    const shouldShowLowSpaceWarning = diskSpace ? (freePercent < FREE_PERCENTAGE_REQUIRED && freeSpaceGB < FREE_GB_REQUIRED) : false;
+
 
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
@@ -147,7 +148,7 @@ const SettingsPage = () => {
                                         title='Open folder'
                                         disabled={!formValues.downloadsFolderPath}
                                         onClick={() => window.electronAPI.openFolder(formValues.downloadsFolderPath)}
-                                        className='p-1.5 text-stone-400 text-lg hover:bg-stone-600'
+                                        className='p-1.5 text-stone-100 text-lg hover:bg-stone-600'
                                     >
                                         <MdOpenInNew />
                                     </Button>
@@ -159,7 +160,7 @@ const SettingsPage = () => {
                         <div className='flex w-full gap-2'>
                             <PiDownload className='text-xl text-white' />
 
-                            <div className='flex flex-col gap-1 w-1/3'>
+                            <div className='flex flex-col gap-1 w-2/4'>
                                 {isLoadingDiskInfo ? (
                                     <p className='text-[12px] text-stone-400 flex items-center gap-2'>
                                         <LoadingIcon size={15} />
@@ -167,20 +168,34 @@ const SettingsPage = () => {
                                     </p>
                                 ) : (
                                     <p className='text-[12px] text-stone-400'>
-                                        {diskSpace ? `${formatBytes(diskSpace.free)} available / ${formatBytes(diskSpace.size)} total` : 'Could not retrieve disk information'}
+                                        {diskSpace ? `${formatBytes(diskSpace.free)} free of ${formatBytes(diskSpace.size)} (${freePercent.toFixed(1)}% free)` : 'Could not retrieve disk information'}
                                     </p>
                                 )}
 
-                                <div className="w-full h-1 bg-gray-800 overflow-hidden">
+                                <div className='w-full h-1 overflow-hidden bg-gray-700'>
                                     <div
-                                        className={twMerge(`h-full transition-[width] duration-200 ${isLoadingDiskInfo ? 'opacity-40' : ''} ${hasEnoughSpace ? 'bg-blue-500' : 'bg-red-500'}`)}
-                                        style={{ width: `${usagePercent}%` }}
+                                        className={twMerge(`
+                                            h-full
+                                            transition-[width]
+                                            duration-200
+                                            ${isLoadingDiskInfo ? 'opacity-40' : ''}
+                                            ${hasEnoughSpace ? 'bg-blue-500' : 'bg-amber-400'}
+                                        `)}
+                                        style={{
+                                            width: `${usagePercent}%`,
+                                            willChange: 'width',
+                                        }}
                                     />
                                 </div>
                             </div>
-
                         </div>
 
+                        {shouldShowLowSpaceWarning && (
+                            <p className='bg-amber-200 text-amber-600 font-medium text-sm rounded-sm px-2 py-1 w-full flex gap-2 items-start'>
+                                <IoWarningOutline className='text-xl' />
+                                Low disk space: Less than {FREE_PERCENTAGE_REQUIRED}% and under {FREE_GB_REQUIRED}GB free. Please free up space to ensure downloads complete successfully.
+                            </p>
+                        )}
                     </div>
 
                     <div className='flex w-full gap-2 flex-col'>

@@ -1,32 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import LoadingIcon from '../LoadingIcon';
 import { BsInfoCircle } from 'react-icons/bs';
-import { Torrent } from '@/utils/types';
+import { DiskSpaceInfo, Torrent } from '@/utils/types';
 import { PiDownload } from "react-icons/pi";
-import { formatBytes, parseSize } from '@/utils/bytes';
+import { formatBytes, FREE_GB_REQUIRED, FREE_PERCENTAGE_REQUIRED, ONE_GB, parseSize } from '@/utils/bytes';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { IoWarningOutline } from 'react-icons/io5';
+import { MdOutlineInsertDriveFile } from 'react-icons/md';
 
 interface FileSizeProps {
   size?: string;
   selectedTorrent: Torrent | null;
 }
 
-interface DiskSpaceInfo {
-  diskPath: string;
-  free: number;
-  size: number;
-}
-
-const FileSize = ({ size = 'N/A', selectedTorrent }: FileSizeProps) => {
+const FileSize = ({ size, selectedTorrent }: FileSizeProps) => {
   const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const fileSizeInBytes = parseSize(size);
-  const hasEnoughSpace = diskSpace ? diskSpace.free >= fileSizeInBytes : null;
+  const fileSizeInBytes = size ? parseSize(size) : 0;
+  const freePercent = diskSpace ? (diskSpace.free / diskSpace.size) * 100 : 0;
+  const freeSpaceGB = diskSpace ? diskSpace.free / ONE_GB : 0;
+
+  const shouldShowLowSpaceWarning = diskSpace
+    ? ((freePercent < FREE_PERCENTAGE_REQUIRED) && (freeSpaceGB < FREE_GB_REQUIRED))
+    : false;
 
   useEffect(() => {
-    if (size === 'N/A') return;
-
     const getDiskSpace = async () => {
       setIsLoading(true);
 
@@ -41,46 +40,54 @@ const FileSize = ({ size = 'N/A', selectedTorrent }: FileSizeProps) => {
     }
 
     getDiskSpace();
-  }, [size]);
+  }, []);
 
   return (
-    <div className="w-full text-white min-w-28 flex items-center gap-1 justify-between mb-2">
-      <p className="flex items-center justify-end gap-1">
-        File size:
-        <span className="font-light text-blue-400">{size}</span>
-      </p>
+    <div className='flex flex-col w-full mb-2'>
+      <div className="w-full text-white min-w-28 flex flex-col gap-2 justify-between">
+        <p className="flex items-center gap-1">
+          <MdOutlineInsertDriveFile className='text-xl' />
+          File size:
+          <span className={(`${size ? 'font-medium text-blue-400' : 'font-light text-stone-500 italic'}`)}>{size || 'N/A - No file selected'}</span>
+        </p>
 
-      <p className="text-xs text-gray-400 text-right flex gap-1 items-center">
-        <PiDownload className='text-lg' />
+        <p className="text-xs text-gray-400 text-right flex gap-1 items-center">
+          <PiDownload className='text-lg' />
 
-        {!isLoading ? (
-          <span className="text-xs text-gray-400 flex gap-1 items-center">
-            {diskSpace ? (
-              <span className={`flex items gap-1 ml-1 font-semibold ${hasEnoughSpace ? 'text-gray-300' : 'text-red-500'}`}>
-                {`${formatBytes(fileSizeInBytes)} required / `}
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger>
-                    <span className='underline text-blue-500 flex items-center gap-1'>
-                      {formatBytes(diskSpace.free)} available
-                      <BsInfoCircle />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Shows the available space on the drive where the file will be saved.</TooltipContent>
-                </Tooltip>
-              </span>
-            ) : (
-              selectedTorrent ? 'Could not retrieve disk information' : 'No file selected - select a file to verify disk space'
-            )}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400 text-right flex items-center gap-1">
-            <LoadingIcon size={13} />
-            Loading disk information...
-          </span>
-        )}
-      </p>
+          {!isLoading ? (
+            <span className="text-xs text-gray-400 flex gap-1 items-center">
+              {diskSpace && (
+                <span className={`flex items gap-1 ml-1 font-semibold text-gray-300`}>
+                  {selectedTorrent ? `${formatBytes(fileSizeInBytes)} required / `: 'Select a torrent to verify disk space -'}
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger>
+                      <span className='text-blue-500 flex items-center gap-1'>
+                        {formatBytes(diskSpace.free)} free
+                        <BsInfoCircle />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Shows the available space on the drive where the file will be saved.</TooltipContent>
+                  </Tooltip>
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-xs text-gray-400 text-right flex items-center gap-1">
+              <LoadingIcon size={13} />
+              Loading disk information...
+            </span>
+          )}
+        </p>
+      </div>
+
+      {shouldShowLowSpaceWarning && (
+          <p className="text-xs bg-amber-200 text-amber-700 flex items-center gap-1 w-full rounded-xs mt-0.5 px-1 py-0.5">
+            <IoWarningOutline className='text-lg' />
+            Low disk space: Available space may be insufficient for this download.
+          </p>
+      )}
     </div>
-  );
+  )
 }
 
 export default FileSize;

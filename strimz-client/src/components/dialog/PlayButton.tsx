@@ -2,13 +2,20 @@ import React from 'react';
 import Button from '../Button';
 import { useAppDispatch } from '@/store/hooks';
 import { closeModal } from '@/store/modals/modals.slice';
+import { IoWarningOutline } from 'react-icons/io5';
+import { twMerge } from 'tailwind-merge';
 
 interface PlayButtonProps {
-  isDisabled: boolean;
-  onPlay: () => void;
+    isDisabled: boolean;
+    onPlay: () => void;
+    diskSpaceInfo?: {
+        hasEnoughSpace: boolean | null;
+        fileSizeInBytes: number;
+        freeBytes: number;
+    };
 }
 
-const PlayButton = ({isDisabled, onPlay}: PlayButtonProps) => {
+const PlayButton = ({isDisabled, onPlay, diskSpaceInfo}: PlayButtonProps) => {
   const dispatch = useAppDispatch();
 
   const handlePlay = () => {
@@ -20,9 +27,26 @@ const PlayButton = ({isDisabled, onPlay}: PlayButtonProps) => {
     <Button
       disabled={isDisabled}
       onClick={handlePlay}
-      className='bg-blue-500 py-2 px-3 font-semibold w-full disabled:opacity-55 hover:text-white disabled:text-slate-200'
+      className={twMerge(`
+        py-2
+        px-3
+        font-semibold
+        w-full
+        disabled:opacity-80
+        disabled:text-slate-200
+        hover:bg-blue-400
+        hover:text-white
+        ${diskSpaceInfo?.hasEnoughSpace === false ? 'text-start bg-red-200 text-red-600' : 'bg-blue-500 text-white'}
+      `)}
     >
-      Play
+      {diskSpaceInfo?.hasEnoughSpace === false
+        ? (
+          <span className="text-sm text-red-400 flex gap-4 items-center">
+            <IoWarningOutline className='text-2xl' />
+            Not enough disk space!
+          </span>
+        ) : 'Play'
+      }
     </Button>
   )
 }

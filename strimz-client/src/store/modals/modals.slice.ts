@@ -12,6 +12,7 @@ interface ModalsState {
   subtitlesSize: boolean;
   movieDownloadInfo: boolean;
   subtitlesSelectorTab: boolean;
+  summary: boolean;
 }
 
 const initialState: ModalsState = {
@@ -25,6 +26,7 @@ const initialState: ModalsState = {
   subtitlesSize: false,
   movieDownloadInfo: false,
   subtitlesSelectorTab: false,
+  summary: false,
 }
 
 const modalsSlice = createSlice({

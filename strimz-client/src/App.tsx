@@ -5,16 +5,15 @@ import Home from './components/Home';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { fetchFavoritesAsync, fetchWatchListAsync, setError, setFilters } from './store/movies/movies.slice';
 import { isAxiosError } from 'axios';
-import { selectError, selectFilters, selectMovie, selectMoviesMap } from './store/movies/movies.selectors';
+import { selectError, selectFilters, selectMoviesMap } from './store/movies/movies.selectors';
 import ErrorDialog from './components/ErrorDialog';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { getFavorites, getWatchList } from './services/localStorage';
 import FiltersDialog from './components/FiltersDialog';
 import MovieDialog from './components/dialog/MovieDialog';
-import TrailerPlayer from './components/TrailerPlayer';
 import { DEFAULT_PARAMS } from './utils/constants';
 import Overlay from './components/Overlay';
-import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayTorrentPrompt, selectTrailerModal, selectVpnModal } from './store/modals/modals.selectors';
+import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayTorrentPrompt, selectVpnModal } from './store/modals/modals.selectors';
 import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
@@ -41,7 +40,6 @@ const MoviesPage = () => {
 
   const isFiltersDialogOpen = useAppSelector(selectFiltersModal);
   const isMovieDialogOpen = useAppSelector(selectMovieModal);
-  const isTrailerDialogOpen = useAppSelector(selectTrailerModal);
   const isMenuOpen = useAppSelector(selectMenu);
   const isVpnDialogOpen = useAppSelector(selectVpnModal);
   const isPlayTorrentPromptOpen = useAppSelector(selectPlayTorrentPrompt);
@@ -51,7 +49,6 @@ const MoviesPage = () => {
       isFiltersDialogOpen ||
       isMenuOpen ||
       isMovieDialogOpen ||
-      isTrailerDialogOpen ||
       isVpnDialogOpen ||
       isPlayTorrentPromptOpen
     );
@@ -59,14 +56,11 @@ const MoviesPage = () => {
     isFiltersDialogOpen,
     isMenuOpen,
     isMovieDialogOpen,
-    isTrailerDialogOpen,
     isVpnDialogOpen,
     isPlayTorrentPromptOpen,
   ]);
 
   const isVpnActive = useAppSelector(selectIsVpnActive);
-
-  const selectedMovie = useAppSelector(selectMovie);
 
   const handleErrorClose = () => {
       dispatch(setFilters(DEFAULT_PARAMS));
@@ -104,7 +98,6 @@ const MoviesPage = () => {
     <>
       <Overlay active={isOverlayActive} />
       <ErrorDialog onClose={handleErrorClose} />
-      <TrailerPlayer title={selectedMovie?.title ?? ""} yt_trailer_code={selectedMovie?.yt_trailer_code} />
       <MovieDialog />
       <FiltersDialog />
       <PlayTorrentPrompt />

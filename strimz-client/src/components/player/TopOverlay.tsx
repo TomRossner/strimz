@@ -65,7 +65,10 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
             </Button>
         </div>
 
-        <MovieInfoPanel isOpen={isInfoPanelOpen} downloadInfo={downloadInfo} />
+        <MovieInfoPanel
+            isOpen={isInfoPanelOpen}
+            downloadInfo={downloadInfo}
+        />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { twMerge } from 'tailwind-merge';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectMenu } from '../store/modals/modals.selectors';
 import { closeModal } from '../store/modals/modals.slice';
@@ -6,9 +7,11 @@ import React from 'react';
 
 interface Props {
     active: boolean;
+    className?: string;
+    onClick?: () => void;
 }
 
-const Overlay = ({active}: Props) => {
+const Overlay = ({active, className, onClick}: Props) => {
     const dispatch = useAppDispatch();
     const isMenuOpen = useAppSelector(selectMenu);
 
@@ -16,6 +19,8 @@ const Overlay = ({active}: Props) => {
         if (isMenuOpen) {
             dispatch(closeModal('menu'));
         }
+
+        if (onClick) onClick();
     }
 
   return (
@@ -23,7 +28,20 @@ const Overlay = ({active}: Props) => {
         {active && (
             <motion.div
                 onClick={handleClick}
-                className='fixed z-20 top-0 left-0 right-0 bottom-0 h-full w-full backdrop-blur-sm transition-all duration-200'
+                className={twMerge(`
+                    fixed
+                    z-20
+                    top-0
+                    left-0
+                    right-0
+                    bottom-0
+                    h-full
+                    w-full
+                    backdrop-blur-sm
+                    transition-all
+                    duration-200
+                    ${className}
+                `)}
             />
         )}
     </AnimatePresence>

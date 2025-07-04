@@ -34,7 +34,7 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
                 exit={{ scale: 0.8, opacity: 0, transition: { duration: 0.1 } }}
                 className='absolute bg-stone-700 flex flex-col w-[95%] rounded-sm shadow-2xl shadow-black text-base py-2 px-3'
             >
-                <CloseButton onClose={() => dispatch(closeModal('subtitlesSize'))} className='md:block absolute p-1' />
+                <CloseButton onClose={() => dispatch(closeModal('subtitlesSize'))} className='md:block absolute p-1 text-sm' />
 
                 <span className='text-start w-full text-sm text-stone-400'>Subtitles size</span>
                 <form onSubmit={handleSubmit} className='w-full flex flex-col gap-2 mt-3'>
