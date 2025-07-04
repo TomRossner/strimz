@@ -1,4 +1,4 @@
-import React, { ChangeEvent, RefObject, useEffect, useState } from 'react';
+import React, { ChangeEvent, RefObject, useEffect, useRef, useState } from 'react';
 import Button from '../Button';
 import { BsPause, BsPlay } from 'react-icons/bs';
 import { IoCheckmark, IoExpandOutline, IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
@@ -56,6 +56,8 @@ const Controls = ({
     const useSubtitles = useAppSelector(selectUseSubtitles);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
     const subtitlesSize = useAppSelector(selectSubtitlesSize);
+
+    const closeTimeout = useRef<NodeJS.Timeout | null>(null);
 
     const handleVolumeMute = () => {
         if (!videoRef.current) return;
@@ -232,7 +234,18 @@ const Controls = ({
             />
 
             <div
-                onMouseLeave={() => setTimeout(() => dispatch(closeModal('subtitlesSelectorTab')), 2000)}
+                onMouseEnter={() => {
+                    if (closeTimeout.current) {
+                        clearTimeout(closeTimeout.current);
+                        closeTimeout.current = null;
+                    }
+                }}
+                onMouseLeave={() => {
+                    closeTimeout.current = setTimeout(() => {
+                        dispatch(closeModal('subtitlesSelectorTab'));
+                        closeTimeout.current = null;
+                    }, 3000);
+                }}
                 className={twMerge(`
                     absolute
                     w-[300px]
@@ -245,7 +258,7 @@ const Controls = ({
                     px-3
                     z-10
                     right-0
-                    -top-[520%]
+                    bottom-full
                     rounded-sm
                     bg-stone-800
                     transition-all

@@ -1,4 +1,4 @@
-import React, { ChangeEvent } from 'react';
+import React, { ChangeEvent, useRef } from 'react';
 import { twMerge } from 'tailwind-merge';
 import Button from '../Button';
 import { IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
@@ -22,9 +22,22 @@ const VolumeSlider = ({
     handleVolumeMute,
     handleVolumeChange,
 }: VolumeSliderProps) => {
+    const closeTimeout = useRef<NodeJS.Timeout | null>(null);
+
   return (
     <div
-        onMouseLeave={() => setTimeout(() => setVolumeSliderVisible(false), 1000)}
+        onMouseEnter={() => {
+            if (closeTimeout.current) {
+                clearTimeout(closeTimeout.current);
+                closeTimeout.current = null;
+            }
+        }}
+        onMouseLeave={() => {
+            closeTimeout.current = setTimeout(() => {
+                setVolumeSliderVisible(false);
+                closeTimeout.current = null;
+            }, 2500);
+        }}
         className={twMerge(`
             absolute
             w-[300px]

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { closeModal } from '@/store/modals/modals.slice';
 import { DownloadProgressData } from '@/utils/types';
@@ -19,6 +19,8 @@ const MovieInfoPanel = ({ isOpen, downloadInfo, }: MovieInfoPanelProps) => {
     const dispatch = useAppDispatch();
     const selectedTorrent = useAppSelector(selectSelectedTorrent);
 
+    const closeTimeout = useRef<NodeJS.Timeout | null>(null);
+
     const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
     const isDownloading = downloadInfo ? !downloadInfo.done : false;
     const downloadSpeed = downloadInfo ? formatBytesPerSecond(downloadInfo?.speed ?? 0) : 0;
@@ -27,7 +29,18 @@ const MovieInfoPanel = ({ isOpen, downloadInfo, }: MovieInfoPanelProps) => {
 
     return (
         <div
-            onMouseLeave={() => setTimeout(() => dispatch(closeModal('movieDownloadInfo')), 3000)}
+            onMouseEnter={() => {
+                if (closeTimeout.current) {
+                    clearTimeout(closeTimeout.current);
+                    closeTimeout.current = null;
+                }
+            }}
+            onMouseLeave={() => {
+                closeTimeout.current = setTimeout(() => {
+                    dispatch(closeModal('movieDownloadInfo'));
+                    closeTimeout.current = null;
+                }, 2500);
+            }}
             className='flex flex-col gap-2 bg-stone-800 rounded-sm px-2 py-1 absolute top-14 right-14 min-w-1/4 max-w-1/3 shadow-2xl shadow-black'
             style={{
                 opacity: isOpen ? 1 : 0,
