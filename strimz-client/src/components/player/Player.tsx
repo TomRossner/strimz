@@ -166,7 +166,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                     peers: data.peers || downloadInfo?.peers || 0,
                     timeRemaining: data.timeRemaining || downloadInfo?.timeRemaining || 0,
                     fileName: data.fileName ? data.fileName : downloadInfo?.fileName || '',
-                    done: data.done,
+                    done: data.done || downloadInfo?.done || false,
                 } satisfies DownloadProgressData);
             }
         }
