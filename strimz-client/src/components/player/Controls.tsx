@@ -15,6 +15,7 @@ import SubtitlesSizeDialog from './SubtitlesSizeDialog';
 import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import { MdEdit } from 'react-icons/md';
+import CloseButton from '../CloseButton';
 
 interface ControlsProps {
     ref: RefObject<HTMLVideoElement>;
@@ -258,17 +259,23 @@ const Controls = ({
                     px-3
                     z-10
                     right-0
-                    bottom-full
+                    bottom-[120%]
                     rounded-sm
                     bg-stone-800
                     transition-all
                     duration-150
+                    shadow-2xl
+                    shadow-black
                     will-change-[opacity]
                     ${subtitlesSelectorTabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
                 `)}
             >
                 <div className='flex w-full flex-col gap-1'>
-                    <p className='text-start w-full text-base text-white'>Subtitles</p>
+                    <p className='text-start w-full text-base text-white flex items-center justify-between'>
+                        Subtitles
+
+                        <CloseButton onClose={() => dispatch(closeModal('subtitlesSelectorTab'))} className='md:block absolute top-2 right-2 text-sm p-1' />
+                    </p>
                     
                     <div className='border-y border-stone-500 py-1 flex flex-col'>
                         <span className='text-start text-sm text-stone-400'>Font size</span>

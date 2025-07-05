@@ -49,8 +49,10 @@ const VolumeSlider = ({
             px-3
             z-10
             right-0
-            -top-[170%]
+            bottom-[120%]
             rounded-sm
+            shadow-2xl
+            shadow-black
             bg-stone-800
             transition-all
             duration-150
