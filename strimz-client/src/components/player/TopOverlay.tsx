@@ -1,7 +1,7 @@
 import React from 'react';
 import BackButton from '../BackButton';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { openModal } from '@/store/modals/modals.slice';
+import { closeModal, openModal } from '@/store/modals/modals.slice';
 import Button from '../Button';
 import { BsInfoCircle } from 'react-icons/bs';
 import MovieInfoPanel from './InfoPanel';
@@ -58,7 +58,7 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
 
             <Button
                 title='Info'
-                onClick={() => dispatch(openModal('movieDownloadInfo'))}
+                onClick={() => isInfoPanelOpen ? dispatch(closeModal('movieDownloadInfo')) : dispatch(openModal('movieDownloadInfo'))}
                 className='w-9 h-9 bg-transparent aspect-square justify-center p-0 text-white text-2xl hover:bg-stone-800 duration-200 cursor-pointer'
             >
                 <BsInfoCircle />

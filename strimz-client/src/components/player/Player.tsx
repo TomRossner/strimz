@@ -299,8 +299,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             isVisible={controlsVisible}
                             title={`${title} (${movie?.year})`}
                             downloadInfo={downloadInfo}
-                            // isDone={isDone}
-                            // torrentFileName={torrentFileName}
                             videoDimensions={{
                                 height: videoRef.current?.clientHeight || 0,
                                 width: videoRef.current?.clientWidth || 0,

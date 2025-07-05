@@ -191,7 +191,19 @@ const Controls = ({
             </Button> */}
             <Button
                 title={`Subtitles - ${useSubtitles ? 'On' : 'Off'} (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_SUBTITLES.toUpperCase()})`}
-                onClick={() => dispatch(openModal('subtitlesSelectorTab'))}
+                onClick={() => {
+                    if (volumeSliderVisible) {
+                        setVolumeSliderVisible(false);
+                    }
+
+                    if (subtitlesSelectorTabOpen) {
+                        dispatch(closeModal('subtitlesSize'));
+                        dispatch(closeModal('subtitlesSelectorTab'));
+                        return;
+                    }
+
+                    dispatch(openModal('subtitlesSelectorTab'));
+                }}
                 className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
             >
                 <PiSubtitlesLight />
@@ -199,7 +211,14 @@ const Controls = ({
 
             <div
                 className='flex flex-col w-fit z-10'
-                onClick={() => setVolumeSliderVisible(!volumeSliderVisible)}
+                onClick={() => {
+                    setVolumeSliderVisible(!volumeSliderVisible);
+
+                    if (subtitlesSelectorTabOpen) {
+                        dispatch(closeModal('subtitlesSize'));
+                        dispatch(closeModal('subtitlesSelectorTab'));
+                    }
+                }}
             >
                 <Button
                     title={`Volume ${isMuted ? '(muted)' : `(${Math.round(volume)}%)`}`}
@@ -245,6 +264,10 @@ const Controls = ({
                     closeTimeout.current = setTimeout(() => {
                         dispatch(closeModal('subtitlesSelectorTab'));
                         closeTimeout.current = null;
+
+                        if (isSubtitlesSizeModalOpen) {
+                            dispatch(closeModal('subtitlesSize'));
+                        }
                     }, 3000);
                 }}
                 className={twMerge(`
@@ -257,7 +280,7 @@ const Controls = ({
                     justify-between
                     py-2
                     px-3
-                    z-10
+                    z-50
                     right-0
                     bottom-[120%]
                     rounded-sm
@@ -266,6 +289,7 @@ const Controls = ({
                     duration-150
                     shadow-2xl
                     shadow-black
+                    border border-stone-600
                     will-change-[opacity]
                     ${subtitlesSelectorTabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
                 `)}
@@ -274,7 +298,7 @@ const Controls = ({
                     <p className='text-start w-full text-base text-white flex items-center justify-between'>
                         Subtitles
 
-                        <CloseButton onClose={() => dispatch(closeModal('subtitlesSelectorTab'))} className='md:block absolute top-2 right-2 text-sm p-1' />
+                        <CloseButton onClose={() => dispatch(closeModal('subtitlesSelectorTab'))} className='md:block absolute top-2 right-2 text-sm p-1 z-0' />
                     </p>
                     
                     <div className='border-y border-stone-500 py-1 flex flex-col'>
@@ -290,8 +314,6 @@ const Controls = ({
                         </span>
                     </div>
                 </div>
-                
-                <SubtitlesSizeDialog isOpen={isSubtitlesSizeModalOpen} />
                 
                 <input
                     type="checkbox"
@@ -331,6 +353,17 @@ const Controls = ({
                     useOnSelect
                     onSelectSubtitle={() => subtitleFilePath ? dispatch(setUseSubtitles(!useSubtitles)) : undefined}
                 />
+
+                {isSubtitlesSizeModalOpen && <div
+                    className='w-full h-full absolute top-0 bottom-0 right-0 left-0 z[60]'
+                    style={{
+                        pointerEvents: isSubtitlesSizeModalOpen ? 'none' : 'all',
+                    }}
+                >
+                    <div className='relative w-full h-full pointer-events-auto'>
+                        <SubtitlesSizeDialog isOpen={isSubtitlesSizeModalOpen} />
+                    </div>
+                </div>}
             </div>
         </div>
     </div>

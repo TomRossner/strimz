@@ -1,11 +1,12 @@
 import React, { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { closeModal } from '@/store/modals/modals.slice';
 import CloseButton from '../CloseButton';
-import { useAppDispatch } from '@/store/hooks';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { AnimatePresence, motion } from 'framer-motion';
 import { setSubtitlesSize } from '@/store/movies/movies.slice';
 import Button from '../Button';
 import { DEFAULT_SUBTITLES_SIZE } from '@/utils/constants';
+import { selectSubtitlesSize } from '@/store/movies/movies.selectors';
 
 interface SubtitlesSizeDialogProps {
     isOpen: boolean;
@@ -16,6 +17,8 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
     const dispatch = useAppDispatch();
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const subtitlesSize = useAppSelector(selectSubtitlesSize);
+
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
         dispatch(setSubtitlesSize(size));
@@ -23,8 +26,10 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
     }, [size, dispatch]);
 
     useEffect(() => {
+        setSize(subtitlesSize);
         if (isOpen && inputRef.current) inputRef.current.focus();
     }, [isOpen]);
+
   return (
     <AnimatePresence>
         {isOpen && (
@@ -32,7 +37,7 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1, transition: { duration: 0.1 } }}
                 exit={{ scale: 0.8, opacity: 0, transition: { duration: 0.1 } }}
-                className='absolute bg-stone-700 flex flex-col w-[95%] rounded-sm shadow-2xl shadow-black text-base py-2 px-3'
+                className='absolute bg-stone-700 flex flex-col w-[90%] h-fit rounded-sm shadow-2xl shadow-black text-base py-2 px-3 z-[60] left-0 right-0 m-auto bottom-0 top-0 border border-stone-500'
             >
                 <CloseButton onClose={() => dispatch(closeModal('subtitlesSize'))} className='md:block absolute p-1 text-sm' />
 
@@ -51,7 +56,16 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
                         className='bg-stone-100 w-fit rounded-sm text-black p-1 text-sm'
                     />
                     <div className='w-full flex justify-end gap-1'>
-                        <Button type='button' className='bg-stone-400 hover:bg-stone-500' onClick={() => setSize(DEFAULT_SUBTITLES_SIZE)}>Reset</Button>
+                        <Button
+                            type='button'
+                            className='bg-stone-400 hover:bg-stone-500'
+                            onClick={() => {
+                                setSize(DEFAULT_SUBTITLES_SIZE);
+                                dispatch(setSubtitlesSize(DEFAULT_SUBTITLES_SIZE));
+                            }}
+                        >
+                            Reset
+                        </Button>
                         <Button type='submit' className='bg-blue-400 hover:bg-blue-500'>Apply</Button>
                     </div>
                 </form>
