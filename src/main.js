@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
 import { createMainWindow } from './modules/mainWindow.js';
 import { startBackend, waitForBackendReady } from './modules/backend.js';
 import { attachIPCHandlers } from './modules/ipcHandlers.js';
@@ -7,6 +7,12 @@ import { clearDownloadFolderAsync, ensureDefaultDownloadPath } from './modules/u
 import log from 'electron-log';
 import store from './store.js';
 import electronUpdater from "electron-updater";
+
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-direct-composition');
+app.commandLine.appendSwitch('enable-features', 'DirectCompositionOverlays');
 
 const { autoUpdater } = electronUpdater;
 const isDev = !app.isPackaged;
@@ -38,7 +44,7 @@ app.whenReady().then(async () => {
             win.webContents.send('external-torrent', torrentArg);
             clearTimeout(timeout);
           }, 2000);
-        })
+        });
       }
 
       if (!isDev) {
@@ -46,6 +52,15 @@ app.whenReady().then(async () => {
         autoUpdater.autoInstallOnAppQuit = store.get("autoInstallOnQuit");
         log.info("Checking for updates...");
         autoUpdater.checkForUpdatesAndNotify();
+      } else {
+        globalShortcut.register('CommandOrControl+Shift+G', () => {
+          const gpuWindow = new BrowserWindow({
+            width: 900,
+            height: 700,
+          });
+
+          gpuWindow.loadURL('chrome://gpu');
+        });
       }
     } catch (error) {
       log.error("Error waiting for backend:", error);

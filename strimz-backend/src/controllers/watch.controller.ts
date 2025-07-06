@@ -243,7 +243,10 @@ export const watchMovieStatus = async (req: Request, res: Response) => {
                     activeTorrents.delete(hashStr);
                     reject(torrentErr);
 
-                    res.status(500).send(torrentErr);
+                    if (!res.headersSent) {
+                        res.status(500).send(torrentErr);
+                        console.log('Headers not sent - Torrent still being destroyed');
+                    }
                 });
 
                 // Find the main video file
@@ -390,7 +393,11 @@ export const handleTorrentFromPath = async (req: Request, res: Response) => {
             torrent.on("error", (torrentErr) => {
                 console.error("Torrent Error:", torrentErr);
                 torrent.destroy();
-                return res.status(500).send(torrentErr);
+                
+                if (!res.headersSent) {
+                    console.log('Headers not sent - Torrent still being destroyed...');
+                    return res.status(500).send(torrentErr);
+                }
             });
 
             const hash = torrent.infoHash.toLowerCase();

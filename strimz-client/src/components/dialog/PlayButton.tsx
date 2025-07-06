@@ -34,9 +34,11 @@ const PlayButton = ({isDisabled, onPlay, diskSpaceInfo}: PlayButtonProps) => {
         w-full
         disabled:opacity-80
         disabled:text-slate-200
-        hover:bg-blue-400
         hover:text-white
-        ${diskSpaceInfo?.hasEnoughSpace === false ? 'text-start bg-red-200 text-red-600' : 'bg-blue-500 text-white'}
+        ${diskSpaceInfo?.hasEnoughSpace === false
+          ? 'text-start bg-red-200 text-red-600 hover:bg-red-300'
+          : 'bg-blue-500 text-white hover:bg-blue-400'
+        }
       `)}
     >
       {diskSpaceInfo?.hasEnoughSpace === false
