@@ -10,3 +10,4 @@ export const selectSubtitlesSizeModal = (state: RootState): boolean => state.mod
 export const selectMovieDownloadInfoPanel = (state: RootState): boolean => state.modals.movieDownloadInfo;
 export const selectSubtitlesSelectorTab = (state: RootState): boolean => state.modals.subtitlesSelectorTab;
 export const selectSummaryModal = (state: RootState): boolean => state.modals.summary;
+export const selectPlayFromMagnetModal = (state: RootState): boolean => state.modals.playFromMagnet;

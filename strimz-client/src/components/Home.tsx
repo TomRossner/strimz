@@ -58,7 +58,7 @@ const Home = () => {
         
         dispatch(setExternalTorrent({hash, title}));
         dispatch(openModal('playTorrentPrompt'));
-      }, [settings.downloadsFolderPath, dispatch, externalTorrent]);
+    }, [settings.downloadsFolderPath, dispatch, externalTorrent]);
 
     useEffect(() => {
       if (!isVpnActive) {

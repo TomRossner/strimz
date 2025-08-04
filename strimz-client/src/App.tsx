@@ -13,13 +13,14 @@ import FiltersDialog from './components/FiltersDialog';
 import MovieDialog from './components/dialog/MovieDialog';
 import { DEFAULT_PARAMS } from './utils/constants';
 import Overlay from './components/Overlay';
-import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayTorrentPrompt, selectVpnModal } from './store/modals/modals.selectors';
+import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayFromMagnetModal, selectPlayTorrentPrompt, selectVpnModal } from './store/modals/modals.selectors';
 import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
 import { selectIsVpnActive } from './store/vpn/vpn.selectors';
 import PlayTorrentPrompt from './components/PlayTorrentPrompt';
 import { fetchUserSettings } from './store/settings/settings.slice';
+import PlayFromMagnetModal from './components/PlayFromMagnetModal';
 
 const WatchMoviePage = lazy(() => import('./pages/Watch'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
@@ -43,6 +44,7 @@ const MoviesPage = () => {
   const isMenuOpen = useAppSelector(selectMenu);
   const isVpnDialogOpen = useAppSelector(selectVpnModal);
   const isPlayTorrentPromptOpen = useAppSelector(selectPlayTorrentPrompt);
+  const isPlayFromMagnetModalOpen = useAppSelector(selectPlayFromMagnetModal);
 
   const isOverlayActive = useMemo(() => {
     return (
@@ -50,7 +52,8 @@ const MoviesPage = () => {
       isMenuOpen ||
       isMovieDialogOpen ||
       isVpnDialogOpen ||
-      isPlayTorrentPromptOpen
+      isPlayTorrentPromptOpen ||
+      isPlayFromMagnetModalOpen
     );
   }, [
     isFiltersDialogOpen,
@@ -58,6 +61,7 @@ const MoviesPage = () => {
     isMovieDialogOpen,
     isVpnDialogOpen,
     isPlayTorrentPromptOpen,
+    isPlayFromMagnetModalOpen
   ]);
 
   const isVpnActive = useAppSelector(selectIsVpnActive);
@@ -100,6 +104,7 @@ const MoviesPage = () => {
       <ErrorDialog onClose={handleErrorClose} />
       <MovieDialog />
       <FiltersDialog />
+      <PlayFromMagnetModal />
       <PlayTorrentPrompt />
       <VpnReminderDialog isActive={isVpnActive} />
 

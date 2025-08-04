@@ -67,3 +67,5 @@ export const PLAYER_CONTROLS_KEY_BINDS = {
 
 export const SKIP_BACK_SECONDS: number = 10;
 export const SKIP_FORWARD_SECONDS: number = 15;
+
+export const MAGNET_REGEX: RegExp = /magnet:\?xt=urn:btih:[a-fA-F0-9]([&\w=%.:+-]*)?/;

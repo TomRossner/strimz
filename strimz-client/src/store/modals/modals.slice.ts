@@ -13,6 +13,7 @@ interface ModalsState {
   movieDownloadInfo: boolean;
   subtitlesSelectorTab: boolean;
   summary: boolean;
+  playFromMagnet: boolean;
 }
 
 const initialState: ModalsState = {
@@ -27,6 +28,7 @@ const initialState: ModalsState = {
   movieDownloadInfo: false,
   subtitlesSelectorTab: false,
   summary: false,
+  playFromMagnet: false,
 }
 
 const modalsSlice = createSlice({

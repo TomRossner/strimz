@@ -34,7 +34,7 @@ app.whenReady().then(async () => {
       await waitForBackendReady();
       mainWindow = createMainWindow(isDev);
 
-      const torrentArg = process.argv.find(arg => arg.endsWith(".torrent"));
+      const torrentArg = process.argv.find(arg => arg.endsWith(".torrent") || arg.startsWith("magnet:"));
 
       if (torrentArg) {
         const win = mainWindow;
