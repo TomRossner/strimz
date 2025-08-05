@@ -1,32 +1,25 @@
-import { useAppSelector } from '@/store/hooks';
-import { selectSocket } from '@/store/socket/socket.selectors';
 import { formatBytesPerSecond } from '@/utils/bytes';
-import { DownloadProgressData } from '@/utils/types';
-import React, { useCallback, useEffect, useState } from 'react';
+import throttle from 'lodash.throttle';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface DownloadSpeedProps {
-    hash: string;
+    speedAsNum: number;
 }
 
-const DownloadSpeed = ({hash}: DownloadSpeedProps) => {
-    const socket = useAppSelector(selectSocket);
+const DownloadSpeed = ({speedAsNum}: DownloadSpeedProps) => {
     const [speed, setSpeed] = useState<number>(0);
 
-    const handleProgress = useCallback((data: DownloadProgressData) => {
-        if (data.hash.toLowerCase() === hash.toLowerCase()) {
-            setSpeed(data.speed);
-        }
-    }, [hash]);
+    const throttledSetSpeed = useRef(
+        throttle((speedAsNum: number) => {
+            setSpeed(speedAsNum);
+        }, 500)
+    ).current;
 
     useEffect(() => {
-        if (!socket?.id) return;
+        if (!speedAsNum) return;
 
-        socket.on('downloadProgress', handleProgress);
-
-        return () => {
-            socket.off('downloadProgress', handleProgress);
-        }
-    }, [socket, handleProgress]);
+        throttledSetSpeed(speedAsNum);
+    }, [speedAsNum, throttledSetSpeed]);
 
   return (
     <span className='text-white text-xl'>{formatBytesPerSecond(speed)}</span>

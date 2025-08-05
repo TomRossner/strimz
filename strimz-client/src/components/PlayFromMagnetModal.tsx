@@ -28,25 +28,6 @@ const PlayFromMagnetModal = () => {
         setMagnetLink(ev.target.value);
     }
 
-    const handleGetTorrentData = useCallback(async (magnetLink: string) => {
-        if (!settings.downloadsFolderPath.length) {
-            return;
-        }
-
-        try {
-            const {data: {hash, title}} = await getTorrentData(magnetLink, settings.downloadsFolderPath);
-            console.log({hash, title});
-            
-            dispatch(setExternalTorrent({hash, title}));
-            dispatch(closeModal('playFromMagnet'));
-            dispatch(openModal('playTorrentPrompt'));
-        } catch (error) {
-            dispatch(setError(typeof error === 'string' ? error : 'An error occurred while fetching torrent data.'));
-        } finally {
-            setIsLoading(false);
-        }
-    }, [settings.downloadsFolderPath, dispatch]);
-
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
 
@@ -54,8 +35,27 @@ const PlayFromMagnetModal = () => {
 
         if (!magnetLink) return;
 
-        handleGetTorrentData(magnetLink);
-    }, [magnetLink, handleGetTorrentData]);
+        const getTorrentDataFromMagnetLink = async (magnetLink: string) => {
+            if (!settings.downloadsFolderPath.length) {
+                return;
+            }
+
+            try {
+                const {data: {hash, title}} = await getTorrentData(magnetLink, settings.downloadsFolderPath);
+                
+                dispatch(setExternalTorrent({hash, title}));
+
+                dispatch(closeModal('playFromMagnet'));
+                dispatch(openModal('playTorrentPrompt'));
+            } catch (error) {
+                dispatch(setError(typeof error === 'string' ? error : 'An error occurred while fetching torrent data.'));
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        getTorrentDataFromMagnetLink(magnetLink);
+    }, [magnetLink, dispatch, settings?.downloadsFolderPath]);
 
     useEffect(() => {
         if (isOpen && inputRef.current) {

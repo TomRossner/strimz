@@ -13,6 +13,9 @@ app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-direct-composition');
 app.commandLine.appendSwitch('enable-features', 'DirectCompositionOverlays');
+app.commandLine.appendSwitch('disable-frame-rate-limit');
+app.commandLine.appendSwitch('disable-gpu-vsync');
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
 
 const { autoUpdater } = electronUpdater;
 const isDev = !app.isPackaged;

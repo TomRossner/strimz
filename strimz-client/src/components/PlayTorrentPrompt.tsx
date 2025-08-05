@@ -1,12 +1,12 @@
-import React from 'react'
-import Dialog from './Dialog'
-import { useAppDispatch, useAppSelector } from '@/store/hooks'
-import { selectPlayTorrentPrompt } from '@/store/modals/modals.selectors'
-import { selectExternalTorrent } from '@/store/movies/movies.selectors'
-import Button from './Button'
-import { useNavigate } from 'react-router-dom'
-import { closeModal } from '@/store/modals/modals.slice'
-import { setExternalTorrent } from '@/store/movies/movies.slice'
+import React from 'react';
+import Dialog from './Dialog';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { selectPlayTorrentPrompt } from '@/store/modals/modals.selectors';
+import { selectExternalTorrent } from '@/store/movies/movies.selectors';
+import Button from './Button';
+import { useNavigate } from 'react-router-dom';
+import { closeModal } from '@/store/modals/modals.slice';
+import { setExternalTorrent } from '@/store/movies/movies.slice';
 
 const PlayTorrentPrompt = () => {
     const isOpen = useAppSelector(selectPlayTorrentPrompt);
@@ -19,6 +19,7 @@ const PlayTorrentPrompt = () => {
         dispatch(closeModal('playTorrentPrompt'));
         dispatch(setExternalTorrent(null));
     }
+
     const handlePlay = () => {
         if (!torrent) return;
 
@@ -26,6 +27,7 @@ const PlayTorrentPrompt = () => {
         dispatch(closeModal('error'));
         navigate(`/watch/${torrent.hash}?hash=${torrent.hash}&title=${torrent.title}`);
     }
+
   return (
     <Dialog
         isOpen={isOpen && !!torrent}

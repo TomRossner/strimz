@@ -32,7 +32,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: async () => await ipcRenderer.invoke('get-settings'),
   checkVpnConnection: async () => await ipcRenderer.invoke('check-vpn-connection'),
   checkDiskSpace: async () => await ipcRenderer.invoke('check-disk-space'),
-  readSubtitleFile: async (filePath) => await ipcRenderer.invoke('read-subtitle-file', filePath),
+  detectSubtitlesLanguage: async (filePath) => await ipcRenderer.invoke('detect-subtitles-language', filePath),
+  convertSRTtoVTT: async (srtFilePath, lang) => await ipcRenderer.invoke('convert-srt-to-vtt', srtFilePath, lang),
 
   onCheckingForUpdate: (cb) => ipcRenderer.on('checking-for-update', cb),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', cb),

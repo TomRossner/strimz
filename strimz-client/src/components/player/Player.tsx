@@ -1,7 +1,7 @@
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSocket } from '@/store/socket/socket.selectors';
 import { Cue, DownloadProgressData } from '@/utils/types';
-import React, { RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Page from '../Page';
 import Container from '../Container';
@@ -11,14 +11,15 @@ import { twMerge } from 'tailwind-merge';
 import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
-import Subtitles from './Subtitles';
-import { selectMovie, selectSubtitleFilePath, selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectUseSubtitles } from '@/store/movies/movies.selectors';
 import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { setUseSubtitles } from '@/store/movies/movies.slice';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import TopOverlay from './TopOverlay';
 import ShortcutActionDisplay from './ShortcutActionDisplay';
 import throttle from 'lodash.throttle';
+import { getSubtitleMetadata } from '@/utils/detectLanguage';
+import Subtitles from './Subtitles';
 
 const {
     PLAY_PAUSE,
@@ -88,9 +89,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     }
 
     const renderSubtitles = useCallback(() => {
-        if (!videoRef.current || !parsedSubtitles) {
-            return;
-        }
+        if (!videoRef.current) return;
 
         const currentTime = videoRef.current.currentTime;
         let currentSubtitleText = '';
@@ -102,19 +101,25 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             }
         }
 
-        setCurrentSubtitle(currentSubtitleText);
+        setCurrentSubtitle(prev => {
+            if (prev !== currentSubtitleText) {
+                return currentSubtitleText;
+            }
+            return prev;
+        });
     }, [parsedSubtitles]);
 
-    const handleTimeUpdate = () => {
-        const video = videoRef.current;
+    const throttledHandleTimeUpdate = useRef<((e: React.SyntheticEvent<HTMLVideoElement>) => void) | null>(null);
 
-        if (!video) return;
-
-        renderSubtitles();
-        setCurrentTime(video.currentTime);
-        setDuration(video.duration);
-        setPlaybackWidth((video.currentTime / video.duration) * 100);
-    }
+    useEffect(() => {
+        throttledHandleTimeUpdate.current = throttle((e: React.SyntheticEvent<HTMLVideoElement>) => {
+            const video = e.currentTarget;
+            renderSubtitles();
+            setCurrentTime(video.currentTime);
+            setDuration(video.duration);
+            setPlaybackWidth((video.currentTime / video.duration) * 100);
+        }, 250);
+    }, [renderSubtitles]);
 
     const handleSkipForward = () => {
         if (!videoRef.current || !videoRef.current.duration) return;
@@ -257,6 +262,8 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                 setHasUsedKeyboardShortcut(true);
                 setKeyboardShortcut(e.key);
                 break;
+            default:
+                return;
         }
     }, [
         isSubtitlesSizeModalOpen,
@@ -286,6 +293,11 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         }
     }, [hasUsedKeyboardShortcut]);
 
+    const subtitleLang = useAppSelector(selectSubtitleLang);
+    
+    // Subs Metadata: { lang, label }
+    const subsMetadata = useMemo(() => subtitleLang ? getSubtitleMetadata(subtitleLang as string) : undefined, [subtitleLang]);
+
     return (
         <Page>
             <Container id="watchMovie" className="min-h-0 max-h-[100vh] overflow-hidden grow">
@@ -297,7 +309,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                     >
                         <TopOverlay
                             isVisible={controlsVisible}
-                            title={`${title} (${movie?.year})`}
+                            title={`${title} ${movie?.year ? `(${movie.year})` : ''}`}
                             downloadInfo={downloadInfo}
                             videoDimensions={{
                                 height: videoRef.current?.clientHeight || 0,
@@ -317,9 +329,10 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             autoPlay
                             muted={isMuted}
                             ref={videoRef}
-                            poster={poster ?? ''}
+                            lang={subsMetadata?.lang || undefined}
+                            poster={poster || ''}
                             onCanPlay={() => setIsPlaying(true)}
-                            onTimeUpdate={handleTimeUpdate}
+                            onTimeUpdate={e => throttledHandleTimeUpdate.current?.(e)}
                             onClick={() => setIsPlaying(videoRef.current?.paused as boolean)}
                             onDoubleClick={toggleFullscreen}
                             className={twMerge(`
@@ -331,6 +344,20 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             `)}
                         >
                             <source src={src || undefined} type='video/mp4' />
+                            {/* {hasSubtitles && useSubtitles && vttSubs && (
+                                <track 
+                                    default
+                                    kind="subtitles"
+                                    srcLang={subsMetadata?.lang.length ? subsMetadata.lang.split('-')[0] : undefined}
+                                    src={vttSubs}
+                                    dir={isRTL(subsMetadata?.lang as string) ? 'rtl' : 'ltr'}
+                                    className={twMerge(`w-full text-center text-white px-4 z-10`)}
+                                    style={{
+                                        direction: isRTL(subsMetadata?.lang as string) ? 'rtl' : 'ltr',
+                                        unicodeBidi: 'embed',
+                                    }}
+                                />
+                            )} */}
                         </video>
 
                         <Subtitles
@@ -365,7 +392,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                 ) : (
                     <div style={{ backgroundImage: `url(${poster})` }} className={`my-auto bg-cover aspect-video bg-center relative w-full flex items-center bg-black justify-center`}>
                         <div className="flex relative items-center justify-center rounded-full aspect-square z-30">
-                            <Progress progressOnly hash={searchParams.get('hash') as string} />
+                            <Progress progressOnly hash={hash as string} />
                             <LoadingIcon size={70} />
                         </div>
 

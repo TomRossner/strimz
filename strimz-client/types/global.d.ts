@@ -23,7 +23,8 @@ declare global {
             getSettings: () => Promise<Settings>;
             checkVpnConnection: () => Promise<boolean>;
             checkDiskSpace: () => Promise<unknown>;
-            readSubtitleFile: (filePath: string) => Promise<string | null>;
+            detectSubtitlesLanguage: (filePath: string) => Promise<string | null>;
+            convertSRTtoVTT: (srtFilePath: string, lang: string) => Promise<string | null>;
             
             onCheckingForUpdate: (cb) => void;
             onUpdateAvailable: (cb) => void;

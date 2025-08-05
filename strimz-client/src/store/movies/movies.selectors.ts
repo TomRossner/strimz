@@ -19,3 +19,4 @@ export const selectUseSubtitles = (state: RootState) => state.movies.useSubtitle
 export const selectExternalTorrent = (state: RootState) => state.movies.externalTorrent;
 export const selectSubtitlesSize = (state: RootState) => state.movies.subtitlesSize;
 export const selectSelectedTorrent = (state: RootState) => state.movies.selectedTorrent;
+export const selectVttSubtitlesContent = (state: RootState) => state.movies.vttSubtitlesContent;

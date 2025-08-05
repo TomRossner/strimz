@@ -49,7 +49,13 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
         }}
     >
         <p className='flex items-start gap-2'>
-            <BackButton cb={() => !externalTorrent ? dispatch(openModal('movie')) : undefined} />
+            <BackButton
+                cb={() => {
+                    if (externalTorrent) return;
+
+                    dispatch(openModal('movie'));
+                }}
+            />
             {title}
         </p>
 

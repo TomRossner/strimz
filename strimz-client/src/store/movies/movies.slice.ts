@@ -31,6 +31,7 @@ interface MoviesState {
   externalTorrent: {hash: string, title: string} | null;
   subtitlesSize: number;
   selectedTorrent: Torrent | null;
+  vttSubtitlesContent: string | null;
 }
 
 const initialState: MoviesState = {
@@ -53,6 +54,7 @@ const initialState: MoviesState = {
   externalTorrent: null,
   subtitlesSize: DEFAULT_SUBTITLES_SIZE,
   selectedTorrent: null,
+  vttSubtitlesContent: null,
 }
 
 type FetchMoviesAsync = {
@@ -224,6 +226,9 @@ const moviesSlice = createSlice({
     setSelectedTorrent(state, action: PayloadAction<Torrent | null>) {
       state.selectedTorrent = action.payload;
     },
+    setVttSubtitlesContent(state, action: PayloadAction<string | null>) {
+      state.vttSubtitlesContent = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -306,6 +311,7 @@ export const {
   setExternalTorrent,
   setSubtitlesSize,
   setSelectedTorrent,
+  setVttSubtitlesContent,
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

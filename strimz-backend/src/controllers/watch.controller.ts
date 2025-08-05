@@ -369,27 +369,29 @@ export const handleTorrentFromPath = async (req: Request, res: Response) => {
 
             client.on("error", (err) => {
                 if (!res.headersSent) {
-                    console.error("WebTorrent Client Error:", err);
+                    console.error("Torrent from path - WebTorrent Client Error:", err);
                     client?.destroy();
                     client = null;
                 }
             });
         }
 
-        if (client.torrents.length) {
-            if (client.torrents[0].infoHash) {
-                return res.status(200).json({
-                    hash: client.torrents[0].infoHash.toLowerCase(),
-                    title: client.torrents[0].name,
-                });
-            } else {
-                client.destroy();
-                client = null;
-                client = new WebTorrent();
-            }
-        }
+        // if (client.torrents.length) {
+        //     if (client.torrents[0].infoHash) {
+        //         return res.status(200).json({
+        //             hash: client.torrents[0].infoHash.toLowerCase(),
+        //             title: client.torrents[0].name,
+        //         });
+        //     } else {
+        //         client.destroy();
+        //         client = null;
+        //         client = new WebTorrent();
+        //     }
+        // }
 
-        client.add(torrentFilePath as string, { path: requestedDir }, (torrent) => {
+        const tempClient = new WebTorrent(); // Just to get hash and title;
+
+        tempClient.add(torrentFilePath as string, { path: requestedDir }, (torrent) => {
             torrent.on("error", (torrentErr) => {
                 console.error("Torrent Error:", torrentErr);
                 torrent.destroy();
@@ -408,7 +410,7 @@ export const handleTorrentFromPath = async (req: Request, res: Response) => {
             res.status(200).json({hash, title});
 
             addingTorrents.delete(hash);
-            client?.remove(torrent);
+            tempClient?.remove(torrent);
         });
     } catch (error) {
         console.error("General error:", error);

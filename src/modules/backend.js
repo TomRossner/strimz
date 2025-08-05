@@ -3,6 +3,7 @@ import path from 'path';
 import http from 'http';
 import log from 'electron-log';
 import { app } from 'electron';
+import { API_URL, BACKEND_PORT } from '../constants.js';
 
 const isDev = !app.isPackaged;
 
@@ -23,7 +24,7 @@ export function startBackend() {
       env: {
         ...process.env,
         IS_BACKEND_PROCESS: 'true',
-        PORT: '3003',
+        PORT: BACKEND_PORT,
       },
     }
   );
@@ -51,7 +52,7 @@ export function startBackend() {
 export function waitForBackendReady(retries = 20, interval = 500) {
   return new Promise((resolve, reject) => {
     const check = () => {
-      http.get('http://localhost:3003/api/ping', res => {
+      http.get(`${API_URL}/ping`, res => {
         if (res.statusCode === 200) {
           resolve();
         } else {

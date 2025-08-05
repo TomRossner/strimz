@@ -3,10 +3,10 @@ import Button from '../Button';
 import { PiSubtitles } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSubtitleFilePath, selectSubtitleLang, selectUseSubtitles } from '@/store/movies/movies.selectors';
-import { setSubtitleFilePath, setSubtitleLang } from '@/store/movies/movies.slice';
+import { setSubtitleFilePath, setSubtitleLang, setVttSubtitlesContent } from '@/store/movies/movies.slice';
 import { twMerge } from 'tailwind-merge';
 import { RxCross2 } from 'react-icons/rx';
-import { detectLanguageFromSubtitle, extractTextFromSubtitle, getCountryCodeFromIso3, getFlagEmoji } from '@/utils/detectLanguage';
+import { detectLanguageFromSubtitle, extractTextFromSubtitle, getCountryCodeFromIso3, getFlagEmoji, getSubtitleMetadata } from '@/utils/detectLanguage';
 import Flag from "react-world-flags";
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { BsInfoCircle } from 'react-icons/bs';
@@ -40,6 +40,8 @@ const SubtitlesSelector = ({
 
     const useSubtitles = useAppSelector(selectUseSubtitles);
 
+    const { lang } = useMemo(() => getSubtitleMetadata(subtitleLang as string), [subtitleLang]);
+
     const handleSubtitleFileUpload = (path: string | null) => {
         if (!path) return;
 
@@ -47,7 +49,7 @@ const SubtitlesSelector = ({
     }
 
     const getSubtitleLanguage = useCallback(async () => {
-        const content = await window.electronAPI.readSubtitleFile(subtitleFilePath as string);
+        const content = await window.electronAPI.detectSubtitlesLanguage(subtitleFilePath as string);
 
         if (content) {
             const cleanText = extractTextFromSubtitle(content);
@@ -64,6 +66,21 @@ const SubtitlesSelector = ({
 
         getSubtitleLanguage();
     }, [subtitleFilePath, getSubtitleLanguage]);
+    
+    useEffect(() => {
+        const handleSrtSubs = async (srtFilePath: string, lang: string) => {
+            console.log('Converting to VTT');
+            const vttText = await window.electronAPI.convertSRTtoVTT(srtFilePath, lang);
+
+            if (vttText) {
+                dispatch(setVttSubtitlesContent(vttText));
+            }
+        }
+
+        if (subtitleFilePath && lang) {
+            handleSrtSubs(subtitleFilePath, lang);
+        }
+    }, [subtitleFilePath, lang, dispatch]);
 
   return (
     <div className={twMerge(`flex w-full my-2 gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>

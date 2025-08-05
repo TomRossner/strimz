@@ -54,7 +54,6 @@ const Home = () => {
         }
 
         const {data: {hash, title}} = await getTorrentData(path, settings.downloadsFolderPath);
-        console.log({hash, title});
         
         dispatch(setExternalTorrent({hash, title}));
         dispatch(openModal('playTorrentPrompt'));

@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { CLIENT_URL } from '../constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,7 +20,7 @@ export function createMainWindow(isDev) {
   });
 
   const url = isDev
-    ? 'http://localhost:5173'
+    ? CLIENT_URL
     : `file://${path.resolve(__dirname, '../../strimz-client/dist/index.html')}`;
 
   mainWindow.loadURL(url);

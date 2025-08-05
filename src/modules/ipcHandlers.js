@@ -10,6 +10,7 @@ import { checkVpn } from './checkVpn.js';
 import { checkDisk } from './checkDiskSpace.js';
 import chardet from "chardet";
 import iconv from "iconv-lite";
+import { convertSRTtoVTT } from './utils.js';
 
 const { autoUpdater } = electronUpdater;
 
@@ -59,13 +60,22 @@ export function attachIPCHandlers(isDev, updateState) {
     return res.filePaths[0];
   });
 
-  ipcMain.handle('read-subtitle-file', async (event, filePath) => {
+  ipcMain.handle('detect-subtitles-language', async (event, filePath) => {
     try {
       const buffer = await fsPromises.readFile(filePath);
       const encoding = chardet.detect(buffer) || 'utf8';
       const content = iconv.decode(buffer, encoding);
-      
+
       return content;
+    } catch (err) {
+      console.error('Failed to read subtitle file:', err);
+      return null;
+    }
+  });
+  ipcMain.handle('convert-srt-to-vtt', async (event, srtFilePath, lang) => {
+    try {
+      const vtt = await convertSRTtoVTT(srtFilePath, lang);
+      return vtt;
     } catch (err) {
       console.error('Failed to read subtitle file:', err);
       return null;
