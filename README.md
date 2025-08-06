@@ -36,10 +36,10 @@ cd strimz
 # Install dependencies
 npm install
 
-# Install dependencies
+# Install backend dependencies
 cd strimz-backend && npm install
 
-# Install dependencies
+# Install frontend dependencies
 cd strimz-client && npm install
 
 # Start the Electron app
