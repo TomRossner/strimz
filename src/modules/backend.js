@@ -49,7 +49,7 @@ export function startBackend() {
   return backendProcess;
 }
 
-export function waitForBackendReady(retries = 20, interval = 500) {
+export function waitForBackendReady(retries = 30, interval = 500) {
   return new Promise((resolve, reject) => {
     const check = () => {
       http.get(`${API_URL}/ping`, res => {
