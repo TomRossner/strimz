@@ -12,8 +12,7 @@ interface TrailerPlayerProps {
 }
 
 const setIframeSrc = (trailerCode: string): string => {
-    const origin = encodeURIComponent("https://localhost");
-    return `https://www.youtube.com/embed/${trailerCode}?autoplay=1&enablejsapi=1&origin=${origin}`;
+    return `https://www.youtube.com/embed/${trailerCode}?autoplay=1`;
 }
 
 const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => {
