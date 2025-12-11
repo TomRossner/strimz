@@ -3,6 +3,7 @@ import { Filters, getAllMovies, getMovieCast } from "../scraper/scraper.js";
 import { FETCH_LIMIT, PAGE_NUMBER } from "../utils/constants.js";
 import { yts } from "../yts/yts.js";
 import { getCorrected } from "../utils/spell.js";
+import { AxiosError } from "axios";
 
 export const getCast = async (req: Request, res: Response): Promise<Response | void> => {
     try {
@@ -128,9 +129,14 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
             }
         });
     } catch (error) {
-        console.error(error);
         if ((error as Error).message) {
-            return res.status(400).send((error as Error).message);
+            return res
+                .status((error as AxiosError).response?.status === 403 ? 403 : 400)
+                .send(
+                    (error as AxiosError).response?.status === 403
+                        ? `${(error as Error).message}. Try connecting through a different VPN country.`
+                        : (error as Error).message
+                );
         }
 
         res.status(400).send(error);
