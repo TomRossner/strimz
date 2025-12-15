@@ -1,5 +1,5 @@
 import axios from "axios";
-import { YTS_BASE_URL } from "../scraper/scraper.config.js";
+import { YTS_API_URLS, YTS_BASE_URL } from "../scraper/scraper.config.js";
 
 type Inputs = {
     limit: number;
@@ -55,7 +55,7 @@ class YTS {
     private readonly _page: number;
 
     // Base URL
-    private readonly _BASE_URL: string;
+    private _BASE_URL: string;
     
     // Fetch limits
     private readonly _MAX_LIMIT: Limits.MAX;
@@ -151,16 +151,27 @@ class YTS {
     }
     
     private async _get(endpoint: string, query: Inputs | Partial<Inputs>) {
-        const URI: string = `${this._BASE_URL}${endpoint}`;
-        
-        const response = await axios.get(URI, {
-            params: {
-                ...query
-            }
-        });
+        let lastError: any = null;
 
-        return response.data;
+        for (const url of YTS_API_URLS) {
+            const URI = `${url}${endpoint}`;
+
+            try {
+                const response = await axios.get(URI, { params: query });
+
+                if (response.status === 200) {
+                    this._BASE_URL = url;
+                    return response.data;
+                }
+            } catch (err) {
+                lastError = err;
+                continue;
+            }
+        }
+
+        throw new Error(`Error: ${lastError?.message}`);
     }
+
 
     private _validate(inputs: Inputs | Partial<Inputs>): boolean {
         const {
