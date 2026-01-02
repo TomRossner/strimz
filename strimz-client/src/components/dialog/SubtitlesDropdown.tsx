@@ -1,4 +1,4 @@
-import { normalizeLanguageCode, resolveCountryCode } from '@/utils/detectLanguage';
+import { normalizeLanguageCode, resolveCountryCode, getSubtitleMetadata } from '@/utils/detectLanguage';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Flag from 'react-world-flags';
 import Button from '../Button';
@@ -67,6 +67,9 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
 
   const normalizedSubtitleLang = subtitleLang ? normalizeLanguageCode(subtitleLang.toLowerCase()) : null;
   const selectedLabel = normalizedSubs.find(sub => sub.iso3.toLowerCase() === normalizedSubtitleLang)?.label;
+  // Fallback to getSubtitleMetadata if label not found in normalizedSubs
+  const fallbackLabel = subtitleLang ? getSubtitleMetadata(subtitleLang)?.label : null;
+  const displayLabel = selectedLabel || fallbackLabel || subtitleLang?.toUpperCase();
 
   return (
     <div className="relative w-full inline-block" ref={dropdownRef}>
@@ -74,11 +77,11 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
             onClick={() => setIsOpen((prev) => !prev)}
             className="w-full hover:bg-stone-600 justify-between"
         >
-            {subtitleLang && selectedLabel ? (
-              <div className={`flex w-full items-center gap-2 ${(isLoading || isDownloading) && 'justify-between'}`}>
+            {subtitleLang ? (
+              <div className={`flex w-full items-center gap-1 justify-between ${(isLoading || isDownloading) && 'justify-between'}`}>
                   <span className='flex gap-2 text-sm'>
                       <Flag code={resolveCountryCode(subtitleLang) as string} title={subtitleLang.toUpperCase()} className='w-5 aspect-auto' />
-                      {selectedLabel}
+                      {displayLabel}
                   </span>
 
                   {(isLoading || isDownloading) && (
@@ -90,8 +93,18 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
 
                   {!isLoading && !isDownloading && (
                       <>
-                          {availableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && <MdCheck className='text-green-500 text-sm' />}
-                          {notAvailableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && <RxCross2 className='text-red-500' />}
+                          {availableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && (
+                            <p className='flex items-center gap-1 px-2'>
+                                <MdCheck className='text-green-400 text-sm' />
+                                <span className='text-green-400 text-[12px] italic'>Available</span>
+                            </p>
+                          )}
+                          {notAvailableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && (
+                            <p className='flex items-center gap-1 px-2'>
+                              <RxCross2 className='text-red-400 text-sm' />
+                              <span className='text-red-400 text-[12px] italic'>Not available</span>
+                            </p>
+                          )}
                       </>
                   )}
               </div>
@@ -136,7 +149,11 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
                     <Button
                         key={iso3}
                         onClick={() => {
-                            onSelect(iso3);
+                            // Only call onSelect if clicking a different language
+                            // If clicking the already selected language, just close the dropdown
+                            if (!normalizedSubtitleLang || iso3.toLowerCase() !== normalizedSubtitleLang) {
+                                onSelect(iso3);
+                            }
                             setIsOpen(false);
                         }}
                         className={`w-full py-2 rounded-none justify-start text-sm flex gap-2 text-white transition-none

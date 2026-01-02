@@ -114,7 +114,7 @@ export const searchMovies = async (query: string, params?: Params): Promise<Axio
     return await axios.get(MOVIES_FETCH_URL, {
         params: {
             ...params,
-            query,
+            query_term: query,
             languages: ['en', 'fr', 'he']
         },
     });
@@ -151,6 +151,16 @@ export const addNewTorrent = async ({slug, hash, title, dir, sid}: AddNewTorrent
     });
 }
 
+export const restoreTorrent = async ({slug, hash, title, dir, sid}: AddNewTorrentProps) => {
+    return await axios.post(`${API_URL}/stream/restore`, {
+        hash,
+        slug,
+        title,
+        dir,
+        sid,
+    });
+}
+
 export const playTorrent = async (hash: string) => {
     return await axios.post(`${API_URL}/stream/play/${hash}`);
 }
@@ -160,29 +170,9 @@ export const resumeDownload = async (hash: string) => {
 }
 
 export const deleteDownload = async (hash: string, dir: string) => {
-    // Use 'file' as placeholder when hash is empty for file-only deletions
-    const hashParam = hash || 'file';
-    return await axios.delete(`${API_URL}/stream/delete/${hashParam}`, {
+    return await axios.delete(`${API_URL}/stream/delete/${hash}`, {
         params: {
             dir,
         }
-    });
-}
-
-type RestoreTorrentProps = {
-    hash: string;
-    slug: string;
-    title: string;
-    dir: string;
-    sid: string;
-}
-
-export const restoreTorrent = async ({ hash, slug, title, dir, sid }: RestoreTorrentProps) => {
-    return await axios.post(`${API_URL}/stream/restore`, {
-        hash,
-        slug,
-        title,
-        dir,
-        sid,
     });
 }

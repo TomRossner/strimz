@@ -6,6 +6,7 @@ import Button from '../Button';
 import { BsInfoCircle } from 'react-icons/bs';
 import MovieInfoPanel from './InfoPanel';
 import { selectExternalTorrent, selectSelectedTorrent } from '@/store/movies/movies.selectors';
+import { setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setIsSubtitlesEnabled, setSubtitleDelay, setVttSubtitlesContent, setSelectedMovie } from '@/store/movies/movies.slice';
 import { selectMovieDownloadInfoPanel } from '@/store/modals/modals.selectors';
 import { DownloadProgressData } from '@/utils/types';
 import { pauseDownload } from '@/services/movies';
@@ -67,6 +68,18 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                         video.pause();
                         video.src = "";
                         video.load();
+                    }
+
+                    // Clear all subtitle state before navigating away
+                    // Clear selectedMovie only if playing from Downloads page
+                    dispatch(setAvailableSubtitlesLanguages([]));
+                    dispatch(setSubtitleLang(null));
+                    dispatch(setSubtitleFilePath(null));
+                    dispatch(setIsSubtitlesEnabled(false));
+                    dispatch(setSubtitleDelay(0));
+                    dispatch(setVttSubtitlesContent(null));
+                    if (from === '/downloads') {
+                        dispatch(setSelectedMovie(null));
                     }
 
                     // Pause download if we have a hash (torrent-based download)

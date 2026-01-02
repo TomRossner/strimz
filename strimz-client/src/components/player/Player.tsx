@@ -13,7 +13,7 @@ import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
 import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectExternalTorrent, selectSubtitleDelay } from '@/store/movies/movies.selectors';
 import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
-import { setIsSubtitlesEnabled, setVttSubtitlesContent } from '@/store/movies/movies.slice';
+import { setIsSubtitlesEnabled, setVttSubtitlesContent, setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setSubtitleDelay, setSelectedMovie } from '@/store/movies/movies.slice';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import TopOverlay from './TopOverlay';
 import ShortcutActionDisplay from './ShortcutActionDisplay';
@@ -423,13 +423,36 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         };
     }, [isReadyToPlay]);
 
+    // Clear all subtitle state when source changes (new movie from disk or stream)
+    useEffect(() => {
+        // Clear all subtitle-related state when src, hash, or title changes
+        // Don't clear selectedMovie - it should persist and only update when clicking MovieCard
+        dispatch(setAvailableSubtitlesLanguages([]));
+        dispatch(setSubtitleLang(null));
+        dispatch(setSubtitleFilePath(null));
+        dispatch(setIsSubtitlesEnabled(false));
+        dispatch(setSubtitleDelay(0));
+        dispatch(setVttSubtitlesContent(null));
+    }, [src, hash, title, dispatch]);
+
     useEffect(() => {
         return () => {
             videoRef.current?.pause();
             videoRef.current?.removeAttribute('src');
             videoRef.current?.load();
+            // Clear all subtitle state when player unmounts
+            // Clear selectedMovie only if playing from Downloads page
+            dispatch(setAvailableSubtitlesLanguages([]));
+            dispatch(setSubtitleLang(null));
+            dispatch(setSubtitleFilePath(null));
+            dispatch(setIsSubtitlesEnabled(false));
+            dispatch(setSubtitleDelay(0));
+            dispatch(setVttSubtitlesContent(null));
+            if (from === '/downloads') {
+                dispatch(setSelectedMovie(null));
+            }
         }
-    }, []);
+    }, [dispatch, from]);
 
     return (
         <Page>
@@ -555,6 +578,18 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     video.pause();
                                     video.src = "";
                                     video.load();
+                                }
+            
+                                // Clear all subtitle state before navigating away
+                                // Clear selectedMovie only if playing from Downloads page
+                                dispatch(setAvailableSubtitlesLanguages([]));
+                                dispatch(setSubtitleLang(null));
+                                dispatch(setSubtitleFilePath(null));
+                                dispatch(setIsSubtitlesEnabled(false));
+                                dispatch(setSubtitleDelay(0));
+                                dispatch(setVttSubtitlesContent(null));
+                                if (from === '/downloads') {
+                                    dispatch(setSelectedMovie(null));
                                 }
             
                                 // Only pause download if we have a hash (torrent-based download)

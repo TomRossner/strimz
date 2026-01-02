@@ -20,6 +20,7 @@ import SubtitlesSelector from './SubtitlesSelector';
 import { playTorrent } from '@/services/movies';
 import { COMMON_LANGUAGES } from '@/utils/languages';
 import { getDownloadsCache } from '@/utils/downloadsCache';
+import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
 
 interface MovieInfoPanelProps {
     movie: Movie;
@@ -115,8 +116,10 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         if (subtitleLang && !subtitleFilePath && availableSubsLanguages.includes(subtitleLang) && settings.downloadsFolderPath) {
             setIsDownloadingSubs(true);
             // Don't await - let it download in background
+            // Convert language code to OpenSubtitles format
+            const openSubtitlesLangCode = toOpenSubtitlesCode(subtitleLang);
             downloadSubtitles(
-                subtitleLang,
+                openSubtitlesLangCode,
                 movie.imdb_code,
                 movie.title,
                 movie.year.toString(),
@@ -210,6 +213,11 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
     }, [selectedQuality]);
 
     const handleSelectSubsLanguage = async (langId: string) => {
+        // If clicking on the current selected language, do nothing
+        if (subtitleLang && subtitleLang.toLowerCase() === langId.toLowerCase()) {
+            return;
+        }
+
         const cacheKey = `${movie.imdb_code}-${movie.year}`;
         const cached = getSubsCache()[cacheKey];
 
@@ -221,7 +229,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
             dispatch(setSubtitleFilePath(null));
         }
 
-        // If language is already known in cache, just update state and download if available
+        // If language is already known in cache, just update state (don't download - download happens on play)
         if (
             cached &&
             Date.now() - cached.ts < CACHE_TTL &&
@@ -229,25 +237,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         ) {
             dispatch(setAvailableSubtitlesLanguages(cached.available));
             setNotAvailableSubs(cached.unavailable);
-
-            // Download if available and not already downloaded
-            if (cached.available.includes(langId) && !subtitleFilePath) {
-                setIsDownloadingSubs(true);
-                try {
-                    const { data: downloadedPath } = await downloadSubtitles(
-                        langId,
-                        movie.imdb_code,
-                        movie.title,
-                        movie.year.toString(),
-                        settings.downloadsFolderPath
-                    );
-                    dispatch(setSubtitleFilePath(downloadedPath));
-                } catch (error) {
-                    console.error('Failed to download subtitles:', error);
-                } finally {
-                    setIsDownloadingSubs(false);
-                }
-            }
+            // Don't download here - download happens when user clicks play
             return;
         }
 
@@ -255,10 +245,13 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         setIsLoadingSubs(true);
 
         try {
+            // Convert language code to OpenSubtitles format
+            const openSubtitlesLangCode = toOpenSubtitlesCode(langId);
+            
             const {
                 data: { isAvailable }
             } = await checkAvailability(
-                langId,
+                openSubtitlesLangCode,
                 movie.imdb_code,
                 movie.title,
                 movie.year.toString()
@@ -274,6 +267,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
             } else {
                 setNotAvailableSubs(prev => [...new Set([...prev, langId])]);
             }
+            // Don't download here - download happens when user clicks play
         } catch (error) {
             console.error(error);
         } finally {
@@ -282,15 +276,24 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
     }
 
     useEffect(() => {
-        if (!movie.imdb_code || !movie.year) return;
+        if (!movie.imdb_code || !movie.year) {
+            // Clear state if no movie data
+            dispatch(setAvailableSubtitlesLanguages([]));
+            setNotAvailableSubs([]);
+            return;
+        }
 
         const cacheKey = `${movie.imdb_code}-${movie.year}`;
         const cached = getSubsCache()[cacheKey];
 
         if (cached && Date.now() - cached.ts < CACHE_TTL) {
-            const newState = [...new Set([...availableSubsLanguages, ...cached.available])]
-            dispatch(setAvailableSubtitlesLanguages(newState));
-            setNotAvailableSubs(prev => [...new Set([...prev, ...cached.unavailable])]);
+            // Replace state from cache (cache is source of truth, don't merge with existing state)
+            dispatch(setAvailableSubtitlesLanguages(cached.available));
+            setNotAvailableSubs(cached.unavailable);
+        } else {
+            // Clear state if no cache
+            dispatch(setAvailableSubtitlesLanguages([]));
+            setNotAvailableSubs([]);
         }
     }, [movie.imdb_code, movie.year, dispatch]);
 
@@ -300,6 +303,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
             dispatch(setUnavailableSubtitlesLanguages([]));
             dispatch(setSubtitleLang(null));
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     
   return (
