@@ -120,8 +120,8 @@ export const searchMovies = async (query: string, params?: Params): Promise<Axio
     });
 }
 
-export const stopDownload = async (hash: string) => {
-    return await axios.post(`${API_URL}/watch/pause/${hash}`);
+export const pauseDownload = async (hash: string) => {
+    return await axios.post(`${API_URL}/stream/pause/${hash}`);
 }
 
 export const getMoviesByIds = async (ids: string[]) => {
@@ -129,5 +129,60 @@ export const getMoviesByIds = async (ids: string[]) => {
 }
 
 export const getTorrentData = async (torrentFilePath: string, dir: string) => {
-    return await axios.post(`${API_URL}/watch/get-torrent-data`, {torrentFilePath, dir});
+    return await axios.post(`${API_URL}/stream/get-torrent-data`, {torrentFilePath, dir});
+}
+
+type AddNewTorrentProps = {
+    slug: string;
+    hash: string;
+    title: string;
+    dir: string;
+    sid: string;
+}
+
+export const addNewTorrent = async ({slug, hash, title, dir, sid}: AddNewTorrentProps) => {
+    return await axios.get(`${API_URL}/torrents/${slug}`, {
+        params: {
+            hash,
+            title,
+            dir,
+            sid,
+        }
+    });
+}
+
+export const playTorrent = async (hash: string) => {
+    return await axios.post(`${API_URL}/stream/play/${hash}`);
+}
+
+export const resumeDownload = async (hash: string) => {
+    return await axios.post(`${API_URL}/stream/play/${hash}`);
+}
+
+export const deleteDownload = async (hash: string, dir: string) => {
+    // Use 'file' as placeholder when hash is empty for file-only deletions
+    const hashParam = hash || 'file';
+    return await axios.delete(`${API_URL}/stream/delete/${hashParam}`, {
+        params: {
+            dir,
+        }
+    });
+}
+
+type RestoreTorrentProps = {
+    hash: string;
+    slug: string;
+    title: string;
+    dir: string;
+    sid: string;
+}
+
+export const restoreTorrent = async ({ hash, slug, title, dir, sid }: RestoreTorrentProps) => {
+    return await axios.post(`${API_URL}/stream/restore`, {
+        hash,
+        slug,
+        title,
+        dir,
+        sid,
+    });
 }

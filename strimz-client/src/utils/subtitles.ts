@@ -2,6 +2,7 @@ import { RTLLanguages } from "./detectLanguage";
 import { Cue } from "./types";
 
 export const isRTL = (lang: string): boolean => {
+  if (!lang) return false;
   const langCode = lang.split('-')[0].toLowerCase();
   return RTLLanguages.includes(langCode);
 }

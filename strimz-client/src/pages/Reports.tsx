@@ -74,7 +74,7 @@ const ReportsPage = () => {
     <Page>
       <Container id='reportsPage'>
         <PageTitle>
-          <BackButton />
+          <BackButton cb={() => navigate(-1)} />
           <span className='grow -mt-1'>Report a bug</span>
         </PageTitle>
 

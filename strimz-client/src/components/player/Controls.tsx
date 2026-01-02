@@ -6,16 +6,21 @@ import { twMerge } from 'tailwind-merge';
 import TimeTrack from './TimeTrack';
 import VolumeSlider from './VolumeSlider';
 import { PiArrowArcLeft, PiArrowArcRight, PiSubtitlesLight } from 'react-icons/pi';
-import SubtitlesSelector from '../dialog/SubtitlesSelector';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitlesSize, selectUseSubtitles } from '@/store/movies/movies.selectors';
-import { setUseSubtitles } from '@/store/movies/movies.slice';
+import { selectSubtitleFilePath, selectSubtitlesSize, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages } from '@/store/movies/movies.selectors';
+import { setIsSubtitlesEnabled, setSubtitleFilePath, setSubtitleLang, setAvailableSubtitlesLanguages } from '@/store/movies/movies.slice';
 import { closeModal, openModal } from '@/store/modals/modals.slice';
 import SubtitlesSizeDialog from './SubtitlesSizeDialog';
 import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import { MdEdit } from 'react-icons/md';
 import CloseButton from '../CloseButton';
+import SubtitlesSelector from '@/components/dialog/SubtitlesSelector';
+import { COMMON_LANGUAGES } from '@/utils/languages';
+import { checkAvailability, downloadSubtitles } from '@/services/subtitles';
+import { selectSettings } from '@/store/settings/settings.selectors';
+import { CACHE_TTL, getSubsCache, updateSubsCache } from '@/utils/subsLanguagesCache';
+import { useSearchParams } from 'react-router-dom';
 
 interface ControlsProps {
     ref: RefObject<HTMLVideoElement>;
@@ -52,13 +57,25 @@ const Controls = ({
     handleSkipBackward,
 }: ControlsProps) => {
     const dispatch = useAppDispatch();
+    const [searchParams] = useSearchParams();
     const subtitlesSelectorTabOpen = useAppSelector(selectSubtitlesSelectorTab);
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
-    const useSubtitles = useAppSelector(selectUseSubtitles);
+    const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
     const subtitlesSize = useAppSelector(selectSubtitlesSize);
+    const movie = useAppSelector(selectMovie);
+    const subtitleLang = useAppSelector(selectSubtitleLang);
+    const availableSubsLanguages = useAppSelector(selectAvailableSubtitlesLanguages);
+    const settings = useAppSelector(selectSettings);
+    const title = searchParams.get('title') || movie?.title || '';
+
+    const [notAvailableSubs, setNotAvailableSubs] = useState<string[]>([]);
+    const [isLoadingSubs, setIsLoadingSubs] = useState<boolean>(false);
+    const [isDownloadingSubs, setIsDownloadingSubs] = useState<boolean>(false);
 
     const closeTimeout = useRef<NodeJS.Timeout | null>(null);
+
+    const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
     const handleVolumeMute = () => {
         if (!videoRef.current) return;
@@ -98,8 +115,127 @@ const Controls = ({
 
 
     useEffect(() => {
-        dispatch(setUseSubtitles(!!subtitleFilePath));
+        dispatch(setIsSubtitlesEnabled(!!subtitleFilePath));
     }, [subtitleFilePath, dispatch]);
+
+    // Load cached subtitle availability on mount
+    const cacheLoadedRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!movie?.imdb_code || !movie.year) return;
+
+        const cacheKey = `${movie.imdb_code}-${movie.year}`;
+        
+        // Only load cache once per movie
+        if (cacheLoadedRef.current === cacheKey) return;
+        
+        const cached = getSubsCache()[cacheKey];
+
+        if (cached && Date.now() - cached.ts < CACHE_TTL) {
+            // Use functional updates to avoid dependency issues
+            dispatch(setAvailableSubtitlesLanguages(cached.available));
+            setNotAvailableSubs(cached.unavailable);
+            cacheLoadedRef.current = cacheKey;
+        }
+    }, [movie?.imdb_code, movie?.year, dispatch]);
+
+    const handleSelectSubtitleLanguage = async (langId: string) => {
+        if (!movie?.imdb_code || !movie.year || !title || !settings.downloadsFolderPath) {
+            console.warn('Missing movie information or settings for subtitle download');
+            return;
+        }
+
+        const cacheKey = `${movie.imdb_code}-${movie.year}`;
+        const cached = getSubsCache()[cacheKey];
+
+        // If selecting the same language that's already selected and we have the file, do nothing
+        if (langId === subtitleLang && subtitleFilePath) {
+            return;
+        }
+
+        // Always update selected language in store
+        dispatch(setSubtitleLang(langId));
+
+        // Reset subtitle file path if changing language
+        if (langId !== subtitleLang && subtitleFilePath) {
+            dispatch(setSubtitleFilePath(null));
+        }
+
+        // If language is already known in cache, just update state and download if available
+        if (
+            cached &&
+            Date.now() - cached.ts < CACHE_TTL &&
+            (cached.available.includes(langId) || cached.unavailable.includes(langId))
+        ) {
+            dispatch(setAvailableSubtitlesLanguages(cached.available));
+            setNotAvailableSubs(cached.unavailable);
+
+            // If available, download it if not already downloaded
+            if (cached.available.includes(langId) && !subtitleFilePath) {
+                setIsDownloadingSubs(true);
+                try {
+                    const { data } = await downloadSubtitles(
+                        langId,
+                        movie.imdb_code,
+                        title,
+                        movie.year.toString(),
+                        settings.downloadsFolderPath
+                    );
+                    dispatch(setSubtitleFilePath(data));
+                } catch (error) {
+                    console.error('Failed to download subtitles:', error);
+                } finally {
+                    setIsDownloadingSubs(false);
+                }
+            }
+            return;
+        }
+
+        // Otherwise, check availability
+        setIsLoadingSubs(true);
+
+        try {
+            const {
+                data: { isAvailable }
+            } = await checkAvailability(
+                langId,
+                movie.imdb_code,
+                title,
+                movie.year.toString()
+            );
+
+            // Update cache
+            updateSubsCache(cacheKey, langId, isAvailable);
+
+            // Update state
+            if (isAvailable) {
+                const newState = [...new Set([...availableSubsLanguages, langId])];
+                dispatch(setAvailableSubtitlesLanguages(newState));
+
+                // Download the subtitle file
+                setIsDownloadingSubs(true);
+                try {
+                    const { data } = await downloadSubtitles(
+                        langId,
+                        movie.imdb_code,
+                        title,
+                        movie.year.toString(),
+                        settings.downloadsFolderPath
+                    );
+                    dispatch(setSubtitleFilePath(data));
+                } catch (error) {
+                    console.error('Failed to download subtitles:', error);
+                } finally {
+                    setIsDownloadingSubs(false);
+                }
+            } else {
+                setNotAvailableSubs(prev => [...new Set([...prev, langId])]);
+            }
+        } catch (error) {
+            console.error('Error checking subtitle availability:', error);
+        } finally {
+            setIsLoadingSubs(false);
+        }
+    };
 
     const [videoHeight, setVideoHeight] = useState<number>(0);
 
@@ -120,6 +256,19 @@ const Controls = ({
 
         return () => observer.disconnect();
     }, [videoRef]);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const handleEnded = () => {
+            setIsPlaying(false);
+            video.currentTime = 0;
+        };
+
+        video.addEventListener('ended', handleEnded);
+        return () => video.removeEventListener('ended', handleEnded);
+    }, [videoRef, setIsPlaying]);
     
   return (
     <div
@@ -146,7 +295,24 @@ const Controls = ({
     >
         <Button
             title={`${isPlaying ? 'Pause' : 'Play'} (${PLAYER_CONTROLS_KEY_BINDS.PLAY_PAUSE === ' ' ? 'SPACE' : PLAYER_CONTROLS_KEY_BINDS.PLAY_PAUSE.toUpperCase()})`}
-            onClick={() => setIsPlaying(videoRef.current?.paused as boolean)}
+            onClick={(e) => {
+                stop(e);
+
+                const video = videoRef.current;
+                if (!video) return;
+
+                if (video.ended) {
+                    video.currentTime = 0;
+                }
+
+                if (video.paused) {
+                    video.play();
+                    setIsPlaying(true);
+                } else {
+                    video.pause();
+                    setIsPlaying(false);
+                }
+            }}
             className='w-9 h-9 bg-transparent aspect-square justify-center p-0 text-white text-3xl hover:bg-stone-800 duration-200'
         >
             {isPlaying ? <BsPause /> : <BsPlay />}
@@ -154,7 +320,10 @@ const Controls = ({
         
         <Button
             title={`Skip Backward (${SKIP_BACK_SECONDS}s)`}
-            onClick={handleSkipBackward}
+            onClick={(e) => {
+                stop(e);
+                handleSkipBackward();
+            }}
             className='w-9 h-9 relative bg-transparent aspect-square justify-center p-0 text-white hover:bg-stone-800 duration-200'
         >
             <div className='flex flex-col items-center justify-center'>
@@ -166,7 +335,10 @@ const Controls = ({
 
         <Button
             title={`Skip Forward (${SKIP_FORWARD_SECONDS}s)`}
-            onClick={handleSkipForward}
+            onClick={(e) => {
+                stop(e);
+                handleSkipForward();
+            }}
             className='w-9 h-9 relative bg-transparent aspect-square justify-center p-0 text-white hover:bg-stone-800 duration-200'
         >
             <div className='flex flex-col items-center justify-center'>
@@ -190,8 +362,9 @@ const Controls = ({
                 <IoSettingsOutline />
             </Button> */}
             <Button
-                title={`Subtitles - ${useSubtitles ? 'On' : 'Off'} (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_SUBTITLES.toUpperCase()})`}
-                onClick={() => {
+                title={`Subtitles - ${isSubtitlesEnabled ? 'On' : 'Off'} (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_SUBTITLES.toUpperCase()})`}
+                onClick={(e) => {
+                    stop(e);
                     if (volumeSliderVisible) {
                         setVolumeSliderVisible(false);
                     }
@@ -211,7 +384,8 @@ const Controls = ({
 
             <div
                 className='flex flex-col w-fit z-10'
-                onClick={() => {
+                onClick={(e) => {
+                    stop(e);
                     setVolumeSliderVisible(!volumeSliderVisible);
 
                     if (subtitlesSelectorTabOpen) {
@@ -223,6 +397,7 @@ const Controls = ({
                 <Button
                     title={`Volume ${isMuted ? '(muted)' : `(${Math.round(volume)}%)`}`}
                     className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
+                    // onClick={(e) => stop(e)} Not needed here - Won't toggle slider
                 >
                     {isMuted ? (
                         <IoVolumeMuteOutline />
@@ -239,7 +414,10 @@ const Controls = ({
             <Button
                 title={`Toggle Fullscreen (${PLAYER_CONTROLS_KEY_BINDS.TOGGLE_FULLSCREEN.toUpperCase()})`}
                 className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'
-                onClick={handleFullScreen}
+                onClick={(e) => {
+                    stop(e);
+                    handleFullScreen();
+                }}
             >
                 <IoExpandOutline />
             </Button>
@@ -307,9 +485,15 @@ const Controls = ({
                         <span className='w-full flex justify-between px-2'>
                             <span className='text-base font-medium text-stone-300'>{subtitlesSize}px</span>
                             
-                            <Button onClick={() => dispatch(openModal('subtitlesSize'))} className='bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'>
-                                <MdEdit />
-                                Edit
+                            <Button
+                                onClick={(e) => {
+                                    stop(e);
+                                    dispatch(openModal('subtitlesSize'));
+                                }}
+                                className='bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'
+                            >
+                                    <MdEdit />
+                                    Edit
                             </Button>
                         </span>
                     </div>
@@ -320,8 +504,8 @@ const Controls = ({
                     hidden
                     name="subtitlesOff"
                     id="subtitlesOff"
-                    checked={!useSubtitles}
-                    onChange={() => subtitleFilePath ? dispatch(setUseSubtitles(!useSubtitles)) : undefined}
+                    checked={!isSubtitlesEnabled}
+                    onChange={() => subtitleFilePath ? dispatch(setIsSubtitlesEnabled(!isSubtitlesEnabled)) : undefined}
                 />
 
                 <label
@@ -337,22 +521,53 @@ const Controls = ({
                         rounded-sm
                         hover:bg-stone-600
                         cursor-pointer
-                        ${!useSubtitles ? 'bg-stone-700' : 'bg-transparent'}
+                        ${!isSubtitlesEnabled ? 'bg-stone-700' : 'bg-transparent'}
                     `)}
                 >
                     Off
-                    {!useSubtitles && <IoCheckmark />}
+                    {!isSubtitlesEnabled && <IoCheckmark />}
                 </label>
-                
-                <SubtitlesSelector
-                    containerClassName='h-fit gap-4'
-                    buttonOnly
-                    reverseButtonPosition
-                    buttonClassName='bg-stone-700 hover:bg-stone-600 w-full py-2 self-center order-2'
-                    subtitleContainerClassName={useSubtitles && subtitleFilePath ? 'bg-stone-700 hover:bg-stone-600' : `${subtitleFilePath ? 'hover:bg-stone-600' : 'pointer-events-none'}`}
-                    useOnSelect
-                    onSelectSubtitle={() => subtitleFilePath ? dispatch(setUseSubtitles(!useSubtitles)) : undefined}
-                />
+
+                {/* Show subtitle selector when movie data is available, otherwise just show manual file upload */}
+                {(movie?.imdb_code && movie?.year) ? (
+                    <>
+                        <SubtitlesSelector
+                            buttonOnly={true}
+                            containerClassName="w-full"
+                            availableSubs={availableSubsLanguages}
+                            notAvailableSubs={notAvailableSubs}
+                            languages={COMMON_LANGUAGES}
+                            isLoading={isLoadingSubs}
+                            isDownloading={isDownloadingSubs}
+                            onSelectSubtitle={handleSelectSubtitleLanguage}
+                        />
+                        {/* Manual subtitle file upload button below selector */}
+                        <Button
+                            onClick={() => window.electronAPI.openSubtitleFileDialog().then((path) => {
+                                if (path) {
+                                    dispatch(setSubtitleFilePath(path));
+                                    dispatch(setIsSubtitlesEnabled(true));
+                                }
+                            })}
+                            className='w-full text-sm text-blue-500 hover:text-blue-400 bg-transparent hover:bg-stone-700 py-2'
+                        >
+                            Choose subtitle file
+                        </Button>
+                    </>
+                ) : (
+                    /* When no movie data, show only manual file upload (for WatchFile.tsx) */
+                    <Button
+                        onClick={() => window.electronAPI.openSubtitleFileDialog().then((path) => {
+                            if (path) {
+                                dispatch(setSubtitleFilePath(path));
+                                dispatch(setIsSubtitlesEnabled(true));
+                            }
+                        })}
+                        className='w-full text-sm text-blue-500 hover:text-blue-400 bg-transparent hover:bg-stone-700 py-2'
+                    >
+                        Choose subtitle file
+                    </Button>
+                )}
 
                 {isSubtitlesSizeModalOpen && <div
                     className='w-full h-full absolute top-0 bottom-0 right-0 left-0 z[60]'

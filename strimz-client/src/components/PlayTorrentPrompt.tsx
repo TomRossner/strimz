@@ -25,7 +25,7 @@ const PlayTorrentPrompt = () => {
 
         dispatch(closeModal('playTorrentPrompt'));
         dispatch(closeModal('error'));
-        navigate(`/watch/${torrent.hash}?hash=${torrent.hash}&title=${torrent.title}`);
+        navigate(`/stream/${torrent.hash}?hash=${torrent.hash}&title=${torrent.title}`);
     }
 
   return (

@@ -223,3 +223,23 @@ export async function convertSRTtoVTT(srtFilePath, languageCode) {
     throw err;
   }
 }
+
+export async function waitForFile(
+  filePath,
+  timeout = 5000,
+  interval = 100
+) {
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    try {
+      const stat = await fsPromises.stat(filePath);
+      if (stat.size > 0) return;
+    } catch {
+      throw new Error('[Wait for file] - File does not exist.');
+    }
+    await new Promise(r => setTimeout(r, interval));
+  }
+
+  throw new Error(`Subtitle file not ready: ${filePath}`);
+}

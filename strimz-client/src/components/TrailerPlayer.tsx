@@ -33,6 +33,7 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
     <Dialog size='large' isOpen={isOpen}>
         <CloseButton onClose={handleClose} className="absolute top-1 right-1 p-1 border-slate-100 md:block border text-xl" />
         <iframe
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             onKeyDown={ev => ev.key === 'Escape' && handleClose()}
             src={setIframeSrc(yt_trailer_code as string)}

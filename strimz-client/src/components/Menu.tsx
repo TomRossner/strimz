@@ -12,6 +12,7 @@ import Footer from './Footer';
 import { Link } from 'react-router-dom';
 import { GoHomeFill } from 'react-icons/go';
 import Button from './Button';
+import { BiSolidDownload } from 'react-icons/bi';
 
 
 const Menu = () => {
@@ -34,6 +35,10 @@ const Menu = () => {
         {
             text: "Watch list",
             icon: <MdWatchLater />
+        },
+        {
+            text: "Downloads",
+            icon: <BiSolidDownload />
         },
         {
             text: "Settings",

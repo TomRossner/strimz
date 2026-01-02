@@ -10,7 +10,7 @@ import { checkVpn } from './checkVpn.js';
 import { checkDisk } from './checkDiskSpace.js';
 import chardet from "chardet";
 import iconv from "iconv-lite";
-import { convertSRTtoVTT } from './utils.js';
+import { convertSRTtoVTT, waitForFile } from './utils.js';
 
 const { autoUpdater } = electronUpdater;
 
@@ -62,6 +62,8 @@ export function attachIPCHandlers(isDev, updateState) {
 
   ipcMain.handle('detect-subtitles-language', async (event, filePath) => {
     try {
+      await waitForFile(filePath);
+
       const buffer = await fsPromises.readFile(filePath);
       const encoding = chardet.detect(buffer) || 'utf8';
       const content = iconv.decode(buffer, encoding);

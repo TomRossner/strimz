@@ -9,10 +9,12 @@ import { Server, Socket } from "socket.io";
 import morgan from "morgan";
 import cors from 'cors';
 
-import MoviesRouter from './routes/movies.routes.js';
-import WatchRouter from "./routes/watch.routes.js";
-import sseRouter from "./routes/sse.routes.js";
+import moviesRouter from './routes/movies.routes.js';
+import streamRouter from "./routes/stream.routes.js";
 import subtitlesRouter from './routes/subtitles.routes.js';
+import downloadsRouter from './routes/downloads.routes.js';
+import clientRouter from './routes/client.routes.js';
+import torrentsRouter from './routes/torrents.routes.js';
 
 const app = express();
 const PORT: number = parseInt(process.env.PORT as string) || 3003;
@@ -37,10 +39,12 @@ app.use('/api/ping', (req: Request, res: Response) => {
         res.status(500).json({error: "Internal server error. Please restart the app."});
     }
 });
-app.use('/api/movies', MoviesRouter);
-app.use('/api/watch', WatchRouter);
-app.use('/api/sse', sseRouter);
+app.use('/api/movies', moviesRouter);
+app.use('/api/stream', streamRouter);
 app.use('/api/subtitles', subtitlesRouter);
+app.use('/api/downloads', downloadsRouter);
+app.use('/api/client', clientRouter);
+app.use('/api/torrents', torrentsRouter);
 
 const init = async (): Promise<void> => {
     try {

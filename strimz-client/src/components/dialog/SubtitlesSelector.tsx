@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useMemo } from 'react';
 import Button from '../Button';
 import { PiSubtitles } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitleLang, selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled } from '@/store/movies/movies.selectors';
 import { setSubtitleFilePath, setSubtitleLang, setVttSubtitlesContent } from '@/store/movies/movies.slice';
 import { twMerge } from 'tailwind-merge';
 import { RxCross2 } from 'react-icons/rx';
-import { detectLanguageFromSubtitle, extractTextFromSubtitle, getCountryCodeFromIso3, getFlagEmoji, getSubtitleMetadata } from '@/utils/detectLanguage';
+import { detectLanguageFromSubtitle, extractTextFromSubtitle, getFlagEmoji, getSubtitleMetadata, resolveCountryCode } from '@/utils/detectLanguage';
 import Flag from "react-world-flags";
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { BsInfoCircle } from 'react-icons/bs';
+import SubtitleDropdown from './SubtitlesDropdown';
 
 interface SubtitlesSelectorProps {
     buttonOnly?: boolean;
@@ -17,9 +18,14 @@ interface SubtitlesSelectorProps {
     reverseButtonPosition?: boolean;
     containerClassName?: string;
     useOnSelect?: boolean;
-    onSelectSubtitle?: () => void;
+    onSelectSubtitle: (langId: string) => void;
     subtitleContainerClassName?: string;
     isSelected?: boolean;
+    isLoading: boolean;
+    isDownloading?: boolean;
+    languages: string[];
+    availableSubs: string[];
+    notAvailableSubs: string[];
 }
 
 const SubtitlesSelector = ({
@@ -30,15 +36,21 @@ const SubtitlesSelector = ({
     subtitleContainerClassName,
     onSelectSubtitle,
     useOnSelect,
+    languages = [],
+    availableSubs = [],
+    notAvailableSubs = [],
+    isLoading,
+    isDownloading = false,
 }: SubtitlesSelectorProps) => {
     const dispatch = useAppDispatch();
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const subtitleLang = useAppSelector(selectSubtitleLang);
 
-    const countryCode = useMemo(() => getCountryCodeFromIso3(subtitleLang as string), [subtitleLang]);
+    const countryCode = useMemo(() => resolveCountryCode(subtitleLang as string),[subtitleLang]);
+
     const flag = useMemo(() => countryCode ? getFlagEmoji(countryCode) : '', [countryCode]);
 
-    const useSubtitles = useAppSelector(selectUseSubtitles);
+    const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
 
     const { lang } = useMemo(() => getSubtitleMetadata(subtitleLang as string), [subtitleLang]);
 
@@ -69,7 +81,6 @@ const SubtitlesSelector = ({
     
     useEffect(() => {
         const handleSrtSubs = async (srtFilePath: string, lang: string) => {
-            console.log('Converting to VTT');
             const vttText = await window.electronAPI.convertSRTtoVTT(srtFilePath, lang);
 
             if (vttText) {
@@ -111,47 +122,59 @@ const SubtitlesSelector = ({
             </span>
         </p>
 
-        <div
-            onClick={onSelectSubtitle}
-            className={twMerge(`
-                flex
-                items-center
-                gap-1
-                justify-between
-                px-1
-                rounded-sm
-                ${subtitleFilePath ? 'bg-stone-800' : 'bg-transparent'}
-                ${subtitleContainerClassName}
-                ${useSubtitles && subtitleFilePath ? 'bg-blue-500 hover:bg-blue-400' : ''}
-            `)}
-        >
-            {subtitleFilePath && flag &&
-                <Flag
-                    code={countryCode}
-                    className='w-5 aspect-auto'
-                    title={subtitleLang ? subtitleLang.toUpperCase() : ''}
+        {subtitleFilePath && (
+            <div
+                onClick={() => onSelectSubtitle(subtitleLang as string)}
+                className={twMerge(`
+                    flex
+                    items-center
+                    gap-1
+                    justify-between
+                    px-1
+                    rounded-sm
+                    w-full
+                    ${subtitleFilePath ? 'bg-stone-800' : 'bg-transparent'}
+                    ${subtitleContainerClassName}
+                    ${isSubtitlesEnabled && subtitleFilePath ? 'bg-blue-500 hover:bg-blue-400' : ''}
+                `)}
+            >
+                {subtitleFilePath && flag &&
+                    <Flag
+                        code={countryCode as string}
+                        className='w-5 aspect-auto'
+                        title={subtitleLang ? subtitleLang.toUpperCase() : ''}
+                    />
+                }
+
+                <input
+                    readOnly
+                    type="text"
+                    name="subtitles"
+                    id="subtitles"
+                    title={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
+                    value={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
+                    className={twMerge(`w-full text-white text-[11px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
                 />
-            }
 
-            <input
-                readOnly
-                type="text"
-                name="subtitles"
-                id="subtitles"
-                title={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
-                value={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
-                className={twMerge(`w-full text-white text-[11px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
-            />
+                {subtitleFilePath &&
+                    <Button
+                        className='text-[12px] px-0.5 py-0.5 bg-stone-800 hover:bg-stone-700'
+                        onClick={() => dispatch(setSubtitleFilePath(null))}
+                    >
+                        <RxCross2 />
+                    </Button>
+                }
+            </div>
+        )}
 
-            {subtitleFilePath &&
-                <Button
-                    className='text-[12px] px-0.5 py-0.5 bg-stone-800 hover:bg-stone-700'
-                    onClick={() => dispatch(setSubtitleFilePath(null))}
-                >
-                    <RxCross2 />
-                </Button>
-            }
-        </div>
+        <SubtitleDropdown
+            notAvailableSubs={notAvailableSubs}
+            availableSubs={availableSubs}
+            languages={languages}
+            onSelect={onSelectSubtitle}
+            isLoading={isLoading}
+            isDownloading={isDownloading}
+        />
     </div>
   )
 }

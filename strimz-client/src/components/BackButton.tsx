@@ -1,14 +1,10 @@
 import React, { ButtonHTMLAttributes } from 'react';
-import { useNavigate } from 'react-router-dom';
 import CloseButton from './CloseButton';
 import { BiChevronLeft } from 'react-icons/bi';
 import { twMerge } from 'tailwind-merge';
 
 const BackButton = ({title = 'Back', className, cb = () => {}}: ButtonHTMLAttributes<HTMLButtonElement> & {cb?: () => void}) => {
-    const navigate = useNavigate();
-
     const handleClick = () => {
-      navigate(-1);
       cb();
     }
 

@@ -30,6 +30,7 @@ export type Filters = {
 
 export type DownloadProgressData = {
   hash: string;
+  slug: string;
   progress: number;
   speed: number;
   peers: number;
@@ -37,6 +38,8 @@ export type DownloadProgressData = {
   downloaded: number;
   timeRemaining: number;
   fileName: string;
+  paused: boolean;
+  url: string;
 }
 
 export type Cue = {

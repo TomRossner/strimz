@@ -10,15 +10,17 @@ import { twMerge } from 'tailwind-merge';
 import MovieCard from '@/components/MovieCard';
 import MoviesListSkeleton from '@/components/MoviesListSkeleton';
 import { openModal } from '@/store/modals/modals.slice';
+import { useNavigate } from 'react-router-dom';
 
 const WatchListPage = () => {
   const dispatch = useAppDispatch();
   const watchList = useAppSelector(selectWatchList);
+  const navigate = useNavigate();
   return (
     <Page>
       <Container id='watchListPage' className='grow'>
         <PageTitle>
-          <BackButton />
+          <BackButton cb={() => navigate(-1)} />
           <span className='grow -mt-1'>Watch list</span>
         </PageTitle>
 

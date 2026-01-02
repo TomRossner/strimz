@@ -1,5 +1,5 @@
 import { useAppSelector } from '@/store/hooks';
-import { selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectIsSubtitlesEnabled } from '@/store/movies/movies.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import React, { ReactNode, RefObject, useCallback } from 'react';
 import { BsPause, BsPlay, BsSkipBackward, BsSkipForward } from 'react-icons/bs';
@@ -27,7 +27,7 @@ interface ShortcutActionDisplayProps {
 }
 
 const ShortcutActionDisplay = ({isVisible, isMuted, isPlaying, shortcut, videoRef}: ShortcutActionDisplayProps) => {
-    const useSubtitles = useAppSelector(selectUseSubtitles);
+    const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
 
     const getVolumeIcon = (volume: number, isMuted: boolean): ReactNode => {
         return isMuted
@@ -53,7 +53,7 @@ const ShortcutActionDisplay = ({isVisible, isMuted, isPlaying, shortcut, videoRe
             case TOGGLE_FULLSCREEN:
                 return <IoExpandOutline />;
             case TOGGLE_SUBTITLES:
-                return useSubtitles ? <PiSubtitlesLight /> : <PiSubtitlesSlashLight />;
+                return isSubtitlesEnabled ? <PiSubtitlesLight /> : <PiSubtitlesSlashLight />;
             case VOLUME_DOWN:
                 return getVolumeIcon(volume, isMuted);
             case VOLUME_UP:
@@ -68,7 +68,7 @@ const ShortcutActionDisplay = ({isVisible, isMuted, isPlaying, shortcut, videoRe
             default:
                 return <></>;
         }
-    }, [shortcut, isMuted, isPlaying, useSubtitles, videoRef]);
+    }, [shortcut, isMuted, isPlaying, isSubtitlesEnabled, videoRef]);
 
     const setText = useCallback((): ReactNode => {
         if (shortcut === VOLUME_DOWN || shortcut === VOLUME_UP) {
@@ -89,7 +89,7 @@ const ShortcutActionDisplay = ({isVisible, isMuted, isPlaying, shortcut, videoRe
 
         if (shortcut === TOGGLE_SUBTITLES) {
             return <span className='text-2xl'>
-                {`Subtitles ${useSubtitles ? 'ON' : 'OFF'}`}
+                {`Subtitles ${isSubtitlesEnabled ? 'ON' : 'OFF'}`}
             </span>;
         }
         
@@ -98,7 +98,7 @@ const ShortcutActionDisplay = ({isVisible, isMuted, isPlaying, shortcut, videoRe
                 {`Seek ${shortcut === SEEK_BACKWARD ? 'backward' : 'forward'} ${shortcut === SEEK_BACKWARD ? SKIP_BACK_SECONDS : SKIP_FORWARD_SECONDS } seconds`}
             </span>;
         }
-    }, [shortcut, isMuted, videoRef, useSubtitles]);
+    }, [shortcut, isMuted, videoRef, isSubtitlesEnabled]);
   return (
     <div
         className={twMerge(`

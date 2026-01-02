@@ -55,9 +55,11 @@ const MovieInfoPanel = ({ isOpen, downloadInfo, }: MovieInfoPanelProps) => {
                     className='md:block absolute top-0.5 right-0 text-xs p-0.5'
                 />
             </div>
-            <p className='font-light text-sm text-white flex justify-between items-center'>
-                {downloadInfo?.fileName}
-            </p>
+            {downloadInfo?.fileName && (
+                <p className='font-light text-sm text-white flex justify-between items-center'>
+                    {downloadInfo.fileName}
+                </p>
+            )}
 
             <div className='w-full flex flex-col text-sm font-light'>
                 <p>Active peers: {downloadInfo?.peers ?? '-'}</p>
@@ -79,21 +81,23 @@ const MovieInfoPanel = ({ isOpen, downloadInfo, }: MovieInfoPanelProps) => {
                 </p>
             </div>
 
-            <div className='w-full flex flex-col gap-0.5'>
-                <div className='relative w-full bg-stone-900 h-1'>
-                    <div
-                        className='absolute left-0 top-0 h-1 bg-blue-500'
-                        style={{
-                            width: `${bufferWidth}%`,
-                            willChange: 'width',
-                        }}
-                    />
+            {downloadInfo && (
+                <div className='w-full flex flex-col gap-0.5'>
+                    <div className='relative w-full bg-stone-900 h-1'>
+                        <div
+                            className='absolute left-0 top-0 h-1 bg-blue-500'
+                            style={{
+                                width: `${bufferWidth}%`,
+                                willChange: 'width',
+                            }}
+                        />
+                    </div>
+                    <p className='text-xs italic text-stone-200 font-light flex justify-between'>
+                        <span>{!downloadInfo.done ? `Downloading... ${bufferWidth}%` : 'Download done'}</span>
+                        {isDownloading && <span>{downloadSpeed}</span>}
+                    </p>
                 </div>
-                <p className='text-xs italic text-stone-200 font-light flex justify-between'>
-                    <span>{!downloadInfo?.done ? `Downloading... ${bufferWidth}%` : 'Download done'}</span>
-                    {isDownloading && <span>{downloadSpeed}</span>}
-                </p>
-            </div>
+            )}
         </div>
     )
 }

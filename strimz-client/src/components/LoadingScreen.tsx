@@ -5,7 +5,7 @@ import { useAppDispatch } from '../store/hooks';
 import { closeModal } from '../store/modals/modals.slice';
 import { useNavigate } from 'react-router-dom';
 import BackButton from './BackButton';
-import { stopDownload } from '@/services/movies';
+import { pauseDownload } from '@/services/movies';
 import Progress from './Progress';
 
 interface LoadingScreenProps {
@@ -17,7 +17,7 @@ const LoadingScreen = ({hash}: LoadingScreenProps) => {
   const dispatch = useAppDispatch();
 
   const handleClose = async () => {
-    await stopDownload(hash);
+    await pauseDownload(hash);
     dispatch(closeModal('movie'));
     navigate(-1);
   }

@@ -9,9 +9,17 @@ import PlayButton from './PlayButton';
 import MobileCoverSpacer from './MobileCoverSpacer';
 import Metadata from './Metadata';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '@/store/hooks';
-import { setSelectedTorrent, setSubtitleFilePath } from '@/store/movies/movies.slice';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { setAvailableSubtitlesLanguages, setSelectedTorrent, setSubtitleFilePath, setSubtitleLang, setUnavailableSubtitlesLanguages } from '@/store/movies/movies.slice';
+import { closeModal } from '@/store/modals/modals.slice';
+import { selectSettings } from '@/store/settings/settings.selectors';
+import { checkAvailability, downloadSubtitles } from '@/services/subtitles';
+import { CACHE_TTL, getSubsCache, updateSubsCache } from '@/utils/subsLanguagesCache';
+import { selectAvailableSubtitlesLanguages, selectSubtitleFilePath, selectSubtitleLang } from '@/store/movies/movies.selectors';
 import SubtitlesSelector from './SubtitlesSelector';
+import { playTorrent } from '@/services/movies';
+import { COMMON_LANGUAGES } from '@/utils/languages';
+import { getDownloadsCache } from '@/utils/downloadsCache';
 
 interface MovieInfoPanelProps {
     movie: Movie;
@@ -23,6 +31,7 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         torrents,
         slug,
         background_image,
+        large_cover_image,
         title
     } = movie;
 
@@ -30,6 +39,13 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
     const dispatch = useAppDispatch();
     const [hash, setHash] = useState<string>('');
     const [selectedQuality, setSelectedQuality] = useState<string>('');
+    const availableSubsLanguages = useAppSelector(selectAvailableSubtitlesLanguages);
+    const [notAvailableSubs, setNotAvailableSubs] = useState<string[]>([]);
+    const [isLoadingSubs, setIsLoadingSubs] = useState<boolean>(false);
+    const [isDownloadingSubs, setIsDownloadingSubs] = useState<boolean>(false);
+    const subtitleLang = useAppSelector(selectSubtitleLang);
+    const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
+    const settings = useAppSelector(selectSettings);
 
     const selectedTorrent: Torrent | null = useMemo(() => {
         const torrents = movie?.torrents as Torrent[];
@@ -48,6 +64,28 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
     }, [hash, selectedQuality, movie?.torrents, dispatch]);
 
     const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo | null>(null);
+
+    // Check if this movie has already been downloaded (completed)
+    const downloadedMovieInfo = useMemo(() => {
+        const cache = getDownloadsCache();
+        // Find all completed downloads for this movie by matching slug
+        const completedDownloads = Object.values(cache).filter(
+            (info) => info.slug === slug && info.isCompleted === true
+        );
+        
+        if (completedDownloads.length > 0) {
+            // Return the first completed download (or the one with highest quality if needed)
+            // Sort by quality to get the best quality first
+            const qualityOrder = ['2160p', '1080p', '720p', '480p', '360p'];
+            const sorted = completedDownloads.sort((a, b) => {
+                const aIndex = qualityOrder.indexOf(a.quality) !== -1 ? qualityOrder.indexOf(a.quality) : 999;
+                const bIndex = qualityOrder.indexOf(b.quality) !== -1 ? qualityOrder.indexOf(b.quality) : 999;
+                return aIndex - bIndex;
+            });
+            return sorted[0];
+        }
+        return null;
+    }, [slug]);
 
     const fileSizeInBytes = selectedTorrent ? selectedTorrent.size_bytes : 0;
 
@@ -71,8 +109,82 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         setHash('');
     }
 
-    const handlePlay = () => {
-        navigate(`/watch/${slug}?hash=${hash}&title=${title}&poster=${background_image}`);
+    const handlePlay = async () => {
+        // Download subtitles in background if selected and available but not yet downloaded
+        // Don't block playback - start immediately
+        if (subtitleLang && !subtitleFilePath && availableSubsLanguages.includes(subtitleLang) && settings.downloadsFolderPath) {
+            setIsDownloadingSubs(true);
+            // Don't await - let it download in background
+            downloadSubtitles(
+                subtitleLang,
+                movie.imdb_code,
+                movie.title,
+                movie.year.toString(),
+                settings.downloadsFolderPath
+            ).then(async ({ data: downloadedPath }) => {
+                dispatch(setSubtitleFilePath(downloadedPath));
+                setIsDownloadingSubs(false);
+                
+                // Update cache with downloaded subtitle path
+                if (selectedTorrent && hash) {
+                    const { getDownloadsCache, saveDownloadInfo } = await import('@/utils/downloadsCache');
+                    const cache = getDownloadsCache();
+                    const cachedInfo = cache[hash.toLowerCase()];
+                    if (cachedInfo) {
+                        saveDownloadInfo(hash, {
+                            ...cachedInfo,
+                            subtitleFilePath: downloadedPath,
+                        });
+                    }
+                }
+            }).catch((error) => {
+                console.error('Failed to download subtitles:', error);
+                setIsDownloadingSubs(false);
+            });
+        }
+
+        const res = await playTorrent(hash);
+        if (res.status === 200) {
+            // Cache download info for tracking (use current subtitleFilePath, will be updated when download completes)
+            if (selectedTorrent) {
+                const { saveDownloadInfo } = await import('@/utils/downloadsCache');
+                saveDownloadInfo(hash, {
+                    slug,
+                    title,
+                    quality: selectedTorrent.quality,
+                    size: parseInt(selectedTorrent.size),
+                    sizeBytes: selectedTorrent.size_bytes,
+                    subtitleFilePath: subtitleFilePath, // Current path, may be null if still downloading
+                    subtitleLang,
+                    poster: large_cover_image, // Use large_cover_image instead of background_image
+                    isCompleted: false,
+                });
+            }
+            
+            navigate(`/stream/${slug}?hash=${hash}&title=${title}&poster=${background_image}`, {
+                state: {
+                    from: '/'
+                }
+            });
+        }
+    }
+
+    const handleWatchDownloaded = async () => {
+        if (!downloadedMovieInfo) return;
+        
+        // Close the dialog modal but preserve the selectedMovie so it can be restored when navigating back
+        dispatch(closeModal('movie'));
+        
+        // For completed downloads, navigate directly to the stream page
+        // The backend should handle playing from disk if the file exists
+        const res = await playTorrent(downloadedMovieInfo.hash);
+        if (res.status === 200) {
+            navigate(`/stream/${downloadedMovieInfo.slug}?hash=${downloadedMovieInfo.hash}&title=${title}&poster=${background_image}`, {
+                state: {
+                    from: '/'
+                }
+            });
+        }
     }
 
     useEffect(() => {
@@ -96,6 +208,99 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         if (!selectedQuality) return;
         setDiskSpace(null);
     }, [selectedQuality]);
+
+    const handleSelectSubsLanguage = async (langId: string) => {
+        const cacheKey = `${movie.imdb_code}-${movie.year}`;
+        const cached = getSubsCache()[cacheKey];
+
+        // Always update selected language in store
+        dispatch(setSubtitleLang(langId));
+
+        // Reset subtitle file path if changing language
+        if (langId !== subtitleLang && subtitleFilePath) {
+            dispatch(setSubtitleFilePath(null));
+        }
+
+        // If language is already known in cache, just update state and download if available
+        if (
+            cached &&
+            Date.now() - cached.ts < CACHE_TTL &&
+            (cached.available.includes(langId) || cached.unavailable.includes(langId))
+        ) {
+            dispatch(setAvailableSubtitlesLanguages(cached.available));
+            setNotAvailableSubs(cached.unavailable);
+
+            // Download if available and not already downloaded
+            if (cached.available.includes(langId) && !subtitleFilePath) {
+                setIsDownloadingSubs(true);
+                try {
+                    const { data: downloadedPath } = await downloadSubtitles(
+                        langId,
+                        movie.imdb_code,
+                        movie.title,
+                        movie.year.toString(),
+                        settings.downloadsFolderPath
+                    );
+                    dispatch(setSubtitleFilePath(downloadedPath));
+                } catch (error) {
+                    console.error('Failed to download subtitles:', error);
+                } finally {
+                    setIsDownloadingSubs(false);
+                }
+            }
+            return;
+        }
+
+        // Otherwise, check availability
+        setIsLoadingSubs(true);
+
+        try {
+            const {
+                data: { isAvailable }
+            } = await checkAvailability(
+                langId,
+                movie.imdb_code,
+                movie.title,
+                movie.year.toString()
+            );
+
+            // Update cache
+            updateSubsCache(cacheKey, langId, isAvailable);
+
+            // Update state
+            if (isAvailable) {
+                const newState = [...new Set([...availableSubsLanguages, langId])]
+                dispatch(setAvailableSubtitlesLanguages(newState));
+            } else {
+                setNotAvailableSubs(prev => [...new Set([...prev, langId])]);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsLoadingSubs(false);
+        }
+    }
+
+    useEffect(() => {
+        if (!movie.imdb_code || !movie.year) return;
+
+        const cacheKey = `${movie.imdb_code}-${movie.year}`;
+        const cached = getSubsCache()[cacheKey];
+
+        if (cached && Date.now() - cached.ts < CACHE_TTL) {
+            const newState = [...new Set([...availableSubsLanguages, ...cached.available])]
+            dispatch(setAvailableSubtitlesLanguages(newState));
+            setNotAvailableSubs(prev => [...new Set([...prev, ...cached.unavailable])]);
+        }
+    }, [movie.imdb_code, movie.year, dispatch]);
+
+    useEffect(() => {
+        return () => {
+            dispatch(setAvailableSubtitlesLanguages([]));
+            dispatch(setUnavailableSubtitlesLanguages([]));
+            dispatch(setSubtitleLang(null));
+        }
+    }, []);
     
   return (
     <div className='min-h-full overflow-y-auto md:relative w-full flex flex-col justify-between absolute top-0 md:grow md:justify-center'>
@@ -110,9 +315,26 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
                 <TorrentSelector handleSelect={handleTorrentSelect} quality={selectedQuality} torrents={torrents} hash={hash} />
             </div>
 
-            <SubtitlesSelector />
-            
-            <FileSize size={selectedTorrent?.size} selectedTorrent={selectedTorrent} />
+            <SubtitlesSelector
+                notAvailableSubs={notAvailableSubs}
+                availableSubs={availableSubsLanguages}
+                languages={COMMON_LANGUAGES}
+                isLoading={isLoadingSubs}
+                isDownloading={isDownloadingSubs}
+                onSelectSubtitle={handleSelectSubsLanguage}
+            />
+            {/* <SubtitleDropdown
+                availableSubs={availableSubs}
+                isLoading={isLoadingSubs}
+                onSelect={handleSelectSubsLanguage}
+            /> */}
+
+            <FileSize 
+                size={selectedTorrent?.size} 
+                selectedTorrent={selectedTorrent}
+                downloadedQuality={downloadedMovieInfo?.quality}
+                onWatchDownloaded={downloadedMovieInfo ? handleWatchDownloaded : undefined}
+            />
 
             <div className='flex w-full items-center justify-center flex-col py-1 gap-1'>
                 <PlayButton

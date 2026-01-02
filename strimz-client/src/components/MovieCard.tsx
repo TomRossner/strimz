@@ -24,6 +24,7 @@ export type Movie = {
   large_cover_image: string;
   torrents: object[];
   description_full?: string;
+  imdb_code: string;
 }
 
 type Props = {

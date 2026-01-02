@@ -10,16 +10,18 @@ import { openModal } from '@/store/modals/modals.slice';
 import MoviesListSkeleton from '@/components/MoviesListSkeleton';
 import BackButton from '@/components/BackButton';
 import PageDescription from '@/components/PageDescription';
+import { useNavigate } from 'react-router-dom';
 
 const FavoritesPage = () => {
   const favorites = useAppSelector(selectFavorites);
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
   return (
     <Page>
       <Container id='favoritesPage' className='grow'>
         <PageTitle >
-          <BackButton />
+          <BackButton cb={() => navigate(-1)} />
           <span className='grow -mt-1'>Favorites</span>
         </PageTitle>
 

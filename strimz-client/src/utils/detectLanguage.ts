@@ -1,62 +1,274 @@
 import { franc } from 'franc';
 
-export const extractTextFromSubtitle = (content: string): string => {
-  // Remove SRT/VTT timestamps and cue identifiers
-  return content
-    .replace(/\d{2}:\d{2}:\d{2}[\\.,]\d{3} --> \d{2}:\d{2}:\d{2}[\\.,]\d{3}/g, '')
-    .replace(/^\d+$/gm, '')
-    .replace(/<\/?[^>]+(>|$)/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+/* ============================================================================
+ * 1. CANONICAL ISO 639-3 NORMALIZATION
+ *    Collapse legacy / provider / alias codes → canonical ISO-639-3
+ * ========================================================================== */
+
+export const normalizeISO3: Record<string, string> = {
+  // French
+  fre: 'fra',
+  fra: 'fra',
+
+  // German
+  ger: 'deu',
+  deu: 'deu',
+
+  // Chinese
+  chi: 'zho',
+  zhe: 'zho',
+  zht: 'zho',
+  zho: 'zho',
+
+  // Czech
+  cze: 'ces',
+  ces: 'ces',
+
+  // Dutch
+  dut: 'nld',
+  nld: 'nld',
+
+  // Icelandic
+  ice: 'isl',
+  isl: 'isl',
+
+  // Macedonian
+  mac: 'mkd',
+  mkd: 'mkd',
+
+  // Malay
+  may: 'msa',
+  msa: 'msa',
+
+  // Persian
+  per: 'fas',
+  fas: 'fas',
+
+  // Romanian
+  rum: 'ron',
+  ron: 'ron',
+
+  // Serbian
+  scc: 'srp',
+  srp: 'srp',
+
+  // Portuguese
+  pob: 'por',
+  por: 'por',
+
+  // Others
+  alb: 'sqi',
+  bur: 'mya',
+  lit: 'lit',
+  mal: 'mal',
+  afr: 'afr',
+  baq: 'eus',
+  chv: 'chv',
+  slo: 'slk',
+  tat: 'tat',
+};
+
+export function normalizeLanguageCode(code: string): string {
+  return normalizeISO3[code] ?? code;
 }
 
-export const detectLanguageFromSubtitle = (text: string): string => {
-  const langCode = franc(text); // returns ISO 639-3 code
-  return langCode !== 'und' ? langCode : '';
-}
+/* ============================================================================
+ * 2. CANONICAL ISO-639-3 → ISO-639-1
+ * ========================================================================== */
 
-// Minimal ISO 639-3 → ISO 639-1 mapping
-const iso3to1: Record<string, string> = {
+export const iso3to1: Record<string, string> = {
   eng: 'en',
+  ara: 'ar',
   heb: 'he',
   fra: 'fr',
-  deu: 'de',
   spa: 'es',
   rus: 'ru',
   jpn: 'ja',
-  zho: 'zh',
-  ara: 'ar',
   ita: 'it',
+  sqi: 'sq',
+  ben: 'bn',
+  bos: 'bs',
+  bul: 'bg',
+  mal: 'ml',
+  mya: 'my',
+  cat: 'ca',
+  ces: 'cs',
+  nld: 'nl',
+  isl: 'is',
+  kur: 'ku',
+  msa: 'ms',
+  fas: 'fa',
   por: 'pt',
-}
+  ron: 'ro',
+  srp: 'sr',
+  zho: 'zh',
+  dan: 'da',
+  ell: 'el',
+  est: 'et',
+  fin: 'fi',
+  deu: 'de',
+  glg: 'gl',
+  hin: 'hi',
+  hrv: 'hr',
+  hun: 'hu',
+  ind: 'id',
+  kan: 'kn',
+  khm: 'km',
+  kor: 'ko',
+  lav: 'lv',
+  lit: 'lt',
+  mkd: 'mk',
+  mon: 'mn',
+  nor: 'no',
+  pol: 'pl',
+  sin: 'si',
+  slv: 'sl',
+  som: 'so',
+  swe: 'sv',
+  tam: 'ta',
+  tgl: 'tl',
+  tha: 'th',
+  tur: 'tr',
+  ukr: 'uk',
+  urd: 'ur',
+  vie: 'vi',
+  afr: 'af',
+  eus: 'eu',
+  chv: 'cv',
+  slk: 'sk',
+  tat: 'tt',
+};
 
-// ISO 639-1 → Country Code (2-letter ISO 3166-1)
-const langToCountry: Record<string, string> = {
+/* ============================================================================
+ * 3. ISO-639-1 → COUNTRY (FLAGS)
+ * ========================================================================== */
+
+export const langToCountry: Record<string, string> = {
   en: 'us',
+  ar: 'sa',
   he: 'il',
   fr: 'fr',
-  de: 'de',
   es: 'es',
   ru: 'ru',
   ja: 'jp',
-  zh: 'cn',
-  ar: 'sa',
   it: 'it',
+  hi: 'in',
+  sq: 'al',
+  bn: 'bd',
+  bs: 'ba',
+  bg: 'bg',
+  my: 'mm',
+  ca: 'es',
+  cs: 'cz',
+  nl: 'nl',
+  is: 'is',
+  ms: 'my',
+  fa: 'ir',
   pt: 'pt',
+  ro: 'ro',
+  sr: 'rs',
+  zh: 'cn',
+  da: 'dk',
+  el: 'gr',
+  et: 'ee',
+  fi: 'fi',
+  de: 'de',
+  gl: 'es',
+  hr: 'hr',
+  hu: 'hu',
+  id: 'id',
+  kn: 'in',
+  km: 'kh',
+  ko: 'kr',
+  lt: 'lt',
+  lv: 'lv',
+  mk: 'mk',
+  ml: 'in',
+  mn: 'mn',
+  no: 'no',
+  pl: 'pl',
+  si: 'lk',
+  sl: 'si',
+  so: 'so',
+  sv: 'se',
+  ta: 'in',
+  tl: 'ph',
+  th: 'th',
+  tr: 'tr',
+  uk: 'ua',
+  ur: 'pk',
+  vi: 'vn',
+  af: 'za',
+  eu: 'es',
+  cv: 'ru',
+  sk: 'sk',
+  tt: 'ru',
+};
+
+/* ============================================================================
+ * 4. PROVIDER-SPECIFIC MAPPING (OpenSubtitles)
+ *    ⚠️ Use ONLY when calling the provider API
+ * ========================================================================== */
+
+export const iso3ToOpenSubtitles: Record<string, string> = {
+  fra: 'fre',
+  deu: 'ger',
+  zho: 'chi',
+  por: 'pob',
+};
+
+export function toOpenSubtitlesCode(iso3: string): string {
+  const canonical = normalizeLanguageCode(iso3);
+  return iso3ToOpenSubtitles[canonical] ?? canonical;
 }
 
-export function getCountryCodeFromIso3(iso3: string): string | undefined {
+/* ============================================================================
+ * 5. FLAGS / HELPERS (unchanged behavior)
+ * ========================================================================== */
+
+export const NO_FLAG_LANGS = new Set(['ku']);
+
+export function resolveCountryCode(rawIso3: string): string | null {
+  const iso3 = normalizeLanguageCode(rawIso3);
+
+  if (rawIso3 === 'pob') return 'br';
+  if (rawIso3 === 'zht') return 'tw';
+  if (rawIso3 === 'zhe') return 'cn';
+
   const iso1 = iso3to1[iso3];
-  return iso1 ? langToCountry[iso1] : undefined;
+  if (!iso1 || NO_FLAG_LANGS.has(iso1)) return null;
+
+  return langToCountry[iso1] ?? null;
 }
 
 export function getFlagEmoji(countryCode: string): string {
   return countryCode
     .toUpperCase()
     .split('')
-    .map(char => String.fromCodePoint(127397 + char.charCodeAt(0)))
+    .map(c => String.fromCodePoint(127397 + c.charCodeAt(0)))
     .join('');
 }
+
+/* ============================================================================
+ * 6. SUBTITLE TEXT + LANGUAGE DETECTION
+ * ========================================================================== */
+
+export const extractTextFromSubtitle = (content: string): string =>
+  content
+    .replace(/\d{2}:\d{2}:\d{2}[\\.,]\d{3} --> \d{2}:\d{2}:\d{2}[\\.,]\d{3}/g, '')
+    .replace(/^\d+$/gm, '')
+    .replace(/<\/?[^>]+(>|$)/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+export const detectLanguageFromSubtitle = (text: string): string => {
+  const lang = franc(text);
+  return lang !== 'und' ? normalizeLanguageCode(lang) : '';
+};
+
+/* ============================================================================
+ * 7. BCP-47 / LABELS / MISC (unchanged)
+ * ========================================================================== */
 
 const iso3toBCP47: Record<string, string> = {
   eng: 'en-US',
@@ -70,13 +282,16 @@ const iso3toBCP47: Record<string, string> = {
   ara: 'ar-SA',
   ita: 'it-IT',
   por: 'pt-PT',
-}
+};
 
 export function getBCP47FromISO3(iso3: string): string | undefined {
-  return iso3toBCP47[iso3];
+  return iso3toBCP47[normalizeLanguageCode(iso3)];
 }
 
-export const iso639_3ToLabelAndLang: Record<string, { label: string; lang: string }> = {
+export const iso639_3ToLabelAndLang: Record<
+  string,
+  { label: string; lang: string }
+> = {
   eng: { label: 'English', lang: 'en-US' },
   heb: { label: 'Hebrew', lang: 'he-IL' },
   fra: { label: 'French', lang: 'fr-FR' },
@@ -91,7 +306,12 @@ export const iso639_3ToLabelAndLang: Record<string, { label: string; lang: strin
 }
 
 export function getSubtitleMetadata(iso3: string) {
-  return iso639_3ToLabelAndLang[iso3] ?? { label: 'Subtitles', lang: '' };
+  return (
+    iso639_3ToLabelAndLang[normalizeLanguageCode(iso3)] ?? {
+      label: 'Subtitles',
+      lang: null,
+    }
+  );
 }
 
-export const RTLLanguages = ['he', 'ar', 'fa', 'ur']
+export const RTLLanguages = ['he', 'ar', 'fa', 'ur'];

@@ -13,6 +13,10 @@ import { getTorrentData } from '@/services/movies';
 import { selectSettings } from '@/store/settings/settings.selectors';
 import { setExternalTorrent } from '@/store/movies/movies.slice';
 import { selectExternalTorrent } from '@/store/movies/movies.selectors';
+import Page from './Page';
+import Container from './Container';
+import PageTitle from './PageTitle';
+import PageDescription from './PageDescription';
 
 const Home = () => {
     const dispatch = useAppDispatch();
@@ -108,10 +112,18 @@ const Home = () => {
   }, [settings, handleGetTorrentData]);
 
   return (
-    <>
-      <BackToTop isVisible={isBackToTopBtnVisible} />
-      <MoviesList />
-    </>
+    <Page>
+      <Container id='libraryPage' className='grow'>
+        <PageTitle>
+          <span className='grow -mt-1'>Library</span>
+        </PageTitle>
+        
+        <PageDescription>All your movies, one place. Browse your library and continue watching instantly.</PageDescription>
+        
+        <BackToTop isVisible={isBackToTopBtnVisible} />
+        <MoviesList />
+      </Container>
+    </Page>
   )
 }
 

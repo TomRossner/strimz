@@ -1,12 +1,17 @@
-import { API_URL, WATCH_MOVIE_URL } from '../utils/constants';
-import React, { useEffect, useState } from 'react';
+import { WATCH_MOVIE_URL } from '../utils/constants';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { setError, setIsLoading } from '../store/movies/movies.slice';
+import { setSubtitleFilePath } from '../store/movies/movies.slice';
 import LoadingScreen from '../components/LoadingScreen';
 import { selectSettings } from '../store/settings/settings.selectors';
 import { selectSocket } from '@/store/socket/socket.selectors';
 import Player from '@/components/player/Player';
+import { selectMovie, selectSubtitleLang } from '@/store/movies/movies.selectors';
+import { downloadSubtitles } from '@/services/subtitles';
+import { Download, setDownloads } from '@/store/downloads/downloads.slice';
+import { selectDownloads } from '@/store/downloads/downloads.selectors';
+import { addNewTorrent, playTorrent } from '@/services/movies';
 
 const WatchMoviePage = () => {
     const [searchParams] = useSearchParams();
@@ -23,43 +28,81 @@ const WatchMoviePage = () => {
     const hash = searchParams.get('hash');
 
     const socket = useAppSelector(selectSocket);
+    const movie = useAppSelector(selectMovie);
+
+    const subtitleLang = useAppSelector(selectSubtitleLang);
+
+    const downloads = useAppSelector(selectDownloads);
+
+    const addTorrent = useCallback(async () => {
+        if (!slug || !hash || !title || !settings.downloadsFolderPath || !socket?.id) return;
+
+        await addNewTorrent({
+            slug,
+            hash,
+            title,
+            dir: settings.downloadsFolderPath,
+            sid: socket.id,
+        });
+
+    }, [slug, hash, title, settings.downloadsFolderPath, socket?.id]);
     
     useEffect(() => {
         if (!socket?.id) return;
-        
-        const streamUrl = `${WATCH_MOVIE_URL}${slug}?hash=${hash}&sid=${socket.id}`;
-        const statusUrl = `${API_URL}/sse/status/${slug}?hash=${hash}&title=${title}&dir=${settings.downloadsFolderPath}&sid=${socket.id}`;
-        const eventSource = new EventSource(statusUrl);
-    
-        eventSource.addEventListener('message', (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-        
-                    if (data) {
-                        setVideoSrc(streamUrl);
-                        eventSource.close();
-                    }
-                } catch (parseError) {
-                    console.error("Error parsing SSE data:", parseError, "Raw data:", event.data);
+
+        addTorrent();
+    }, [addTorrent, socket]);
+
+    useEffect(() => {
+        if (
+            !subtitleLang ||
+            !movie?.imdb_code ||
+            !title ||
+            !movie.year ||
+            !settings.downloadsFolderPath
+        ) return;
+
+        const startSubtitlesDownload = async () => {
+            const {data: subtitleFilePath} = await downloadSubtitles(subtitleLang, movie.imdb_code, title, movie.year.toString(), settings.downloadsFolderPath);
+            dispatch(setSubtitleFilePath(subtitleFilePath));
+        }
+
+        startSubtitlesDownload();
+    }, [
+        subtitleLang,
+        movie?.imdb_code,
+        movie?.year,
+        title,
+        settings.downloadsFolderPath,
+        dispatch
+    ]);
+
+    useEffect(() => {
+        if (!socket?.id || !hash || !slug || !settings.downloadsFolderPath) {
+            return;
+        }
+
+        const newDownloadHandler = async (data: Download) => {
+            if (data.hash.toLowerCase() === hash?.toLowerCase()) {
+                const res = await playTorrent(hash);
+                if (res.status === 200) {
+                    const streamUrl = `${WATCH_MOVIE_URL}${slug}?hash=${hash}&sid=${socket.id}&dir=${settings.downloadsFolderPath}`;
+                    setVideoSrc(streamUrl);
                 }
             }
-        );
+            
+            dispatch(setDownloads([
+                ...downloads.filter(d => d.hash !== data.hash),
+                data
+            ]));
+        }
 
-        eventSource.onerror = (err) => {
-            if (eventSource.readyState !== EventSource.CLOSED) {
-                console.error("SSE error on client side", err);
-                dispatch(setIsLoading(false));
-            } else {
-                console.log("SSE error due to client-initiated close, ignored.");
-            }
-            dispatch(setError("Failed starting stream. Please restart the app and try again."));
-            eventSource.close();
-        };
+        socket.on('newDownload', newDownloadHandler);
 
         return () => {
-            eventSource.close();
+            socket.off('newDownload', newDownloadHandler);
         }
-    }, [socket?.id]);
+    }, [socket, downloads, dispatch, hash, slug, settings.downloadsFolderPath]);
 
     return videoSrc
         ? <Player src={videoSrc} />

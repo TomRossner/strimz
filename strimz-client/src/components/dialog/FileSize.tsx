@@ -6,14 +6,17 @@ import { PiDownload } from "react-icons/pi";
 import { formatBytes, FREE_GB_REQUIRED, FREE_PERCENTAGE_REQUIRED, ONE_GB, parseSize } from '@/utils/bytes';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { IoWarningOutline } from 'react-icons/io5';
-import { MdOutlineInsertDriveFile } from 'react-icons/md';
+import { MdOutlineInsertDriveFile, MdFileDownloadDone } from 'react-icons/md';
+import Button from '../Button';
 
 interface FileSizeProps {
   size?: string;
   selectedTorrent: Torrent | null;
+  downloadedQuality?: string;
+  onWatchDownloaded?: () => void;
 }
 
-const FileSize = ({ size, selectedTorrent }: FileSizeProps) => {
+const FileSize = ({ size, selectedTorrent, downloadedQuality, onWatchDownloaded }: FileSizeProps) => {
   const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -52,28 +55,53 @@ const FileSize = ({ size, selectedTorrent }: FileSizeProps) => {
         </p>
 
         <p className="text-xs text-gray-400 text-right flex gap-1 items-center">
-          <PiDownload className='text-lg' />
+          {isLoading ? (
+            <LoadingIcon size={18} />
+          ) : downloadedQuality ? (
+            <MdFileDownloadDone className='text-lg text-green-400' />
+          ) : (
+            <PiDownload className='text-lg' />
+          )}
 
           {!isLoading ? (
             <span className="text-xs text-gray-400 flex gap-1 items-center">
               {diskSpace && (
                 <span className={`flex items gap-1 ml-1 font-semibold text-gray-300`}>
-                  {selectedTorrent ? `${formatBytes(fileSizeInBytes)} required / `: 'Select a torrent to verify disk space -'}
-                  <Tooltip delayDuration={200}>
-                    <TooltipTrigger>
-                      <span className='text-blue-500 flex items-center gap-1'>
-                        {formatBytes(diskSpace.free)} free
-                        <BsInfoCircle />
+                  {downloadedQuality ? (
+                    <span className='flex items-center gap-2'>
+                      <span className='text-green-400'>
+                        You have downloaded this movie in {downloadedQuality}.
                       </span>
-                    </TooltipTrigger>
-                    <TooltipContent>Shows the available space on the drive where the file will be saved.</TooltipContent>
-                  </Tooltip>
+                      {onWatchDownloaded && (
+                        <Button
+                          onClick={onWatchDownloaded}
+                          className='text-blue-500 hover:text-blue-400 bg-transparent hover:bg-transparent border-0 p-0 h-auto'
+                        >
+                          Watch now
+                        </Button>
+                      )}
+                    </span>
+                  ) : selectedTorrent ? (
+                    <>
+                      {formatBytes(fileSizeInBytes)} required / 
+                      <Tooltip delayDuration={200}>
+                        <TooltipTrigger>
+                          <span className='text-blue-500 flex items-center gap-1'>
+                            {formatBytes(diskSpace.free)} free
+                            <BsInfoCircle />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Shows the available space on the drive where the file will be saved.</TooltipContent>
+                      </Tooltip>
+                    </>
+                  ) : (
+                    'Select a torrent to verify disk space -'
+                  )}
                 </span>
               )}
             </span>
           ) : (
-            <span className="text-xs text-gray-400 text-right flex items-center gap-1">
-              <LoadingIcon size={13} />
+            <span className="text-xs text-gray-400 text-right">
               Loading disk information...
             </span>
           )}

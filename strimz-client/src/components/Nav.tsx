@@ -8,7 +8,7 @@ import { twMerge } from 'tailwind-merge';
 import { GiHamburgerMenu } from 'react-icons/gi';
 import Logo from './Logo';
 import Button from './Button';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 interface NavProps {
   withSearchBar: boolean;
@@ -29,9 +29,30 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
     dispatch(openModal('filters'));
   }, [dispatch, isMovieDialogOpen]);
 
+  const menuItems = [
+    {
+      title: 'Library',
+      link: '/',
+    },
+    {
+      title: 'Favorites',
+      link: '/favorites',
+    },
+    {
+      title: 'Watch list',
+      link: '/watch-list',
+    },
+    {
+      title: 'Downloads',
+      link: '/downloads',
+    },
+  ]
+
+  const isPlayerPage = pathname.toLowerCase().startsWith('/stream/') || pathname.toLowerCase().startsWith('/watch-file');
+
   return (
     <nav
-      hidden={pathname.toLowerCase().startsWith('/watch/')}
+      hidden={isPlayerPage}
       className={twMerge(`
         sticky
         top-0
@@ -59,6 +80,24 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
       </Button>
 
       <Logo />
+
+      <ul className='hidden items-center gap-1 grow lg:flex'>
+        {
+          menuItems.map(({title, link}, i) => {
+            const isActive: boolean = pathname.endsWith(link);
+
+            return (
+              <Link
+                key={i}
+                to={link}
+                className={twMerge(`px-4 py-1 hover:bg-stone-800 rounded-sm transition-colors duration-150 cursor-pointer text-stone-300 hover:text-stone-50 ${isActive && 'font-bold bg-stone-800 text-white'}`)}
+              >
+                {title}
+              </Link>
+            )
+          })
+        }
+      </ul>
 
       <div className='grow' />
 

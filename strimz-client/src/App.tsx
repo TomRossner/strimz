@@ -21,8 +21,15 @@ import { selectIsVpnActive } from './store/vpn/vpn.selectors';
 import PlayTorrentPrompt from './components/PlayTorrentPrompt';
 import { fetchUserSettings } from './store/settings/settings.slice';
 import PlayFromMagnetModal from './components/PlayFromMagnetModal';
+import DownloadsPage from './pages/Downloads';
+import { fetchAllDownloadsAsync, fetchDownloadedFilesAsync } from './store/downloads/downloads.slice';
+import { createNewStreamClient } from './utils/createStreamClient';
+import { selectSettings } from './store/settings/settings.selectors';
+import { validateDownloadsCache } from './utils/downloadsCache';
+import { selectDownloads, selectDownloadedFiles } from './store/downloads/downloads.selectors';
 
 const WatchMoviePage = lazy(() => import('./pages/Watch'));
+const WatchFilePage = lazy(() => import('./pages/WatchFile'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const FavoritesPage = lazy(() => import('./pages/Favorites'));
 // const ReportsPage = lazy(() => import('./pages/Reports'));
@@ -65,6 +72,7 @@ const MoviesPage = () => {
   ]);
 
   const isVpnActive = useAppSelector(selectIsVpnActive);
+  const settings = useAppSelector(selectSettings);
 
   const handleErrorClose = () => {
       dispatch(setFilters(DEFAULT_PARAMS));
@@ -80,19 +88,53 @@ const MoviesPage = () => {
       ));
   }, [dispatch]);
 
-  useEffect(() => {
-    ping()
-      .catch(handleError)
-      .finally(() => (
-        !moviesMap.size
-          ? setTimeout(() => setIsLoading(false), 1000)
-          : setIsLoading(false)
-      ));
+  const downloads = useAppSelector(selectDownloads);
+  const downloadedFiles = useAppSelector(selectDownloadedFiles);
 
-    dispatch(fetchUserSettings());
-    dispatch(fetchWatchListAsync(getWatchList()));
-    dispatch(fetchFavoritesAsync(getFavorites()));
-  }, []);
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Wait for all critical initialization operations to complete
+        await Promise.allSettled([
+          ping().catch(handleError),
+          createNewStreamClient(),
+          dispatch(fetchUserSettings()),
+          dispatch(fetchAllDownloadsAsync()),
+          dispatch(fetchWatchListAsync(getWatchList())),
+          dispatch(fetchFavoritesAsync(getFavorites())),
+        ]);
+      } catch (error) {
+        console.error('Error during app initialization:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeApp();
+  }, [dispatch, handleError]);
+
+  useEffect(() => {
+    if (settings.downloadsFolderPath) {
+      dispatch(fetchDownloadedFilesAsync(settings.downloadsFolderPath));
+    }
+  }, [settings.downloadsFolderPath, dispatch]);
+
+  // Validate and update downloads cache after backend data is fetched
+  useEffect(() => {
+    if (downloads.length > 0 || downloadedFiles.length > 0) {
+      // Validate cache against backend data
+      // This updates completion status in cache based on backend state
+      validateDownloadsCache(
+        downloads.map(d => ({
+          hash: d.hash,
+          done: d.done || false,
+          progress: d.progress || 0,
+          paused: d.paused || false,
+        })),
+        downloadedFiles
+      );
+    }
+  }, [downloads, downloadedFiles]);
 
   if (error && !filters.query_term && !filters.genre) return (
     <ErrorDialog btnText='Quit' onClose={() => window.electronAPI.quitApp()} />
@@ -114,11 +156,13 @@ const MoviesPage = () => {
       <Suspense fallback={<SplashScreen />}>
         <Routes>
           <Route path='/' element={<Home />} />
-          <Route path='/watch/:slug' element={<WatchMoviePage />} />
+          <Route path='/stream/:slug' element={<WatchMoviePage />} />
+          <Route path='/watch-file' element={<WatchFilePage />} />
           <Route path='/settings' element={<SettingsPage />} />
           <Route path='/favorites' element={<FavoritesPage />} />
           {/* <Route path='/reports' element={<ReportsPage />} /> */}
           <Route path='/watch-list' element={<WatchListPage />} />
+          <Route path='/downloads' element={<DownloadsPage />} />
         </Routes>
       </Suspense>
     </>

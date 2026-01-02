@@ -2,7 +2,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSocket } from '@/store/socket/socket.selectors';
 import { Cue, DownloadProgressData } from '@/utils/types';
 import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Page from '../Page';
 import Container from '../Container';
 import LoadingIcon from '../LoadingIcon';
@@ -11,15 +11,19 @@ import { twMerge } from 'tailwind-merge';
 import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
-import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectUseSubtitles } from '@/store/movies/movies.selectors';
+import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectExternalTorrent } from '@/store/movies/movies.selectors';
 import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
-import { setUseSubtitles } from '@/store/movies/movies.slice';
+import { setIsSubtitlesEnabled, setVttSubtitlesContent } from '@/store/movies/movies.slice';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import TopOverlay from './TopOverlay';
 import ShortcutActionDisplay from './ShortcutActionDisplay';
 import throttle from 'lodash.throttle';
 import { getSubtitleMetadata } from '@/utils/detectLanguage';
 import Subtitles from './Subtitles';
+import BackButton from '../BackButton';
+import { pauseDownload } from '@/services/movies';
+import { openModal } from '@/store/modals/modals.slice';
+import { updatePlaybackPosition, getPlaybackPosition } from '@/utils/downloadsCache';
 
 const {
     PLAY_PAUSE,
@@ -60,7 +64,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
 
-    const useSubtitles = useAppSelector(selectUseSubtitles);
+    const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
     const hasSubtitles = useAppSelector(selectSubtitleFilePath);
 
     const isInfoPanelOpen = useAppSelector(selectMovieDownloadInfoPanel);
@@ -75,6 +79,13 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     const [downloadInfo, setDownloadInfo] = useState<DownloadProgressData | null>(null);
     const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
+
+    const selectedTorrent = useAppSelector(selectSelectedTorrent);
+    const externalTorrent = useAppSelector(selectExternalTorrent);
+
+    const navigate = useNavigate();
+    const location = useLocation();
+    const from = location.state?.from;
 
     const toggleFullscreen = () => {
         const container = containerRef.current;
@@ -110,16 +121,35 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     }, [parsedSubtitles]);
 
     const throttledHandleTimeUpdate = useRef<((e: React.SyntheticEvent<HTMLVideoElement>) => void) | null>(null);
+    const throttledSavePlaybackPosition = useRef<((currentTime: number) => void) | null>(null);
 
     useEffect(() => {
         throttledHandleTimeUpdate.current = throttle((e: React.SyntheticEvent<HTMLVideoElement>) => {
             const video = e.currentTarget;
+
+            if (!video) return;
+
             renderSubtitles();
             setCurrentTime(video.currentTime);
             setDuration(video.duration);
             setPlaybackWidth((video.currentTime / video.duration) * 100);
+            
+            // Save playback position periodically (throttled to avoid excessive writes)
+            if (hash && video.currentTime > 0 && !video.paused) {
+                throttledSavePlaybackPosition.current?.(video.currentTime);
+            }
         }, 250);
-    }, [renderSubtitles]);
+        
+        // Throttled function to save playback position (save every 5 seconds)
+        throttledSavePlaybackPosition.current = throttle((currentTime: number) => {
+            if (hash) {
+                updatePlaybackPosition(hash, currentTime);
+            }
+        }, 5000);
+    }, [renderSubtitles, hash]);
+
+    // Note: Playback position restoration is handled in onLoadedMetadata handler on the video element
+    // This ensures it happens at the right time after the video metadata is loaded
 
     const handleSkipForward = () => {
         if (!videoRef.current || !videoRef.current.duration) return;
@@ -161,17 +191,30 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     ).current;
 
     useEffect(() => {
-        if (!socket?.id || !hash) return;
+        // Only listen to socket events if we have a hash (torrent-based download)
+        // File-only downloads don't have hash and don't emit socket events
+        if (!socket?.id || !hash) {
+            // For file-only downloads, set downloadInfo to null
+            if (!hash) {
+                setDownloadInfo(null);
+            }
+            return;
+        }
 
         const handleProgress = (data: DownloadProgressData) => {
             if (data.hash.toLowerCase() === hash.toLowerCase()) {
                 throttledSetDownloadInfo({
                     ...data,
-                    downloaded: data.downloaded || downloadInfo?.downloaded || 0,
-                    peers: data.peers || downloadInfo?.peers || 0,
-                    timeRemaining: data.timeRemaining || downloadInfo?.timeRemaining || 0,
-                    fileName: data.fileName ? data.fileName : downloadInfo?.fileName || '',
-                    done: data.done || downloadInfo?.done || false,
+                    downloaded: data.downloaded ?? downloadInfo?.downloaded ?? 0,
+                    peers: data.peers ?? downloadInfo?.peers ?? 0,
+                    timeRemaining: data.timeRemaining ?? downloadInfo?.timeRemaining ?? 0,
+                    fileName: data.fileName || downloadInfo?.fileName || '',
+                    done: data.done ?? downloadInfo?.done ?? false,
+                    paused: data.paused ?? downloadInfo?.paused ?? false,
+                    progress: data.progress ?? downloadInfo?.progress ?? 0,
+                    speed: data.speed ?? downloadInfo?.speed ?? 0,
+                    slug: data.slug || downloadInfo?.slug || '',
+                    url: data.url || downloadInfo?.url || '',
                 } satisfies DownloadProgressData);
             }
         }
@@ -192,6 +235,11 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         downloadInfo?.timeRemaining,
         downloadInfo?.done,
         downloadInfo?.fileName,
+        downloadInfo?.paused,
+        downloadInfo?.progress,
+        downloadInfo?.speed,
+        downloadInfo?.slug,
+        downloadInfo?.url,
     ]);
 
     useEffect(() => {
@@ -258,7 +306,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                 break;
             case TOGGLE_SUBTITLES:
                 e.preventDefault();
-                dispatch(setUseSubtitles(hasSubtitles ? !useSubtitles : useSubtitles));
+                dispatch(setIsSubtitlesEnabled(hasSubtitles ? !isSubtitlesEnabled : isSubtitlesEnabled));
                 setHasUsedKeyboardShortcut(true);
                 setKeyboardShortcut(e.key);
                 break;
@@ -267,7 +315,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         }
     }, [
         isSubtitlesSizeModalOpen,
-        useSubtitles,
+        isSubtitlesEnabled,
         dispatch,
         hasSubtitles,
     ]);
@@ -276,12 +324,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
-
-    useEffect(() => {
-        if (isReadyToPlay && !isPlaying) {
-            setIsPlaying(true);
-        }
-    }, [isReadyToPlay]);
 
     useEffect(() => {
         if (hasUsedKeyboardShortcut) {
@@ -294,9 +336,43 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     }, [hasUsedKeyboardShortcut]);
 
     const subtitleLang = useAppSelector(selectSubtitleLang);
+    const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     
     // Subs Metadata: { lang, label }
     const subsMetadata = useMemo(() => subtitleLang ? getSubtitleMetadata(subtitleLang as string) : undefined, [subtitleLang]);
+
+    // Convert SRT subtitle file to VTT when subtitleFilePath changes
+    useEffect(() => {
+        const convertSubtitleToVTT = async () => {
+            if (!subtitleFilePath || !subtitleLang) {
+                dispatch(setVttSubtitlesContent(null));
+                return;
+            }
+
+            try {
+                const lang = subsMetadata?.lang || subtitleLang;
+                const vttText = await window.electronAPI.convertSRTtoVTT(subtitleFilePath, lang);
+                if (vttText) {
+                    dispatch(setVttSubtitlesContent(vttText));
+                } else {
+                    dispatch(setVttSubtitlesContent(null));
+                }
+            } catch (error) {
+                console.error('Error converting subtitle to VTT:', error);
+                dispatch(setVttSubtitlesContent(null));
+            }
+        };
+
+        convertSubtitleToVTT();
+    }, [subtitleFilePath, subtitleLang, subsMetadata?.lang, dispatch]);
+
+    useEffect(() => {
+        return () => {
+            videoRef.current?.pause();
+            videoRef.current?.removeAttribute('src');
+            videoRef.current?.load();
+        }
+    }, []);
 
     return (
         <Page>
@@ -308,6 +384,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                         className='flex flex-col justify-center w-full h-[98vh] relative'
                     >
                         <TopOverlay
+                            videoRef={videoRef as RefObject<HTMLVideoElement>}
                             isVisible={controlsVisible}
                             title={`${title} ${movie?.year ? `(${movie.year})` : ''}`}
                             downloadInfo={downloadInfo}
@@ -326,14 +403,40 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                         />
 
                         <video
+                            ref={videoRef}
                             autoPlay
                             muted={isMuted}
-                            ref={videoRef}
                             lang={subsMetadata?.lang || undefined}
                             poster={poster || ''}
-                            onCanPlay={() => setIsPlaying(true)}
+                            onPlayCapture={() => {
+                                if (!isPlaying) setIsPlaying(true);
+                            }}
+                            onPause={() => setIsPlaying(false)}
+                            onEnded={() => {
+                                setIsPlaying(false);
+                                videoRef.current!.currentTime = 0;
+                                // Clear playback position when video ends
+                                if (hash) {
+                                    updatePlaybackPosition(hash, 0);
+                                }
+                            }}
+                            onLoadedMetadata={() => {
+                                // Restore playback position when metadata is loaded
+                                if (hash && videoRef.current) {
+                                    const savedPosition = getPlaybackPosition(hash);
+                                    if (savedPosition !== null && savedPosition > 0 && videoRef.current.duration) {
+                                        if (savedPosition < videoRef.current.duration) {
+                                            videoRef.current.currentTime = savedPosition;
+                                            console.log(`[Player] Restored playback position to ${savedPosition.toFixed(1)}s on metadata load`);
+                                        }
+                                    }
+                                }
+                            }}
                             onTimeUpdate={e => throttledHandleTimeUpdate.current?.(e)}
-                            onClick={() => setIsPlaying(videoRef.current?.paused as boolean)}
+                            onClick={() => {
+                                if (!videoRef.current) return;
+                                setIsPlaying(!videoRef.current.paused);
+                            }}
                             onDoubleClick={toggleFullscreen}
                             className={twMerge(`
                                 aspect-video
@@ -344,7 +447,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             `)}
                         >
                             <source src={src || undefined} type='video/mp4' />
-                            {/* {hasSubtitles && useSubtitles && vttSubs && (
+                            {/* {hasSubtitles && isSubtitlesEnabled && vttSubs && (
                                 <track 
                                     default
                                     kind="subtitles"
@@ -390,18 +493,49 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                         />
                     </div>
                 ) : (
-                    <div style={{ backgroundImage: `url(${poster})` }} className={`my-auto bg-cover aspect-video bg-center relative w-full flex items-center bg-black justify-center`}>
-                        <div className="flex relative items-center justify-center rounded-full aspect-square z-30">
-                            <Progress progressOnly hash={hash as string} />
-                            <LoadingIcon size={70} />
-                        </div>
-
-                        <video
-                            hidden
-                            muted
-                            src={src || undefined} 
-                            onCanPlay={() => setIsReadyToPlay(true)}
+                    <div className='relative w-full'>
+                        <BackButton
+                            className='absolute left-1 top-1 z-10'
+                            cb={async () => {
+                                if (externalTorrent) return;
+            
+                                const video = videoRef.current;
+                                if (video) {
+                                    video.pause();
+                                    video.src = "";
+                                    video.load();
+                                }
+            
+                                // Only pause download if we have a hash (torrent-based download)
+                                if (selectedTorrent?.hash) {
+                                    await pauseDownload(selectedTorrent.hash);
+                                }
+                                
+                                if (from === '/') {
+                                    navigate('/', {
+                                        state: {
+                                            from: '/stream/:slug'
+                                        }
+                                    });
+                                    dispatch(openModal('movie'));
+                                } else {
+                                    navigate(-1);
+                                }
+                            }}
                         />
+                        <div style={{ backgroundImage: `url(${poster})` }} className={`my-auto bg-cover aspect-video bg-center relative w-full flex items-center bg-black justify-center`}>
+                            <div className="flex relative items-center justify-center rounded-full aspect-square z-30">
+                                {hash && <Progress progressOnly hash={hash as string} />}
+                                <LoadingIcon size={70} />
+                            </div>
+
+                            <video
+                                hidden
+                                muted
+                                src={src || undefined} 
+                                onCanPlay={() => setIsReadyToPlay(true)}
+                            />
+                        </div>
                     </div>
                 )}
             </Container>

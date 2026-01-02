@@ -6,7 +6,7 @@ export const APP_NAME: string = "Strimz";
 export const API_URL: string = 'http://localhost:3003/api';
 export const SERVER_URL: string = 'http://localhost:3003';
 
-export const WATCH_MOVIE_URL: string = `${API_URL}/watch/`;
+export const WATCH_MOVIE_URL: string = `${API_URL}/stream/`;
 export const MOVIES_FETCH_URL: string = `${API_URL}/movies`;
 
 export const MAX_STARS: number = 5;

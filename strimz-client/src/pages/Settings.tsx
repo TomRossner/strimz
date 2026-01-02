@@ -116,7 +116,7 @@ const SettingsPage = () => {
     <Page>
         <Container id='settingsPage'>
             <PageTitle className='items-center'>
-                <BackButton />
+                <BackButton cb={() => navigate(-1)} />
                 <span className='grow -mt-1'>Settings</span>
 
                 <CheckForUpdatesButton withText className='min-w-[200px] text-sm justify-center font-normal py-1 self-end' />

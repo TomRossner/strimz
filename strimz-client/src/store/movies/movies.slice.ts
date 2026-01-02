@@ -8,6 +8,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { isAxiosError } from 'axios';
 import { enableMapSet } from 'immer';
+import { downloadSubtitles } from '@/services/subtitles';
 
 enableMapSet();
 
@@ -27,11 +28,13 @@ interface MoviesState {
   watchList: Map<string, Movie>;
   subtitleFilePath: string | null;
   subtitleLang: string | null;
-  useSubtitles: boolean;
+  isSubtitlesEnabled: boolean;
   externalTorrent: {hash: string, title: string} | null;
   subtitlesSize: number;
   selectedTorrent: Torrent | null;
   vttSubtitlesContent: string | null;
+  availableSubtitlesLanguages: string[];
+  unavailableSubtitlesLanguages: string[];
 }
 
 const initialState: MoviesState = {
@@ -50,11 +53,13 @@ const initialState: MoviesState = {
   watchList: new Map(),
   subtitleFilePath: null,
   subtitleLang: null,
-  useSubtitles: true,
+  isSubtitlesEnabled: false,
   externalTorrent: null,
   subtitlesSize: DEFAULT_SUBTITLES_SIZE,
   selectedTorrent: null,
   vttSubtitlesContent: null,
+  availableSubtitlesLanguages: [],
+  unavailableSubtitlesLanguages: [],
 }
 
 type FetchMoviesAsync = {
@@ -116,6 +121,7 @@ export const fetchMoviesAsync = createAsyncThunk(
           medium_cover_image: movie.medium_cover_image,
           large_cover_image: movie.large_cover_image,
           torrents: movie.torrents,
+          imdb_code: movie.imdb_code,
         } as Movie;
       });
 
@@ -171,6 +177,58 @@ export const fetchWatchListAsync = createAsyncThunk(
     }
 });
 
+type SubtitlesDownloadProps = {
+  lang: string;
+  imdbCode: string;
+  title: string;
+  year: string;
+  dir: string;
+}
+
+// type FetchAvailableSubtitlesProps = {
+//   imdbCode: string;
+//   title: string;
+//   year: string;
+//   signal: AbortSignal;
+// }
+
+export const startSubtitlesDownloadAsync = createAsyncThunk(
+  'movies/startSubtitlesDownloadAsync',
+  async (downloadProps: SubtitlesDownloadProps, {rejectWithValue}) => {
+    const {lang, imdbCode, title, year, dir} = downloadProps;
+
+    try {
+      const {data: subtitleFilePath} = await downloadSubtitles(lang, imdbCode, title, year, dir);
+      return subtitleFilePath;
+    } catch (error) {
+      console.error(error);
+      return rejectWithValue(error);
+    }
+});
+
+// export const fetchAvailableSubtitlesAsync = createAsyncThunk(
+//   'movies/fetchAvailableSubtitlesAsync',
+//   async (downloadProps: FetchAvailableSubtitlesProps, {rejectWithValue}) => {
+//     const {imdbCode, title, year, signal} = downloadProps;
+
+//     try {
+//       const { data: availableSubs } = await fetchAvailableSubtitles(
+//         imdbCode,
+//         title,
+//         year,
+//         signal
+//       );
+
+//       const cacheKey = `${imdbCode}-${year}`;
+//       setSubsCache(cacheKey, availableSubs);
+      
+//       return availableSubs as string[];
+//     } catch (err) {
+//       console.error(err);
+//       return rejectWithValue(err);
+//     }
+// });
+
 const moviesSlice = createSlice({
   name: 'movies',
   initialState,
@@ -214,8 +272,8 @@ const moviesSlice = createSlice({
     setSubtitleLang: (state, action: PayloadAction<string | null>) => {
       state.subtitleLang = action.payload;
     },
-    setUseSubtitles(state, action: PayloadAction<boolean>) {
-      state.useSubtitles = action.payload;
+    setIsSubtitlesEnabled(state, action: PayloadAction<boolean>) {
+      state.isSubtitlesEnabled = action.payload;
     },
     setExternalTorrent(state, action: PayloadAction<{hash: string, title: string} | null>) {
       state.externalTorrent = action.payload;
@@ -228,6 +286,12 @@ const moviesSlice = createSlice({
     },
     setVttSubtitlesContent(state, action: PayloadAction<string | null>) {
       state.vttSubtitlesContent = action.payload;
+    },
+    setAvailableSubtitlesLanguages(state, action: PayloadAction<string[]>) {
+      state.availableSubtitlesLanguages = action.payload;
+    },
+    setUnavailableSubtitlesLanguages(state, action: PayloadAction<string[]>) {
+      state.unavailableSubtitlesLanguages = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -292,6 +356,17 @@ const moviesSlice = createSlice({
       .addCase(fetchWatchListAsync.rejected, (state) => {
         state.isLoading = false;
       })
+
+      .addCase(startSubtitlesDownloadAsync.fulfilled, (state, action) => {
+        state.subtitleFilePath = action.payload;
+      })
+      
+      // .addCase(fetchAvailableSubtitlesAsync.fulfilled, (state, action) => {
+      //   state.availableSubtitlesLanguages = action.payload;
+      // })
+      // .addCase(fetchAvailableSubtitlesAsync.rejected, (state) => {
+      //   state.availableSubtitlesLanguages = [];
+      // })
   }
  });
 
@@ -307,11 +382,13 @@ export const {
   setWatchList,
   setSubtitleFilePath,
   setSubtitleLang,
-  setUseSubtitles,
+  setIsSubtitlesEnabled,
   setExternalTorrent,
   setSubtitlesSize,
   setSelectedTorrent,
   setVttSubtitlesContent,
+  setAvailableSubtitlesLanguages,
+  setUnavailableSubtitlesLanguages
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

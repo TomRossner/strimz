@@ -5,6 +5,7 @@ import settingsReducer from "./settings/settings.slice";
 import updatesReducer from "./updates/updates.slice";
 import vpnReducer from "./vpn/vpn.slice";
 import socketReducer from "./socket/socket.slice";
+import downloadsReducer from "./downloads/downloads.slice";
 
 export const makeStore = () => {
   return configureStore({
@@ -15,6 +16,7 @@ export const makeStore = () => {
       updates: updatesReducer,
       vpn: vpnReducer,
       socket: socketReducer,
+      downloads: downloadsReducer,
     },
     middleware: (getDefaultMiddleware) => getDefaultMiddleware({serializableCheck: false}),
   });

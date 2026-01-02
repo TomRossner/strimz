@@ -1,5 +1,5 @@
 import { useAppSelector } from '@/store/hooks';
-import { selectSubtitleLang, selectSubtitlesSize, selectUseSubtitles, selectVttSubtitlesContent } from '@/store/movies/movies.selectors';
+import { selectSubtitleLang, selectSubtitlesSize, selectIsSubtitlesEnabled, selectVttSubtitlesContent } from '@/store/movies/movies.selectors';
 import { getSubtitleMetadata } from '@/utils/detectLanguage';
 import { isRTL, parseVTTToCues } from '@/utils/subtitles';
 import { Cue } from '@/utils/types';
@@ -25,7 +25,7 @@ const Subtitles = React.memo(({
 }: SubtitlesProps) => {
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const { lang } = useMemo(() => getSubtitleMetadata(subtitleLang as string), [subtitleLang]);
-    const hasSubtitles = useAppSelector(selectUseSubtitles);
+    const hasSubtitles = useAppSelector(selectIsSubtitlesEnabled);
 
     const subtitlesContainerRef = useRef<HTMLDivElement | null>(null);
 
