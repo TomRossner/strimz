@@ -957,7 +957,7 @@ const DownloadsPage = () => {
                                                         
                                                         <div className='flex gap-1 items-start'>
                                                             {isCompleted
-                                                                ?   <Button className='aspect-square cursor-default' title='Download complete'><MdFileDownloadDone /></Button>
+                                                                ?   <Button className='aspect-square cursor-default text-green-400 hover:text-green-400 hover:bg-stone-700' title='Download complete'><MdFileDownloadDone /></Button>
                                                                 :   <>
                                                                         {paused
                                                                             ?   <Button
@@ -1009,7 +1009,7 @@ const DownloadsPage = () => {
                                                         <div className='w-full flex flex-col gap-0.5'>
                                                             <div className='relative w-full bg-stone-900 h-1'>
                                                                 <div
-                                                                    className={twMerge(`absolute left-0 top-0 h-1 transition-colors duration-150 ${paused ? 'bg-blue-300' : 'bg-blue-500'}`)}
+                                                                    className={twMerge(`absolute left-0 top-0 h-1 transition-colors duration-150 ${isCompleted ? 'bg-green-400' : paused ? 'bg-blue-300' : 'bg-blue-500'}`)}
                                                                     style={{
                                                                         width: `${Math.min(progress, 100)}%`,
                                                                         willChange: 'width',
@@ -1061,9 +1061,9 @@ const DownloadsPage = () => {
                                                                 onClick={() => handlePlay(download.slug, download.hash, download.title, '', download.filePath, download.name)} 
                                                                 className='text-blue-500 hover:text-blue-400 font-medium text-sm'
                                                                 disabled={!download.slug || isPendingVerification}
-                                                                title={!download.slug ? 'Slug not available yet' : 'Watch now'}
+                                                                title={!download.slug ? 'Slug not available yet' : (isCompleted ? 'Watch now' : 'Continue stream')}
                                                             >
-                                                                Watch now
+                                                                {isCompleted ? 'Watch now' : 'Continue stream'}
                                                             </Button>
                                                         )}
                                                         {fileOnly && download.filePath && !download.hash && isCompleted && (
@@ -1198,7 +1198,7 @@ const DownloadsPage = () => {
                                                         
                                                         <div className='flex gap-1 items-start'>
                                                             {isCompleted
-                                                                ?   <Button className='aspect-square cursor-default' title='Download complete'><MdFileDownloadDone /></Button>
+                                                                ?   <Button className='aspect-square cursor-default text-green-400 hover:text-green-400 hover:bg-stone-700' title='Download complete'><MdFileDownloadDone /></Button>
                                                                 :   <>
                                                                         {paused
                                                                             ?   <Button
@@ -1250,7 +1250,7 @@ const DownloadsPage = () => {
                                                         <div className='w-full flex flex-col gap-0.5'>
                                                             <div className='relative w-full bg-stone-900 h-1'>
                                                                 <div
-                                                                    className={twMerge(`absolute left-0 top-0 h-1 transition-colors duration-150 ${paused ? 'bg-blue-300' : 'bg-blue-500'}`)}
+                                                                    className={twMerge(`absolute left-0 top-0 h-1 transition-colors duration-150 ${isCompleted ? 'bg-green-400' : paused ? 'bg-blue-300' : 'bg-blue-500'}`)}
                                                                     style={{
                                                                         width: `${Math.min(progress, 100)}%`,
                                                                         willChange: 'width',
@@ -1302,9 +1302,9 @@ const DownloadsPage = () => {
                                                                 onClick={() => handlePlay(download.slug, download.hash, download.title, '', download.filePath, download.name)} 
                                                                 className='text-blue-500 hover:text-blue-400 font-medium text-sm'
                                                                 disabled={!download.slug || isPendingVerification}
-                                                                title={!download.slug ? 'Slug not available yet' : 'Watch now'}
+                                                                title={!download.slug ? 'Slug not available yet' : (isCompleted ? 'Watch now' : 'Continue stream')}
                                                             >
-                                                                Watch now
+                                                                {isCompleted ? 'Watch now' : 'Continue stream'}
                                                             </Button>
                                                         )}
                                                         {fileOnly && download.filePath && !download.hash && isCompleted && (

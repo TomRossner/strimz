@@ -94,33 +94,31 @@ const SubtitlesSelector = ({
     }, [subtitleFilePath, lang, dispatch]);
 
   return (
-    <div className={twMerge(`flex w-full my-2 gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>
-        <p className='text-white w-full flex items-center justify-between'>
-            {!buttonOnly && (
+    <div className={twMerge(`flex w-full ${buttonOnly ? 'my-0' : 'my-2'} gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>
+        {!buttonOnly && (
+            <p className='text-white w-full flex items-center justify-between'>
                 <span className='flex gap-2 items-center'>
                     <PiSubtitles className='text-xl' />
                     Subtitles
                 </span>
-            )}
-            
-            <span className='flex items-center py-0 gap-1 w-full justify-end'>
-                <Button
-                    onClick={() => window.electronAPI.openSubtitleFileDialog().then(handleSubtitleFileUpload)}
-                    className={twMerge(`text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
-                >
-                    Choose subtitle file
-                </Button>
+                
+                <span className='flex items-center py-0 gap-1 w-full justify-end'>
+                    <Button
+                        onClick={() => window.electronAPI.openSubtitleFileDialog().then(handleSubtitleFileUpload)}
+                        className={twMerge(`text-sm text-blue-500 hover:text-blue-400 bg-transparent ${buttonClassName}`)}
+                    >
+                        Choose subtitle file
+                    </Button>
 
-                {!buttonOnly && (
                     <Tooltip delayDuration={200}>
                         <TooltipTrigger className='text-blue-500'>
                             <BsInfoCircle />
                         </TooltipTrigger>
                         <TooltipContent>Only .SRT files are supported.</TooltipContent>
                     </Tooltip>
-                )}
-            </span>
-        </p>
+                </span>
+            </p>
+        )}
 
         {subtitleFilePath && (
             <div

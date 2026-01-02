@@ -1,14 +1,14 @@
 import React, { ChangeEvent, RefObject, useEffect, useRef, useState } from 'react';
 import Button from '../Button';
 import { BsPause, BsPlay } from 'react-icons/bs';
-import { IoCheckmark, IoExpandOutline, IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
+import { IoExpandOutline, IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
 import { twMerge } from 'tailwind-merge';
 import TimeTrack from './TimeTrack';
 import VolumeSlider from './VolumeSlider';
 import { PiArrowArcLeft, PiArrowArcRight, PiSubtitlesLight } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitlesSize, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages } from '@/store/movies/movies.selectors';
-import { setIsSubtitlesEnabled, setSubtitleFilePath, setSubtitleLang, setAvailableSubtitlesLanguages } from '@/store/movies/movies.slice';
+import { selectSubtitleFilePath, selectSubtitlesSize, selectSubtitleDelay, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages } from '@/store/movies/movies.selectors';
+import { setIsSubtitlesEnabled, setSubtitleFilePath, setSubtitleLang, setAvailableSubtitlesLanguages, setSubtitleDelay } from '@/store/movies/movies.slice';
 import { closeModal, openModal } from '@/store/modals/modals.slice';
 import SubtitlesSizeDialog from './SubtitlesSizeDialog';
 import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
@@ -63,6 +63,7 @@ const Controls = ({
     const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
     const subtitlesSize = useAppSelector(selectSubtitlesSize);
+    const subtitleDelay = useAppSelector(selectSubtitleDelay);
     const movie = useAppSelector(selectMovie);
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const availableSubsLanguages = useAppSelector(selectAvailableSubtitlesLanguages);
@@ -139,6 +140,20 @@ const Controls = ({
     }, [movie?.imdb_code, movie?.year, dispatch]);
 
     const handleSelectSubtitleLanguage = async (langId: string) => {
+        // Always update selected language in store first, so UI reflects the selection
+        dispatch(setSubtitleLang(langId));
+
+        // If selecting the same language that's already selected and we have the file, do nothing
+        if (langId.toLowerCase() === subtitleLang?.toLowerCase() && subtitleFilePath) {
+            return;
+        }
+
+        // Reset subtitle file path if changing language
+        if (langId.toLowerCase() !== subtitleLang?.toLowerCase() && subtitleFilePath) {
+            dispatch(setSubtitleFilePath(null));
+        }
+
+        // If movie data is missing, we can't download subtitles, but we've already stored the selection
         if (!movie?.imdb_code || !movie.year || !title || !settings.downloadsFolderPath) {
             console.warn('Missing movie information or settings for subtitle download');
             return;
@@ -147,30 +162,21 @@ const Controls = ({
         const cacheKey = `${movie.imdb_code}-${movie.year}`;
         const cached = getSubsCache()[cacheKey];
 
-        // If selecting the same language that's already selected and we have the file, do nothing
-        if (langId === subtitleLang && subtitleFilePath) {
-            return;
-        }
-
-        // Always update selected language in store
-        dispatch(setSubtitleLang(langId));
-
-        // Reset subtitle file path if changing language
-        if (langId !== subtitleLang && subtitleFilePath) {
-            dispatch(setSubtitleFilePath(null));
-        }
+        // Helper function to check if language is in array (case-insensitive)
+        const isInArray = (arr: string[], lang: string) => 
+            arr.some(l => l.toLowerCase() === lang.toLowerCase());
 
         // If language is already known in cache, just update state and download if available
         if (
             cached &&
             Date.now() - cached.ts < CACHE_TTL &&
-            (cached.available.includes(langId) || cached.unavailable.includes(langId))
+            (isInArray(cached.available, langId) || isInArray(cached.unavailable, langId))
         ) {
             dispatch(setAvailableSubtitlesLanguages(cached.available));
             setNotAvailableSubs(cached.unavailable);
 
             // If available, download it if not already downloaded
-            if (cached.available.includes(langId) && !subtitleFilePath) {
+            if (isInArray(cached.available, langId) && !subtitleFilePath) {
                 setIsDownloadingSubs(true);
                 try {
                     const { data } = await downloadSubtitles(
@@ -492,82 +498,88 @@ const Controls = ({
                                 }}
                                 className='bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'
                             >
-                                    <MdEdit />
-                                    Edit
+                                <MdEdit />
+                                Edit
                             </Button>
                         </span>
                     </div>
                 </div>
                 
-                <input
-                    type="checkbox"
-                    hidden
-                    name="subtitlesOff"
-                    id="subtitlesOff"
-                    checked={!isSubtitlesEnabled}
-                    onChange={() => subtitleFilePath ? dispatch(setIsSubtitlesEnabled(!isSubtitlesEnabled)) : undefined}
-                />
-
-                <label
-                    htmlFor="subtitlesOff"
-                    className={(`
-                        w-full
-                        flex
-                        items-center
-                        justify-between
-                        text-start
-                        text-base
-                        px-2
-                        rounded-sm
-                        hover:bg-stone-600
-                        cursor-pointer
-                        ${!isSubtitlesEnabled ? 'bg-stone-700' : 'bg-transparent'}
-                    `)}
-                >
-                    Off
-                    {!isSubtitlesEnabled && <IoCheckmark />}
-                </label>
-
-                {/* Show subtitle selector when movie data is available, otherwise just show manual file upload */}
-                {(movie?.imdb_code && movie?.year) ? (
-                    <>
-                        <SubtitlesSelector
-                            buttonOnly={true}
-                            containerClassName="w-full"
-                            availableSubs={availableSubsLanguages}
-                            notAvailableSubs={notAvailableSubs}
-                            languages={COMMON_LANGUAGES}
-                            isLoading={isLoadingSubs}
-                            isDownloading={isDownloadingSubs}
-                            onSelectSubtitle={handleSelectSubtitleLanguage}
-                        />
-                        {/* Manual subtitle file upload button below selector */}
-                        <Button
-                            onClick={() => window.electronAPI.openSubtitleFileDialog().then((path) => {
-                                if (path) {
-                                    dispatch(setSubtitleFilePath(path));
-                                    dispatch(setIsSubtitlesEnabled(true));
-                                }
-                            })}
-                            className='w-full text-sm text-blue-500 hover:text-blue-400 bg-transparent hover:bg-stone-700 py-2'
-                        >
-                            Choose subtitle file
-                        </Button>
-                    </>
-                ) : (
-                    /* When no movie data, show only manual file upload (for WatchFile.tsx) */
+                <div className='border-b border-stone-500 py-1 flex flex-col w-full items-center justify-between gap-1'>
+                    <div className='w-full flex'>
+                        <span className='text-start text-[16px] text-white w-full'>Delay</span>
+                        
+                        <div className='flex items-center gap-2 w-full'>
+                            <input
+                                type="number"
+                                value={subtitleDelay}
+                                onChange={(e) => {
+                                    const value = parseFloat(e.target.value) || 0;
+                                    dispatch(setSubtitleDelay(value));
+                                }}
+                                step="0.1"
+                                min="-10"
+                                max="10"
+                                className='w-16 text-base font-medium text-stone-300 bg-stone-700 border border-stone-600 rounded pl-2 outline-none focus:border-blue-500'
+                                placeholder="0.0"
+                            />
+                            <span className='text-sm text-stone-400'>seconds</span>
+                        </div>
+                    </div>
                     <Button
-                        onClick={() => window.electronAPI.openSubtitleFileDialog().then((path) => {
-                            if (path) {
-                                dispatch(setSubtitleFilePath(path));
-                                dispatch(setIsSubtitlesEnabled(true));
-                            }
-                        })}
-                        className='w-full text-sm text-blue-500 hover:text-blue-400 bg-transparent hover:bg-stone-700 py-2'
-                    >
-                        Choose subtitle file
-                    </Button>
-                )}
+                        onClick={(e) => {
+                            stop(e);
+                            dispatch(setSubtitleDelay(0));
+                        }}
+                        className='py-0 self-end bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'
+                    >Reset</Button>
+                </div>
+
+                <div className='w-full flex gap-4 items-center justify-between'>
+                    <span className='flex gap-2 items-center text-base'>Enable subtitles</span>
+
+                    <div className='flex items-center grow justify-end gap-2'>
+                        <span className='text-sm'>{isSubtitlesEnabled ? 'On' : 'Off'}</span>
+                        <div className="relative inline-flex items-center w-11 h-5">
+                            <input
+                                id="subtitlesOff"
+                                type="checkbox"
+                                checked={isSubtitlesEnabled}
+                                onChange={() => subtitleFilePath ? dispatch(setIsSubtitlesEnabled(!isSubtitlesEnabled)) : undefined}
+                                disabled={!subtitleFilePath}
+                                className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <label
+                                htmlFor="subtitlesOff"
+                                className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 shadow-sm transition-transform duration-300 peer-checked:translate-x-6 peer-checked:border-green-600 cursor-pointer peer-disabled:cursor-not-allowed"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Always show subtitle selector */}
+                <SubtitlesSelector
+                    buttonOnly={true}
+                    containerClassName="w-full"
+                    availableSubs={availableSubsLanguages}
+                    notAvailableSubs={notAvailableSubs}
+                    languages={COMMON_LANGUAGES}
+                    isLoading={isLoadingSubs}
+                    isDownloading={isDownloadingSubs}
+                    onSelectSubtitle={handleSelectSubtitleLanguage}
+                />
+                {/* Manual subtitle file upload button below selector */}
+                <Button
+                    onClick={() => window.electronAPI.openSubtitleFileDialog().then((path) => {
+                        if (path) {
+                            dispatch(setSubtitleFilePath(path));
+                            dispatch(setIsSubtitlesEnabled(true));
+                        }
+                    })}
+                    className='w-full text-sm text-blue-500 hover:text-blue-400 bg-transparent hover:bg-stone-700 py-2 -mt-1'
+                >
+                    Choose subtitle file
+                </Button>
 
                 {isSubtitlesSizeModalOpen && <div
                     className='w-full h-full absolute top-0 bottom-0 right-0 left-0 z[60]'

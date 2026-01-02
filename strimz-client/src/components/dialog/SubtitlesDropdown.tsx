@@ -65,7 +65,8 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
         return { iso3, label };
     });
 
-  const selectedLabel = normalizedSubs.find(sub => sub.iso3 === subtitleLang)?.label;
+  const normalizedSubtitleLang = subtitleLang ? normalizeLanguageCode(subtitleLang.toLowerCase()) : null;
+  const selectedLabel = normalizedSubs.find(sub => sub.iso3.toLowerCase() === normalizedSubtitleLang)?.label;
 
   return (
     <div className="relative w-full inline-block" ref={dropdownRef}>
@@ -81,15 +82,15 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
                   </span>
 
                   {(isLoading || isDownloading) && (
-                    <p className='text-stone-500 italic text-[14px] flex items-center gap-1 mr-3'>
-                        <LoadingIcon size={16} />
+                    <p className='text-stone-500 italic text-[12px] flex items-center gap-1 mr-3'>
+                        <LoadingIcon size={14} />
                         <span>{isDownloading ? 'Downloading...' : 'Checking availability...'}</span>
                     </p>
                   )}
 
                   {!isLoading && !isDownloading && (
                       <>
-                          {availableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && <MdCheck className='text-green-500' />}
+                          {availableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && <MdCheck className='text-green-500 text-sm' />}
                           {notAvailableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && <RxCross2 className='text-red-500' />}
                       </>
                   )}
@@ -99,7 +100,7 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
             )}
             
             <BsChevronUp className={twMerge(
-                'transition-transform',
+                'transition-transform text-sm',
                 isOpen ? 'rotate-180' : ''
             )} />
         </Button>
@@ -139,7 +140,7 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
                             setIsOpen(false);
                         }}
                         className={`w-full py-2 rounded-none justify-start text-sm flex gap-2 text-white transition-none
-                                    ${iso3 === subtitleLang ? 'bg-stone-700 hover:bg-stone-600' : 'bg-stone-800 hover:bg-stone-700'}`}
+                                    ${normalizedSubtitleLang && iso3.toLowerCase() === normalizedSubtitleLang ? 'bg-stone-700 hover:bg-stone-600' : 'bg-stone-800 hover:bg-stone-700'}`}
                     >
                         {countryCode && (
                             <Flag

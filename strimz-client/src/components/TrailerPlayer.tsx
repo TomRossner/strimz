@@ -12,7 +12,14 @@ interface TrailerPlayerProps {
 }
 
 const setIframeSrc = (trailerCode: string): string => {
-    return `https://www.youtube.com/embed/${trailerCode}?autoplay=1`;
+    // Add additional parameters for better compatibility and to avoid Error 153
+    // Clean the trailer code to ensure it's valid (remove any whitespace or invalid characters)
+    const cleanCode = trailerCode.trim();
+    const origin = typeof window !== 'undefined' && window.location.origin 
+        ? encodeURIComponent(window.location.origin)
+        : '';
+    const originParam = origin ? `&origin=${origin}` : '';
+    return `https://www.youtube.com/embed/${cleanCode}?autoplay=1&enablejsapi=1&modestbranding=1&rel=0${originParam}`;
 }
 
 const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => {
@@ -21,13 +28,30 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
 
     useEffect(() => {
         if (isOpen) {
-            window.addEventListener('keydown', (ev) => ev.key === 'Escape' && handleClose());
-        }
+            const handleKeyDown = (ev: KeyboardEvent) => {
+                if (ev.key === 'Escape') {
+                    handleClose();
+                }
+            };
+            window.addEventListener('keydown', handleKeyDown);
 
-        return () => {
-            window.removeEventListener('keydown', (ev) => ev.key === 'Escape' && handleClose());
+            return () => {
+                window.removeEventListener('keydown', handleKeyDown);
+            };
         }
     }, [isOpen, handleClose]);
+
+    // Don't render iframe if trailer code is missing or invalid
+    if (!yt_trailer_code || !yt_trailer_code.trim()) {
+        return (
+            <Dialog size='large' isOpen={isOpen}>
+                <CloseButton onClose={handleClose} className="absolute top-1 right-1 p-1 border-slate-100 md:block border text-xl" />
+                <div className="w-full aspect-video flex items-center justify-center bg-black text-white">
+                    <p>Trailer not available</p>
+                </div>
+            </Dialog>
+        );
+    }
 
   return (
     <Dialog size='large' isOpen={isOpen}>
@@ -35,8 +59,7 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
         <iframe
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
-            onKeyDown={ev => ev.key === 'Escape' && handleClose()}
-            src={setIframeSrc(yt_trailer_code as string)}
+            src={setIframeSrc(yt_trailer_code)}
             title={title}
             className="w-full aspect-video"
         />

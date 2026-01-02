@@ -6,6 +6,7 @@ import { BiSearch } from 'react-icons/bi';
 import { DEFAULT_FETCH_LIMIT, DEFAULT_GENRE, DEFAULT_PAGE, DEFAULT_QUALITY, DEFAULT_RATING } from '../utils/constants';
 import { selectFilters, selectQuery } from '../store/movies/movies.selectors';
 import { Filters } from '../utils/types';
+import { extractImdbCode } from '../utils/extractImdbCode';
 import Button from './Button';
 
 const scrollToTop = () => {
@@ -25,6 +26,9 @@ const Search = () => {
     }
 
     const params: Filters = useMemo(() => {
+        const trimmedQuery = query.trim();
+        const extractedQuery = trimmedQuery ? extractImdbCode(trimmedQuery) : '';
+        
         return {
             genre: filters.genre ?? DEFAULT_GENRE,
             limit: filters.limit ?? DEFAULT_FETCH_LIMIT,
@@ -32,7 +36,7 @@ const Search = () => {
             order_by: filters.order_by ?? OrderBy.DESC,
             page: query ? DEFAULT_PAGE : filters.page,
             quality: filters.quality ?? DEFAULT_QUALITY,
-            query_term: query.trim() as string,
+            query_term: extractedQuery as string,
             sort_by: filters.sort_by ?? SortBy.DOWNLOAD_COUNT,
         }
     }, [filters, query]);
@@ -52,10 +56,11 @@ const Search = () => {
             hasMounted.current = true;
     
             if (currentQuery && !query.length) {
+                const extractedQuery = extractImdbCode(currentQuery);
                 const newParams: Filters = {
                     ...params,
                     page: DEFAULT_PAGE,
-                    query_term: currentQuery,
+                    query_term: extractedQuery,
                 }
     
                 dispatch(setFilters(newParams));
@@ -72,7 +77,7 @@ const Search = () => {
             type="search"
             id='searchInput'
             autoComplete='off'
-            placeholder='Search movies...'
+            placeholder='Search movies or IMDb codes...'
             className='text-black text-sm font-semibold px-1 py-1 placeholder:opacity-75 outline-none rounded-l-sm bg-white w-full md:w-[200px] md:focus:w-[320px] lg:w-[320px] lg:focus:w-[440px] transition-all duration-100'
             value={query as string}
             onChange={onInputChange}

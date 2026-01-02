@@ -79,6 +79,8 @@ function reinsertTags(text, tags) {
 }
 
 export const parseSRTtoVTT = (data, lang) => {
+    const isLangRTL = isRTL(lang);
+    
     const processRTLText = (line) => {
         const RLE = '\u202B';
         const PDF = '\u202C';
@@ -96,7 +98,12 @@ export const parseSRTtoVTT = (data, lang) => {
         // Remove all tags from the line for punctuation processing
         const plainText = line.replace(tagRegex, '');
 
-        // Step 2: Handle lines that start with hyphen
+        // For LTR languages, return the line as-is (no RTL processing)
+        if (!isLangRTL) {
+            return line; // Keep original line for LTR languages
+        }
+
+        // Step 2: Handle lines that start with hyphen (RTL only)
         if (plainText.startsWith('-')) {
             const restOfLine = plainText.substring(1);
             const trailingPunctMatch = restOfLine.match(/([.…?!`':,]+)$/);
@@ -110,7 +117,7 @@ export const parseSRTtoVTT = (data, lang) => {
             return reinsertTags(final, tags);
         }
 
-        // Step 3: Match leading/trailing punctuation
+        // Step 3: Match leading/trailing punctuation (RTL only)
         const leadingPunctMatch = plainText.match(/^([.…?!'"`:=,\-\s]+)/);
         const trailingPunctMatch = plainText.match(/([.…?!'"`:=,\-\s]+)$/);
 

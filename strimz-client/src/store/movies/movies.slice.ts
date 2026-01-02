@@ -31,6 +31,7 @@ interface MoviesState {
   isSubtitlesEnabled: boolean;
   externalTorrent: {hash: string, title: string} | null;
   subtitlesSize: number;
+  subtitleDelay: number;
   selectedTorrent: Torrent | null;
   vttSubtitlesContent: string | null;
   availableSubtitlesLanguages: string[];
@@ -56,6 +57,7 @@ const initialState: MoviesState = {
   isSubtitlesEnabled: false,
   externalTorrent: null,
   subtitlesSize: DEFAULT_SUBTITLES_SIZE,
+  subtitleDelay: 0,
   selectedTorrent: null,
   vttSubtitlesContent: null,
   availableSubtitlesLanguages: [],
@@ -281,6 +283,9 @@ const moviesSlice = createSlice({
     setSubtitlesSize(state, action: PayloadAction<number>) {
       state.subtitlesSize = action.payload;
     },
+    setSubtitleDelay(state, action: PayloadAction<number>) {
+      state.subtitleDelay = action.payload;
+    },
     setSelectedTorrent(state, action: PayloadAction<Torrent | null>) {
       state.selectedTorrent = action.payload;
     },
@@ -385,6 +390,7 @@ export const {
   setIsSubtitlesEnabled,
   setExternalTorrent,
   setSubtitlesSize,
+  setSubtitleDelay,
   setSelectedTorrent,
   setVttSubtitlesContent,
   setAvailableSubtitlesLanguages,

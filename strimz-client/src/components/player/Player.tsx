@@ -11,7 +11,7 @@ import { twMerge } from 'tailwind-merge';
 import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
-import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectExternalTorrent } from '@/store/movies/movies.selectors';
+import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectExternalTorrent, selectSubtitleDelay } from '@/store/movies/movies.selectors';
 import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { setIsSubtitlesEnabled, setVttSubtitlesContent } from '@/store/movies/movies.slice';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
@@ -58,6 +58,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const [duration, setDuration] = useState<number>(0);
     const [playbackWidth, setPlaybackWidth] = useState<number>(0);
     const [isMuted, setIsMuted] = useState<boolean>(false);
+    const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -66,6 +67,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
     const hasSubtitles = useAppSelector(selectSubtitleFilePath);
+    const subtitleDelay = useAppSelector(selectSubtitleDelay);
 
     const isInfoPanelOpen = useAppSelector(selectMovieDownloadInfoPanel);
     
@@ -103,10 +105,11 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         if (!videoRef.current) return;
 
         const currentTime = videoRef.current.currentTime;
+        const adjustedTime = currentTime + subtitleDelay;
         let currentSubtitleText = '';
 
         for (const cue of parsedSubtitles) {
-            if (currentTime >= cue.start && currentTime <= cue.end) {
+            if (adjustedTime >= cue.start && adjustedTime <= cue.end) {
                 currentSubtitleText = cue.text;
                 break;
             }
@@ -118,7 +121,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             }
             return prev;
         });
-    }, [parsedSubtitles]);
+    }, [parsedSubtitles, subtitleDelay]);
 
     const throttledHandleTimeUpdate = useRef<((e: React.SyntheticEvent<HTMLVideoElement>) => void) | null>(null);
     const throttledSavePlaybackPosition = useRef<((currentTime: number) => void) | null>(null);
@@ -366,6 +369,60 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         convertSubtitleToVTT();
     }, [subtitleFilePath, subtitleLang, subsMetadata?.lang, dispatch]);
 
+    // Update video dimensions when video element resizes
+    useEffect(() => {
+        if (!isReadyToPlay) return;
+        
+        const video = videoRef.current;
+        if (!video) return;
+
+        const updateDimensions = () => {
+            if (video) {
+                const width = video.clientWidth || 0;
+                const height = video.clientHeight || 0;
+                if (width > 0 && height > 0) {
+                    setVideoDimensions(prev => {
+                        // Only update if dimensions actually changed to prevent unnecessary re-renders
+                        if (prev.width === width && prev.height === height) {
+                            return prev;
+                        }
+                        return { width, height };
+                    });
+                }
+            }
+        };
+
+        // Initial dimensions with a small delay to ensure video is rendered
+        const timeoutId = setTimeout(updateDimensions, 100);
+
+        // Use ResizeObserver for efficient dimension tracking
+        const resizeObserver = new ResizeObserver(() => {
+            updateDimensions();
+        });
+
+        resizeObserver.observe(video);
+
+        // Also listen to fullscreen changes
+        const handleFullscreenChange = () => {
+            // Small delay to ensure dimensions are updated after fullscreen change
+            setTimeout(updateDimensions, 100);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+        return () => {
+            clearTimeout(timeoutId);
+            resizeObserver.disconnect();
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+        };
+    }, [isReadyToPlay]);
+
     useEffect(() => {
         return () => {
             videoRef.current?.pause();
@@ -388,10 +445,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             isVisible={controlsVisible}
                             title={`${title} ${movie?.year ? `(${movie.year})` : ''}`}
                             downloadInfo={downloadInfo}
-                            videoDimensions={{
-                                height: videoRef.current?.clientHeight || 0,
-                                width: videoRef.current?.clientWidth || 0,
-                            }}
+                            videoDimensions={videoDimensions}
                         />
 
                         <ShortcutActionDisplay
@@ -468,10 +522,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             setCurrentSubtitle={setCurrentSubtitle}
                             parsedSubtitles={parsedSubtitles}
                             setParsedSubtitles={setParsedSubtitles}
-                            videoDimensions={{
-                                height: videoRef.current?.clientHeight || 0,
-                                width: videoRef.current?.clientWidth || 0,
-                            }}
+                            videoDimensions={videoDimensions}
                         />
 
                         <Controls

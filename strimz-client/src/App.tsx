@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import SplashScreen from './components/SplashScreen';
 import { ping } from './utils/ping';
 import Home from './components/Home';
@@ -22,11 +22,13 @@ import PlayTorrentPrompt from './components/PlayTorrentPrompt';
 import { fetchUserSettings } from './store/settings/settings.slice';
 import PlayFromMagnetModal from './components/PlayFromMagnetModal';
 import DownloadsPage from './pages/Downloads';
-import { fetchAllDownloadsAsync, fetchDownloadedFilesAsync } from './store/downloads/downloads.slice';
+import { fetchAllDownloadsAsync, fetchDownloadedFilesAsync, setCompleted } from './store/downloads/downloads.slice';
 import { createNewStreamClient } from './utils/createStreamClient';
 import { selectSettings } from './store/settings/settings.selectors';
-import { validateDownloadsCache } from './utils/downloadsCache';
-import { selectDownloads, selectDownloadedFiles } from './store/downloads/downloads.selectors';
+import { validateDownloadsCache, updateDownloadCompletion } from './utils/downloadsCache';
+import { selectDownloads, selectDownloadedFiles, selectCompleted } from './store/downloads/downloads.selectors';
+import { selectSocket } from './store/socket/socket.selectors';
+import { DownloadProgressData } from './utils/types';
 
 const WatchMoviePage = lazy(() => import('./pages/Watch'));
 const WatchFilePage = lazy(() => import('./pages/WatchFile'));
@@ -90,6 +92,42 @@ const MoviesPage = () => {
 
   const downloads = useAppSelector(selectDownloads);
   const downloadedFiles = useAppSelector(selectDownloadedFiles);
+  const completed = useAppSelector(selectCompleted);
+  const socket = useAppSelector(selectSocket);
+
+  // Track which downloads we've already processed to avoid duplicate updates
+  const processedCompletionsRef = useRef<Set<string>>(new Set());
+
+  // Global listener for download completion - updates Redux store regardless of active page
+  useEffect(() => {
+    if (!socket?.id) return;
+
+    const handleDownloadCompletion = (data: DownloadProgressData) => {
+      const isCompleted = data.done || (data.progress !== undefined && data.progress >= 1.0);
+      const hashLower = data.hash.toLowerCase();
+
+      if (isCompleted && !processedCompletionsRef.current.has(hashLower)) {
+        processedCompletionsRef.current.add(hashLower);
+
+        // Update Redux store
+        dispatch(setCompleted([...completed.filter(c => c !== hashLower), hashLower]));
+        
+        // Update cache
+        updateDownloadCompletion(data.hash, true);
+        
+        // Fetch updated downloads list to sync with backend
+        dispatch(fetchAllDownloadsAsync());
+      }
+    };
+
+    socket.on('downloadProgress', handleDownloadCompletion);
+    socket.on('downloadDone', handleDownloadCompletion);
+
+    return () => {
+      socket.off('downloadProgress', handleDownloadCompletion);
+      socket.off('downloadDone', handleDownloadCompletion);
+    };
+  }, [socket, completed, dispatch]);
 
   useEffect(() => {
     const initializeApp = async () => {
