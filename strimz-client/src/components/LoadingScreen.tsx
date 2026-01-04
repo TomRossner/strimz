@@ -17,7 +17,11 @@ const LoadingScreen = ({hash}: LoadingScreenProps) => {
   const dispatch = useAppDispatch();
 
   const handleClose = async () => {
-    await pauseDownload(hash);
+    try {
+      await pauseDownload(hash);
+    } catch (error) {
+      console.error('Failed to pause download:', error);
+    }
     dispatch(closeModal('movie'));
     navigate(-1);
   }
@@ -25,7 +29,7 @@ const LoadingScreen = ({hash}: LoadingScreenProps) => {
 
   return (
     <section className='relative w-full h-[100vh] flex items-center justify-center flex-col'>
-      <BackButton onClick={handleClose} className='absolute top-1 left-1' />
+      <BackButton cb={handleClose} className='absolute top-1 left-1' />
 
       <img
         src={Popcorn}

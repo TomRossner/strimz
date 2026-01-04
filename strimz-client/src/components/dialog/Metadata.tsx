@@ -113,12 +113,14 @@ const Metadata = ({movie}: MetadataProps) => {
   return (
     <div className='flex flex-col gap-1.5 text-white w-full'>
         <p className='text-white flex items-center gap-2 flex-wrap'>
-            <span
-                title={language.toUpperCase()}
-                className='rounded-md px-2 py-1 text-sm text-center bg-blue-400'
-            >
-                {language.toUpperCase()}
-            </span>
+            {language && (
+                <span
+                    title={language.toUpperCase()}
+                    className='rounded-md px-2 py-1 text-sm text-center bg-blue-400'
+                >
+                    {language.toUpperCase()}
+                </span>
+            )}
 
             <span className='text-[4px]'><BsCircleFill/></span>
 

@@ -63,6 +63,8 @@ const MovieCard = ({ movie, setOpen }: Props) => {
     id,
     title,
     large_cover_image,
+    medium_cover_image,
+    small_cover_image,
     torrents,
   } = movie;
 
@@ -100,13 +102,23 @@ const MovieCard = ({ movie, setOpen }: Props) => {
       <div className="absolute z-[5] bg-white text-black drop-shadow-md top-1 right-1 rounded-sm font-semibold px-2 py-1 text-center">
         {getBestTorrentQuality(torrents as Torrent[])}
       </div>
-      <img
-        src={large_cover_image}
-        alt={title}
-        width={250}
-        height={375}
-        className="opacity-80 hover:opacity-100 transition-all w-full h-full object-cover"
-      />
+      {(large_cover_image || medium_cover_image || small_cover_image) && (
+        <img
+          src={large_cover_image || medium_cover_image || small_cover_image || undefined}
+          alt={title}
+          width={250}
+          height={375}
+          className="opacity-80 hover:opacity-100 transition-all w-full h-full object-cover"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src !== medium_cover_image && medium_cover_image) {
+              target.src = medium_cover_image;
+            } else if (target.src !== small_cover_image && small_cover_image) {
+              target.src = small_cover_image;
+            }
+          }}
+        />
+      )}
     </Button>
   )
 }

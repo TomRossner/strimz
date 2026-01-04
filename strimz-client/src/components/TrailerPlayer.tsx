@@ -61,6 +61,7 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
             allowFullScreen
             src={setIframeSrc(yt_trailer_code)}
             title={title}
+            referrerPolicy={"strict-origin-when-cross-origin"}
             className="w-full aspect-video"
         />
     </Dialog>

@@ -37,7 +37,8 @@ enum Ratings {
 
 enum Endpoints {
     MOVIES_LIST = 'list_movies.json',
-    MOVIE_DETAILS = 'movie_details.json'
+    MOVIE_DETAILS = 'movie_details.json',
+    MOVIE_SUGGESTIONS = 'movie_suggestions.json'
 }
 
 type QueryParam = {
@@ -70,6 +71,7 @@ class YTS {
     // URL endpoints
     private readonly _MOVIES_LIST_ENDPOINT: Endpoints.MOVIES_LIST;
     private readonly _MOVIE_DETAILS_ENDPOINT: Endpoints.MOVIE_DETAILS;
+    private readonly _MOVIE_SUGGESTIONS_ENDPOINT: Endpoints.MOVIE_SUGGESTIONS;
 
     // Default page number
     private readonly _DEFAULT_PAGE_NUMBER: number;
@@ -87,6 +89,7 @@ class YTS {
         
         this._MOVIES_LIST_ENDPOINT = Endpoints.MOVIES_LIST;
         this._MOVIE_DETAILS_ENDPOINT = Endpoints.MOVIE_DETAILS;
+        this._MOVIE_SUGGESTIONS_ENDPOINT = Endpoints.MOVIE_SUGGESTIONS;
 
         this._DEFAULT_PAGE_NUMBER = 1;
         
@@ -269,6 +272,16 @@ class YTS {
             movie_id: movieId,
             with_images: withImages,
             with_cast: withCast
+        });
+    }
+
+    async getMovieSuggestions(movieId: string) {
+        if (!movieId || isNaN(Number(movieId))) {
+            throw new Error(`${movieId} is not a valid value for movie_id. This parameter should be a number`);
+        }
+
+        return await this._get(this._MOVIE_SUGGESTIONS_ENDPOINT, {
+            movie_id: movieId
         });
     }
 }

@@ -91,21 +91,15 @@ const DownloadsPage = () => {
     // Restore in-progress downloads to client on mount (only once per app session)
     useEffect(() => {
         if (!socket?.id || !settings.downloadsFolderPath) {
-            console.log('[Downloads] Restore skipped: missing socket.id or downloadsFolderPath', { 
-                socketId: socket?.id, 
-                folderPath: settings.downloadsFolderPath 
-            });
             return;
         }
         
         // Only restore once per app session using module-level flag
         // This persists across component unmounts/remounts
         if (hasCompletedInitialRestore) {
-            console.log('[Downloads] Restore skipped: already completed initial restore');
             return;
         }
         
-        console.log('[Downloads] Starting initial restore...');
         // Mark as started immediately to prevent concurrent executions
         hasCompletedInitialRestore = true;
 
@@ -124,11 +118,8 @@ const DownloadsPage = () => {
 
                 // If no in-progress downloads, nothing to do
                 if (inProgressDownloads.length === 0) {
-                    console.log('[Downloads] No in-progress downloads to restore');
                     return;
                 }
-
-                console.log(`[Downloads] Found ${inProgressDownloads.length} in-progress downloads to restore`);
 
                 // Process each download sequentially to prevent race conditions
                 for (const info of inProgressDownloads) {
@@ -136,19 +127,16 @@ const DownloadsPage = () => {
                     
                     // Double-check: Skip if somehow marked as completed (shouldn't happen due to filter above)
                     if (info.isCompleted) {
-                        console.log(`[Downloads] Skipping ${info.title} - marked as completed`);
                         continue;
                     }
                     
                     // Skip if we've already successfully restored this torrent
                     if (restoredTorrentsRef.current.has(hashLower)) {
-                        console.log(`[Downloads] Skipping ${info.title} - already restored`);
                         continue;
                     }
 
                     // Skip if currently being restored (prevents concurrent restores)
                     if (restoringTorrentsRef.current.has(hashLower)) {
-                        console.log(`[Downloads] Skipping ${info.title} - restore in progress`);
                         continue;
                     }
 
@@ -166,20 +154,17 @@ const DownloadsPage = () => {
                         // Check if it's already completed - if so, skip restoration (can be played from disk)
                         // The 'done' property should be available if the download is completed
                         if (exists.done) {
-                            console.log(`[Downloads] Skipping ${info.title} - already completed in client`);
                             restoredTorrentsRef.current.add(hashLower);
                             continue;
                         }
                         
                         // Already active but not completed - mark as restored and skip
-                        console.log(`[Downloads] Skipping ${info.title} - already active in client`);
                         restoredTorrentsRef.current.add(hashLower);
                         continue;
                     }
 
                     // Mark as currently being restored BEFORE making the API call
                     restoringTorrentsRef.current.add(hashLower);
-                    console.log(`[Downloads] Restoring ${info.title} (${hashLower})...`);
 
                     try {
                         // Restore torrent to client
@@ -196,7 +181,6 @@ const DownloadsPage = () => {
                             if (restoreResponse?.status === 200) {
                                 // Mark as successfully restored
                                 restoredTorrentsRef.current.add(hashLower);
-                                console.log(`[Downloads] Successfully restored ${info.title}`);
                                 
                                 // Wait a bit to ensure the torrent is fully registered in activeTorrents
                                 // Then pause the download to prevent it from continuing to download
@@ -204,14 +188,12 @@ const DownloadsPage = () => {
                                 
                                 try {
                                     await pauseDownload(info.hash);
-                                    console.log(`[Downloads] Paused ${info.title} after restore`);
                                 } catch (pauseError) {
                                     console.error(`[Downloads] Failed to pause ${info.title} after restore:`, pauseError);
                                     // Retry pause after another short delay
                                     setTimeout(async () => {
                                         try {
                                             await pauseDownload(info.hash);
-                                            console.log(`[Downloads] Paused ${info.title} after restore (retry)`);
                                         } catch (retryError) {
                                             console.error(`[Downloads] Failed to pause ${info.title} after restore (retry):`, retryError);
                                         }
@@ -228,8 +210,6 @@ const DownloadsPage = () => {
                         restoringTorrentsRef.current.delete(hashLower);
                     }
                 }
-                
-                console.log(`[Downloads] Initial restore completed. Processed ${inProgressDownloads.length} in-progress downloads`);
                 
                 // Refetch downloads after restore to get newly restored torrents in the UI
                 // Wait a bit to allow backend to add them to activeTorrents
@@ -593,30 +573,43 @@ const DownloadsPage = () => {
 
     const clearTorrentHandler = async (hash: string, dir: string) => {
         try {
-            // Remove from local state
-            setDownloadsStatus(prev =>
-                prev.filter(d => d.hash !== hash)
-            );
+            // Delete from backend FIRST (this removes from activeTorrents and deletes directory)
+            // Only update state if deletion succeeds
+            const response = await deleteDownload(hash, dir);
             
-            // Remove from Redux downloads state
-            dispatch(removeDownload(hash));
-            
-            // Remove from completed state (already handled by removeDownload)
-            // But ensure it's also removed from completed array
-            dispatch(setCompleted(completed.filter(c => c !== hash.toLowerCase())));
-            
-            // Remove from cache
-            removeDownloadInfo(hash);
-            
-            // Delete from backend (this removes from activeTorrents and deletes directory)
-            await deleteDownload(hash, dir);
-            
-            // Refresh downloaded files to reflect deletion
-            if (settings.downloadsFolderPath) {
-                dispatch(fetchDownloadedFilesAsync(settings.downloadsFolderPath));
+            // Only proceed with state updates if deletion was successful
+            if (response.status === 200) {
+                // Remove from local state
+                setDownloadsStatus(prev =>
+                    prev.filter(d => d.hash !== hash)
+                );
+                
+                // Remove from Redux downloads state
+                dispatch(removeDownload(hash));
+                
+                // Remove from completed state (already handled by removeDownload)
+                // But ensure it's also removed from completed array
+                dispatch(setCompleted(completed.filter(c => c !== hash.toLowerCase())));
+                
+                // Remove from cache
+                removeDownloadInfo(hash);
+                
+                // Wait a bit to ensure file system operations complete before refreshing
+                // This prevents the deleted file from reappearing in the list
+                setTimeout(() => {
+                    // Refresh downloaded files to reflect deletion
+                    if (settings.downloadsFolderPath) {
+                        dispatch(fetchDownloadedFilesAsync(settings.downloadsFolderPath));
+                    }
+                    // Also refresh downloads list to ensure backend state is synced
+                    dispatch(fetchAllDownloadsAsync());
+                }, 500);
+            } else {
+                console.error('Failed to delete download: Backend returned non-200 status', response.status);
             }
         } catch (error) {
             console.error('Error deleting download:', error);
+            // Don't update state if deletion failed - file still exists
         }
     }
 
@@ -669,41 +662,52 @@ const DownloadsPage = () => {
 
     const handleDeleteFileOnly = async (folderName: string) => {
         try {
-            // Find the file in downloadedFiles
-            const fileToDelete = downloadedFiles.find(f => {
-                const folderNameFromPath = f.path.split(/[/\\]/)[0] || f.path;
-                return folderNameFromPath === folderName;
-            });
-            
-            // Remove from downloadedFiles state
-            if (fileToDelete) {
-                // Remove all files in this folder
-                downloadedFiles.forEach(file => {
-                    const folderNameFromPath = file.path.split(/[/\\]/)[0] || file.path;
-                    if (folderNameFromPath === folderName) {
-                        dispatch(removeDownloadedFile(file.path));
-                    }
-                });
-            }
-            
-            // Check cache for any matching download info
-            const cache = getDownloadsCache();
-            for (const [hash, info] of Object.entries(cache)) {
-                if (info.title === folderName) {
-                    removeDownloadInfo(hash);
-                }
-            }
-            
-            // Delete the directory from disk via backend
+            // Delete the directory from disk via backend FIRST
+            // Only update state if deletion succeeds
             const dirToDelete = `${settings.downloadsFolderPath}/${folderName}`;
-            await deleteDownload('', dirToDelete); // Empty hash for file-only deletes
+            const response = await deleteDownload('', dirToDelete); // Empty hash for file-only deletes
             
-            // Refresh downloaded files to reflect deletion
-            if (settings.downloadsFolderPath) {
-                dispatch(fetchDownloadedFilesAsync(settings.downloadsFolderPath));
+            // Only proceed with state updates if deletion was successful
+            if (response.status === 200) {
+                // Find the file in downloadedFiles
+                const fileToDelete = downloadedFiles.find(f => {
+                    const folderNameFromPath = f.path.split(/[/\\]/)[0] || f.path;
+                    return folderNameFromPath === folderName;
+                });
+                
+                // Remove from downloadedFiles state
+                if (fileToDelete) {
+                    // Remove all files in this folder
+                    downloadedFiles.forEach(file => {
+                        const folderNameFromPath = file.path.split(/[/\\]/)[0] || file.path;
+                        if (folderNameFromPath === folderName) {
+                            dispatch(removeDownloadedFile(file.path));
+                        }
+                    });
+                }
+                
+                // Check cache for any matching download info
+                const cache = getDownloadsCache();
+                for (const [hash, info] of Object.entries(cache)) {
+                    if (info.title === folderName) {
+                        removeDownloadInfo(hash);
+                    }
+                }
+                
+                // Wait a bit to ensure file system operations complete before refreshing
+                // This prevents the deleted file from reappearing in the list
+                setTimeout(() => {
+                    // Refresh downloaded files to reflect deletion
+                    if (settings.downloadsFolderPath) {
+                        dispatch(fetchDownloadedFilesAsync(settings.downloadsFolderPath));
+                    }
+                }, 500);
+            } else {
+                console.error('Failed to delete file-only download: Backend returned non-200 status', response.status);
             }
         } catch (error) {
             console.error('Error deleting file-only download:', error);
+            // Don't update state if deletion failed - file still exists
         }
     }
 

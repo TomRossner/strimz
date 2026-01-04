@@ -53,7 +53,6 @@ export const fetchDownloadedFilesAsync = createAsyncThunk(
     async (dir: string, {rejectWithValue}) => {
         try {
             const {data: {files}} = await getDownloadedFiles(dir);
-            console.log(files);
             return files;
         } catch (error) {
             return rejectWithValue(error);

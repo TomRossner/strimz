@@ -10,8 +10,8 @@ import MobileCoverSpacer from './MobileCoverSpacer';
 import Metadata from './Metadata';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { setAvailableSubtitlesLanguages, setSelectedTorrent, setSubtitleFilePath, setSubtitleLang, setUnavailableSubtitlesLanguages } from '@/store/movies/movies.slice';
-import { closeModal } from '@/store/modals/modals.slice';
+import { setAvailableSubtitlesLanguages, setSelectedMovie, setSelectedTorrent, setSubtitleFilePath, setSubtitleLang, setUnavailableSubtitlesLanguages } from '@/store/movies/movies.slice';
+import { closeModal, openModal } from '@/store/modals/modals.slice';
 import { selectSettings } from '@/store/settings/settings.selectors';
 import { checkAvailability, downloadSubtitles } from '@/services/subtitles';
 import { CACHE_TTL, getSubsCache, updateSubsCache } from '@/utils/subsLanguagesCache';
@@ -21,6 +21,10 @@ import { playTorrent } from '@/services/movies';
 import { COMMON_LANGUAGES } from '@/utils/languages';
 import { getDownloadsCache } from '@/utils/downloadsCache';
 import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
+import { getMovieSuggestions } from '@/services/suggestions';
+import MovieCard from '../MovieCard';
+import MoviesListSkeleton from '../MoviesListSkeleton';
+import { getMoviesByIds } from '@/services/movies';
 
 interface MovieInfoPanelProps {
     movie: Movie;
@@ -65,6 +69,9 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
     }, [hash, selectedQuality, movie?.torrents, dispatch]);
 
     const [diskSpace, setDiskSpace] = useState<DiskSpaceInfo | null>(null);
+    const [isSuggestionsOpen, setIsSuggestionsOpen] = useState<boolean>(false);
+    const [suggestions, setSuggestions] = useState<Movie[]>([]);
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
 
     // Check if this movie has already been downloaded (completed)
     const downloadedMovieInfo = useMemo(() => {
@@ -99,6 +106,45 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         setHash('');
         setSelectedQuality('');
         dispatch(setSubtitleFilePath(null));
+    }
+
+    const toggleSuggestions = () => {
+        setIsSuggestionsOpen(prev => !prev);
+    }
+
+    const handleSuggestionClick = async (suggestionMovie: Movie) => {
+        setIsSuggestionsOpen(false);
+        
+        // Reset quality and hash selection when switching movies
+        setSelectedQuality('');
+        setHash('');
+        
+        // Fetch full movie details to ensure all image fields are present
+        try {
+            const response = await getMoviesByIds([suggestionMovie.id]);
+            if (response.data?.movies && response.data.movies.length > 0) {
+                const fullMovie = response.data.movies[0];
+                
+                // Preload images for faster display
+                if (fullMovie.large_cover_image) {
+                    const coverImg = new Image();
+                    coverImg.src = fullMovie.large_cover_image;
+                }
+                if (fullMovie.background_image) {
+                    const bgImg = new Image();
+                    bgImg.src = fullMovie.background_image;
+                }
+                
+                dispatch(setSelectedMovie(fullMovie));
+            } else {
+                // Fallback to suggestion movie if full details not available
+                dispatch(setSelectedMovie(suggestionMovie));
+            }
+        } catch (error) {
+            console.error('Failed to fetch full movie details:', error);
+            // Fallback to suggestion movie on error
+            dispatch(setSelectedMovie(suggestionMovie));
+        }
     }
 
     const handleTorrentSelect = (hash: string) => {
@@ -305,9 +351,65 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Fetch suggestions when movie changes
+    useEffect(() => {
+        if (!movie.id) {
+            setSuggestions([]);
+            return;
+        }
+
+        const fetchSuggestions = async () => {
+            setIsLoadingSuggestions(true);
+            try {
+                const response = await getMovieSuggestions(movie.id);
+                
+                // Handle different possible response structures
+                let movies = [];
+                
+                // Check for standard YTS API structure: { status: "ok", data: { movies: [...] } }
+                if (response.data?.data?.movies && Array.isArray(response.data.data.movies)) {
+                    movies = response.data.data.movies;
+                } 
+                // Check for alternative structure: { movies: [...] }
+                else if (response.data?.movies && Array.isArray(response.data.movies)) {
+                    movies = response.data.movies;
+                } 
+                // Check if data is directly an array
+                else if (Array.isArray(response.data)) {
+                    movies = response.data;
+                }
+                // Check if data.data is directly an array
+                else if (Array.isArray(response.data?.data)) {
+                    movies = response.data.data;
+                }
+                
+                // Filter movies - accept movies even without images for now to see what we get
+                const validMovies = movies.filter((m: Movie) => {
+                    if (!m || !m.id) {
+                        return false;
+                    }
+                    return true;
+                });
+                
+                setSuggestions(validMovies);
+            } catch (error) {
+                console.error('Failed to fetch suggestions:', error);
+                if (error instanceof Error) {
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+                }
+                setSuggestions([]);
+            } finally {
+                setIsLoadingSuggestions(false);
+            }
+        };
+
+        fetchSuggestions();
+    }, [movie.id]);
     
   return (
-    <div className='min-h-full overflow-y-auto md:relative w-full flex flex-col justify-between absolute top-0 md:grow md:justify-center'>
+    <div className='min-h-full overflow-y-auto overflow-x-hidden md:relative w-full flex flex-col justify-between absolute top-0 md:grow md:justify-center relative'>
         <MobileCoverSpacer />
 
         <div className='flex flex-col inset-0 bg-gradient-to-t from-stone-950 from-30% md:from-40% md:grow px-2 relative'>
@@ -348,6 +450,85 @@ const MovieInfoPanel = ({movie, close}: MovieInfoPanelProps) => {
                 />
             </div>
         </div>
+
+        {/* Suggestions Sidebar Handle */}
+        <button
+            onClick={toggleSuggestions}
+            className={`absolute right-0 top-1/2 -translate-y-1/2 z-50 bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-all duration-300 px-1.5 py-4 rounded-l-lg shadow-lg cursor-pointer border border-blue-500 ${
+                isSuggestionsOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}
+            aria-label="Toggle suggestions"
+        >
+            <svg
+                className={`w-4 h-4 transition-transform duration-300 ${isSuggestionsOpen ? '' : 'scale-x-[-1]'}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+        </button>
+
+        {/* Suggestions Sidebar */}
+        <div
+            className={`absolute top-0 right-0 h-full w-full bg-stone-900 z-40 transition-transform duration-300 ease-in-out ${
+                isSuggestionsOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}
+        >
+            <div className="h-full w-full flex flex-col">
+                {/* Sidebar Header */}
+                <div className="flex items-center justify-between p-4 border-b border-stone-700">
+                    <h2 className="text-xl font-semibold text-white">Suggestions</h2>
+                    <button
+                        onClick={toggleSuggestions}
+                        className="text-stone-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-stone-800 cursor-pointer"
+                        aria-label="Close suggestions"
+                    >
+                        <svg
+                            className="w-6 h-6"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Sidebar Content */}
+                <div className="flex-1 overflow-hidden p-4">
+                    {isLoadingSuggestions ? (
+                        <div className="text-stone-400 text-center mt-8">
+                            <p>Loading suggestions...</p>
+                        </div>
+                    ) : suggestions.length > 0 ? (
+                        <div className="grid grid-cols-2 grid-rows-2 gap-3 h-full">
+                            {suggestions.slice(0, 4).map((suggestion) => (
+                                <div key={suggestion.id} className="w-full h-full [&>button]:min-w-0 [&>button]:max-w-none [&>button]:w-full [&>button]:h-full [&>button]:max-h-full [&>button]:hover:scale-100 [&>button]:border-0 [&>button]:hover:border-0 [&>button]:outline-0 [&>button]:hover:outline [&>button]:hover:outline-1 [&>button]:hover:outline-stone-400">
+                                    <MovieCard
+                                        movie={suggestion}
+                                        setOpen={() => handleSuggestionClick(suggestion)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-stone-400 text-center mt-8">
+                            <p>No suggestions available</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        {/* Overlay when sidebar is open */}
+        {isSuggestionsOpen && (
+            <div
+                className="absolute inset-0 bg-black/50 z-30 transition-opacity duration-300"
+                onClick={toggleSuggestions}
+                aria-hidden="true"
+            />
+        )}
     </div>
   )
 }

@@ -9,9 +9,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 const getMovieQualities = (torrents: Torrent[]): string[] => {
     const qualities = new Set<string>();
 
+    if (!torrents || !Array.isArray(torrents)) {
+        return [];
+    }
+
     for (const torrent of torrents) {
-        if (!qualities.has(torrent.quality)) {
-            qualities.add(torrent.quality);
+        if (torrent && torrent.quality) {
+            if (!qualities.has(torrent.quality)) {
+                qualities.add(torrent.quality);
+            }
         }
     }
 
@@ -43,7 +49,8 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
         <div className='min-w-fit p-1 w-full rounded-sm text-white flex items-center gap-1'>
             {Array.from(Object.values(QUALITIES))
                 .map(q => {
-                    const isAvailable: boolean = getMovieQualities(torrents as Torrent[]).some(qual => qual === q);
+                    const availableQualities = getMovieQualities((torrents || []) as Torrent[]);
+                    const isAvailable: boolean = availableQualities.some(qual => qual === q);
                     return (
                         <div key={q} className='flex gap-2 items-center w-fit rounded-md'>
                             <input

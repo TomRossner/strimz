@@ -15,6 +15,7 @@ import subtitlesRouter from './routes/subtitles.routes.js';
 import downloadsRouter from './routes/downloads.routes.js';
 import clientRouter from './routes/client.routes.js';
 import torrentsRouter from './routes/torrents.routes.js';
+import suggestionsRouter from './routes/suggestions.routes.js';
 
 const app = express();
 const PORT: number = parseInt(process.env.PORT as string) || 3003;
@@ -45,6 +46,7 @@ app.use('/api/subtitles', subtitlesRouter);
 app.use('/api/downloads', downloadsRouter);
 app.use('/api/client', clientRouter);
 app.use('/api/torrents', torrentsRouter);
+app.use('/api/suggestions', suggestionsRouter);
 
 const init = async (): Promise<void> => {
     try {

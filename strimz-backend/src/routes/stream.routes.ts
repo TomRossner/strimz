@@ -11,6 +11,8 @@ streamRouter.get('/:slug', handleNewStream);
 streamRouter.post('/get-torrent-data', getTorrentData);
 streamRouter.post('/pause/:hash', pauseTorrent);
 streamRouter.post('/play/:hash', resumeTorrent);
+// Route for file-only deletes (no hash) - must come before /delete/:hash
+streamRouter.delete('/delete', deleteTorrent);
 streamRouter.delete('/delete/:hash', deleteTorrent);
 
 export default streamRouter;

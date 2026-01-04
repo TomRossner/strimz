@@ -33,10 +33,10 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
         </p>
 
         <ol className='flex flex-col gap-2 w-full h-auto max-h-[95px] overflow-y-auto'>
-            {torrents.length && quality ? (
+            {torrents && Array.isArray(torrents) && torrents.length > 0 && quality ? (
                 <>
                 {(torrents as Torrent[])
-                    .filter(t => t.quality === quality)
+                    .filter(t => t && t.quality === quality)
                     .map((t, idx) => (
                         <li key={t.hash} className='flex gap-2 items-center w-full'>
                             <Tooltip delayDuration={1000}>
