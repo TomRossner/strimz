@@ -1,34 +1,53 @@
 import { Request, Response } from 'express';
-import { navigateAndCheckAvailability, navigateAndDownload, scrapeAvailableLanguages } from '../scraper/subtitles.scraper.js';
+import { searchSubtitlesByImdbId, downloadSubtitleFromApi } from '../subtitles/subtitles.js';
 import path from 'path';
 import fs from 'fs';
 
 const RESPONSE_TIMEOUT: number = 60000 // milliseconds;
 
-export const fetchAvailableSubtitles = async (req: Request, res: Response) => {
+/**
+ * Search for subtitles using OpenSubtitles REST API
+ * GET /api/subtitles/search-by-imdb?imdb_id=tt1234567&trusted_sources=only&type=movie
+ */
+export const searchSubtitlesByImdb = async (req: Request, res: Response) => {
     try {
         res.setTimeout(RESPONSE_TIMEOUT);
-        const imdbCode = req.query.imdbCode?.toString();
-        const title = req.query.title?.toString();
-        const year = req.query.year?.toString();
+        const imdbId = req.query.imdb_id?.toString();
+        // Default to undefined (no filter) to get ALL subtitles, matching website behavior
+        // Only filter by trusted_sources if explicitly requested
+        const trustedSources = req.query.trusted_sources?.toString();
+        const type = req.query.type?.toString() || 'movie';
 
-        if (!imdbCode || !title || !year) {
-            res.sendStatus(400);
+        if (!imdbId) {
+            res.status(400).json({ error: 'imdb_id is required' });
             return;
         }
 
-        const languages = await scrapeAvailableLanguages(imdbCode, title, year);
-        res.status(200).json(languages);
+        // Remove 'tt' prefix if present (OpenSubtitles API expects just the number)
+        const cleanImdbId = imdbId.startsWith('tt') ? imdbId : `tt${imdbId}`;
+
+        const result = await searchSubtitlesByImdbId(cleanImdbId, trustedSources, type);
+        res.status(200).json(result);
     } catch (error) {
-        console.error(error);
-        res.status(400).json("Failed fetching subtitles");
+        console.error('Error searching subtitles by IMDb:', error);
+        res.status(500).json({ error: 'Failed to search subtitles' });
     }
 }
 
-export const downloadSubtitles = async (req: Request, res: Response) => {
+/**
+ * Download subtitle using OpenSubtitles REST API
+ * POST /api/subtitles/download-from-api
+ * Body: { fileId, imdbCode, title, year, language, dir }
+ */
+export const downloadSubtitleFromOpenSubtitlesApi = async (req: Request, res: Response) => {
     try {
         res.setTimeout(RESPONSE_TIMEOUT);
-        const {language, imdbCode, title, year, dir} = req.body;
+        const { fileId, imdbCode, title, year, language, dir } = req.body;
+
+        if (!fileId || !imdbCode || !title || !year || !language || !dir) {
+            res.status(400).json({ error: 'Missing required parameters' });
+            return;
+        }
 
         const subsDir = path.join(dir, 'subtitles');
 
@@ -36,33 +55,28 @@ export const downloadSubtitles = async (req: Request, res: Response) => {
             fs.mkdirSync(subsDir, { recursive: true });
         }
 
-        if (!language) {
-            res.sendStatus(400);
+        // Check if file already exists
+        const sanitizedTitle = title.replace(/[^A-Za-z]/g, '.');
+        const fileName = `${imdbCode}-${sanitizedTitle}-${year}-[${language}].srt`;
+        const filePath = path.join(subsDir, fileName);
+
+        if (fs.existsSync(filePath)) {
+            res.status(200).json(filePath);
             return;
         }
 
-        const downloadedSrtPath = await navigateAndDownload(imdbCode, title, year, language, subsDir);
+        const downloadedPath = await downloadSubtitleFromApi(
+            fileId,
+            subsDir,
+            imdbCode,
+            title,
+            year,
+            language
+        );
 
-        if (!downloadedSrtPath) {
-            res.sendStatus(400);
-            return;
-        }
-
-        res.status(200).json(downloadedSrtPath);
+        res.status(200).json(downloadedPath);
     } catch (error) {
-        console.error(error);
-        res.sendStatus(400);
-    }
-}
-
-export const checkAvailability = async (req: Request, res: Response) => {
-    try {
-        res.setTimeout(RESPONSE_TIMEOUT);
-        const {language, imdbCode, title, year} = req.body;
-        const isAvailable = await navigateAndCheckAvailability(imdbCode, title, year, language);
-
-        res.status(200).json({isAvailable: isAvailable as boolean});
-    } catch (error) {
-        
+        console.error('Error downloading subtitle from API:', error);
+        res.status(500).json({ error: 'Failed to download subtitle' });
     }
 }

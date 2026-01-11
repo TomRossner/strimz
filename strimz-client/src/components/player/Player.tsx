@@ -11,9 +11,12 @@ import { twMerge } from 'tailwind-merge';
 import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
-import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectExternalTorrent, selectSubtitleDelay } from '@/store/movies/movies.selectors';
+import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectSubtitleDelay, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
 import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
-import { setIsSubtitlesEnabled, setVttSubtitlesContent, setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setSubtitleDelay, setSelectedMovie } from '@/store/movies/movies.slice';
+import { setIsSubtitlesEnabled, setVttSubtitlesContent, setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setSubtitleDelay, setSelectedMovie, setSelectedSubtitleFileId, setLanguageFiles, setExternalTorrent } from '@/store/movies/movies.slice';
+import { selectSettings } from '@/store/settings/settings.selectors';
+import { downloadSubtitleFromApi } from '@/services/subtitles';
+import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import TopOverlay from './TopOverlay';
 import ShortcutActionDisplay from './ShortcutActionDisplay';
@@ -70,8 +73,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const subtitleDelay = useAppSelector(selectSubtitleDelay);
 
     const isInfoPanelOpen = useAppSelector(selectMovieDownloadInfoPanel);
-    
-    const movie = useAppSelector(selectMovie);
 
     const [hasUsedKeyboardShortcut, setHasUsedKeyboardShortcut] = useState<boolean>(false);
     const keyboardShortcutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -83,7 +84,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
 
     const selectedTorrent = useAppSelector(selectSelectedTorrent);
-    const externalTorrent = useAppSelector(selectExternalTorrent);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -340,6 +340,9 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
+    const selectedSubtitleFileId = useAppSelector(selectSelectedSubtitleFileId);
+    const movie = useAppSelector(selectMovie);
+    const settings = useAppSelector(selectSettings);
     
     // Subs Metadata: { lang, label }
     const subsMetadata = useMemo(() => subtitleLang ? getSubtitleMetadata(subtitleLang as string) : undefined, [subtitleLang]);
@@ -423,36 +426,137 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         };
     }, [isReadyToPlay]);
 
-    // Clear all subtitle state when source changes (new movie from disk or stream)
+    // Handle subtitle state based on selectedMovie changes
+    // IMPORTANT: This effect should NOT clear subtitle state when Player mounts with an existing movie
+    // It should only clear when movie is explicitly set to null or changes to a different movie
+    const prevMovieImdbRef = useRef<string | null>(null);
+    const hasInitializedRef = useRef<boolean>(false);
+    
     useEffect(() => {
-        // Clear all subtitle-related state when src, hash, or title changes
-        // Don't clear selectedMovie - it should persist and only update when clicking MovieCard
-        dispatch(setAvailableSubtitlesLanguages([]));
-        dispatch(setSubtitleLang(null));
-        dispatch(setSubtitleFilePath(null));
-        dispatch(setIsSubtitlesEnabled(false));
-        dispatch(setSubtitleDelay(0));
-        dispatch(setVttSubtitlesContent(null));
-    }, [src, hash, title, dispatch]);
-
-    useEffect(() => {
-        return () => {
-            videoRef.current?.pause();
-            videoRef.current?.removeAttribute('src');
-            videoRef.current?.load();
-            // Clear all subtitle state when player unmounts
-            // Clear selectedMovie only if playing from Downloads page
+        // On initial mount, preserve all subtitle state - don't clear anything
+        // This ensures languages loaded in MovieDialog persist when Player mounts
+        if (!hasInitializedRef.current) {
+            hasInitializedRef.current = true;
+            if (movie?.imdb_code) {
+                prevMovieImdbRef.current = movie.imdb_code;
+            }
+            // IMPORTANT: Don't clear anything on initial mount - preserve existing subtitle state
+            // Even if movie is null initially, preserve state - it might be from MovieDialog
+            return;
+        }
+        
+        // After initial mount, handle movie changes
+        // Only clear subtitle states if movie is explicitly set to null AND we previously had a movie
+        // Don't clear if movie is null on initial mount (it might be cleared by modal close but languages should persist)
+        if (!movie && prevMovieImdbRef.current !== null) {
+            // Movie was cleared after having one - clear all subtitle states
+            prevMovieImdbRef.current = null;
             dispatch(setAvailableSubtitlesLanguages([]));
+            dispatch(setLanguageFiles({}));
             dispatch(setSubtitleLang(null));
+            dispatch(setSelectedSubtitleFileId(null));
             dispatch(setSubtitleFilePath(null));
             dispatch(setIsSubtitlesEnabled(false));
             dispatch(setSubtitleDelay(0));
             dispatch(setVttSubtitlesContent(null));
-            if (from === '/downloads') {
-                dispatch(setSelectedMovie(null));
+            return;
+        }
+
+        // If selectedMovie changed (different imdb_code), clear subtitle selection
+        // Only clear if the movie actually changed (not on initial mount with same movie)
+        if (prevMovieImdbRef.current !== null && movie && prevMovieImdbRef.current !== movie.imdb_code) {
+            // Different movie - clear subtitle selection
+            dispatch(setSubtitleLang(null));
+            dispatch(setSelectedSubtitleFileId(null));
+            dispatch(setSubtitleFilePath(null));
+            dispatch(setIsSubtitlesEnabled(false));
+            dispatch(setVttSubtitlesContent(null));
+            // Clear available languages too since it's a different movie
+            dispatch(setAvailableSubtitlesLanguages([]));
+            dispatch(setLanguageFiles({}));
+        }
+
+        // Update ref to track current movie (only if movie exists)
+        if (movie?.imdb_code) {
+            prevMovieImdbRef.current = movie.imdb_code;
+        }
+    }, [movie, dispatch]);
+
+    // Clear subtitle playback state when source changes (new movie from disk or stream)
+    // BUT preserve subtitleLang, selectedSubtitleFileId, availableSubtitlesLanguages, and languageFiles
+    // These should persist so user doesn't have to re-select or re-fetch
+    // If subtitleLang and selectedSubtitleFileId are set, restore the subtitle file path
+    const prevSrcRef = useRef<string | undefined>(undefined);
+    const prevHashRef = useRef<string | null>(null);
+    const prevTitleRef = useRef<string | null>(null);
+    
+    useEffect(() => {
+        // Only clear playback state if src, hash, or title actually changed (not on initial mount)
+        const srcChanged = prevSrcRef.current !== undefined && prevSrcRef.current !== src;
+        const hashChanged = prevHashRef.current !== null && prevHashRef.current !== hash;
+        const titleChanged = prevTitleRef.current !== null && prevTitleRef.current !== title;
+        const isInitialMount = prevSrcRef.current === undefined && prevHashRef.current === null && prevTitleRef.current === null;
+        
+        // Update refs for next comparison
+        prevSrcRef.current = src;
+        prevHashRef.current = hash;
+        prevTitleRef.current = title;
+        
+        // On initial mount, preserve all subtitle state (don't clear anything)
+        if (isInitialMount) {
+            // If subtitle was already set before playing, ensure it's enabled
+            if (subtitleLang && selectedSubtitleFileId) {
+                dispatch(setIsSubtitlesEnabled(true));
+            }
+            return;
+        }
+        
+        // Only clear playback-related state if source/hash/title actually changed
+        if (srcChanged || hashChanged || titleChanged) {
+            // Clear only playback-related subtitle state
+            // Don't clear subtitleLang, selectedSubtitleFileId, availableSubtitlesLanguages, or languageFiles
+            dispatch(setIsSubtitlesEnabled(false));
+            dispatch(setSubtitleDelay(0));
+            dispatch(setVttSubtitlesContent(null));
+            
+            // Only clear subtitleFilePath if no subtitle is selected
+            if (!subtitleLang && !selectedSubtitleFileId) {
+                dispatch(setSubtitleFilePath(null));
+            }
+            
+            // If subtitle was selected before playing, restore/check the subtitle file path
+            // This ensures the subtitle works immediately without re-selection
+            if (subtitleLang && selectedSubtitleFileId && movie?.imdb_code && movie?.title && movie?.year && settings.downloadsFolderPath) {
+                const restoreSubtitle = async () => {
+                    try {
+                        const openSubtitlesLangCode = toOpenSubtitlesCode(subtitleLang);
+                        // Call download API - it will check if file exists and return existing path or download new one
+                        const { data: subtitlePath } = await downloadSubtitleFromApi(
+                            selectedSubtitleFileId,
+                            movie.imdb_code,
+                            movie.title,
+                            movie.year.toString(),
+                            openSubtitlesLangCode,
+                            settings.downloadsFolderPath
+                        );
+                        dispatch(setSubtitleFilePath(subtitlePath));
+                        dispatch(setIsSubtitlesEnabled(true));
+                    } catch (error) {
+                        console.error('Failed to restore subtitle file:', error);
+                    }
+                };
+                restoreSubtitle();
             }
         }
-    }, [dispatch, from]);
+    }, [src, hash, title, dispatch, subtitleLang, selectedSubtitleFileId, movie?.imdb_code, movie?.title, movie?.year, settings.downloadsFolderPath]);
+
+    // NOTE: Cleanup effect removed - it was causing issues with React StrictMode double-invocation
+    // The cleanup was running during development mode, clearing states right after they were set
+    // Subtitle state cleanup is handled when the user actually quits the player (via BackButton or navigation)
+    // We don't need cleanup here because:
+    // 1. React StrictMode causes cleanup to run on mount in development, which was clearing states
+    // 2. The BackButton already handles cleanup when quitting
+    // 3. State should persist when navigating within the player
 
     return (
         <Page>
@@ -504,7 +608,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     if (savedPosition !== null && savedPosition > 0 && videoRef.current.duration) {
                                         if (savedPosition < videoRef.current.duration) {
                                             videoRef.current.currentTime = savedPosition;
-                                            console.log(`[Player] Restored playback position to ${savedPosition.toFixed(1)}s on metadata load`);
                                         }
                                     }
                                 }
@@ -571,8 +674,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                         <BackButton
                             className='absolute left-1 top-1 z-10'
                             cb={async () => {
-                                if (externalTorrent) return;
-            
                                 const video = videoRef.current;
                                 if (video) {
                                     video.pause();
@@ -580,10 +681,11 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     video.load();
                                 }
             
-                                // Clear all subtitle state before navigating away
-                                // Clear selectedMovie only if playing from Downloads page
+                                // Reset all subtitle states when quitting player
                                 dispatch(setAvailableSubtitlesLanguages([]));
+                                dispatch(setLanguageFiles({}));
                                 dispatch(setSubtitleLang(null));
+                                dispatch(setSelectedSubtitleFileId(null));
                                 dispatch(setSubtitleFilePath(null));
                                 dispatch(setIsSubtitlesEnabled(false));
                                 dispatch(setSubtitleDelay(0));
@@ -593,6 +695,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                 }
             
                                 // Only pause download if we have a hash (torrent-based download)
+                                // External torrents don't have selectedTorrent, so skip this
                                 if (selectedTorrent?.hash) {
                                     await pauseDownload(selectedTorrent.hash);
                                 }
@@ -604,6 +707,10 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                         }
                                     });
                                     dispatch(openModal('movie'));
+                                } else if (from === 'external') {
+                                    // External torrent - navigate to home and clear external torrent
+                                    dispatch(setExternalTorrent(null));
+                                    navigate('/');
                                 } else {
                                     navigate(-1);
                                 }

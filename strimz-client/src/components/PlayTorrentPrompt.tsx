@@ -6,7 +6,7 @@ import { selectExternalTorrent } from '@/store/movies/movies.selectors';
 import Button from './Button';
 import { useNavigate } from 'react-router-dom';
 import { closeModal } from '@/store/modals/modals.slice';
-import { setExternalTorrent } from '@/store/movies/movies.slice';
+import { setExternalTorrent, setAvailableSubtitlesLanguages, setLanguageFiles, setSubtitleLang, setSubtitleFilePath, setSelectedSubtitleFileId, setIsSubtitlesEnabled, setSubtitleDelay, setVttSubtitlesContent } from '@/store/movies/movies.slice';
 
 const PlayTorrentPrompt = () => {
     const isOpen = useAppSelector(selectPlayTorrentPrompt);
@@ -23,9 +23,24 @@ const PlayTorrentPrompt = () => {
     const handlePlay = () => {
         if (!torrent) return;
 
+        // Clear all subtitle states when playing external torrent
+        // We'll fetch subtitles in Controls.tsx if imdbCode is available
+        dispatch(setAvailableSubtitlesLanguages([]));
+        dispatch(setLanguageFiles({}));
+        dispatch(setSubtitleLang(null));
+        dispatch(setSelectedSubtitleFileId(null));
+        dispatch(setSubtitleFilePath(null));
+        dispatch(setIsSubtitlesEnabled(false));
+        dispatch(setSubtitleDelay(0));
+        dispatch(setVttSubtitlesContent(null));
+
         dispatch(closeModal('playTorrentPrompt'));
         dispatch(closeModal('error'));
-        navigate(`/stream/${torrent.hash}?hash=${torrent.hash}&title=${torrent.title}`);
+        navigate(`/stream/${torrent.hash}?hash=${torrent.hash}&title=${torrent.title}`, {
+            state: {
+                from: 'external'
+            }
+        });
     }
 
   return (

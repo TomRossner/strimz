@@ -4,6 +4,7 @@ interface CachedSubs {
     available: string[];
     unavailable: string[];
     ts: number;
+    languageFileIds?: Record<string, string>; // Map of language code to OpenSubtitles file ID
 }
 
 const SUBS_CACHE_KEY = 'subsCache';
@@ -22,7 +23,8 @@ export const getSubsCache = (): Record<string, CachedSubs> => {
 export const setSubsCache = (
     key: string,
     available: string[],
-    unavailable: string[]
+    unavailable: string[],
+    languageFileIds?: Record<string, string>
 ) => {
     const cache = getSubsCache();
 
@@ -30,9 +32,17 @@ export const setSubsCache = (
         available,
         unavailable,
         ts: Date.now(),
+        languageFileIds: languageFileIds || {},
     };
 
     localStorage.setItem(SUBS_CACHE_KEY, JSON.stringify(cache));
+}
+
+export const getLanguageFileId = (key: string, language: string): string | null => {
+    const cache = getSubsCache();
+    const entry = cache[key];
+    if (!entry?.languageFileIds) return null;
+    return entry.languageFileIds[language] || null;
 }
 
 export const updateSubsCache = (

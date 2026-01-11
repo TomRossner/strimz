@@ -2,31 +2,40 @@ import { normalizeLanguageCode, resolveCountryCode, getSubtitleMetadata } from '
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Flag from 'react-world-flags';
 import Button from '../Button';
-import { BsChevronUp } from 'react-icons/bs';
+import { BsChevronUp, BsCheck } from 'react-icons/bs';
 import { twMerge } from 'tailwind-merge';
 import { useAppSelector } from '@/store/hooks';
-import { selectSubtitleLang } from '@/store/movies/movies.selectors';
+import { selectSubtitleLang, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
 import LoadingIcon from '../LoadingIcon';
-import { MdCheck } from 'react-icons/md';
-import { RxCross2 } from 'react-icons/rx';
-import { COMMON_LANGUAGES } from '@/utils/languages';
+
+interface SubtitleFile {
+    fileId: string;
+    fileName: string;
+    uploadDate: string;
+}
 
 interface SubtitleDropdownProps {
   languages: string[];
-  onSelect: (langId: string) => void;
+  languageFiles: Record<string, Array<SubtitleFile>>;
+  onSelect: (langId: string, fileId: string) => void;
   isLoading: boolean;
   isDownloading?: boolean;
-  availableSubs: string[];
-  notAvailableSubs: string[];
 }
 
 const LOAD_BATCH = 10;
 
-const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = false, availableSubs = [], notAvailableSubs = [] }: SubtitleDropdownProps) => {
+const SubtitleDropdown = ({ languages, languageFiles, onSelect, isLoading, isDownloading = false }: SubtitleDropdownProps) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [visibleCount, setVisibleCount] = useState(COMMON_LANGUAGES.length);
+    const [expandedLanguage, setExpandedLanguage] = useState<string | null>(null);
+    const [visibleCount, setVisibleCount] = useState(LOAD_BATCH);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const subtitleLang = useAppSelector(selectSubtitleLang);
+    const selectedFileId = useAppSelector(selectSelectedSubtitleFileId);
+
+    // Reset visibleCount when languages change
+    useEffect(() => {
+        setVisibleCount(Math.min(LOAD_BATCH, languages.length || LOAD_BATCH));
+    }, [languages.length]);
 
     const normalizedSubs = useMemo(() => {
         return languages.map(l => {
@@ -36,11 +45,11 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
         });
     }, [languages]);
 
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setExpandedLanguage(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -51,13 +60,8 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
     setVisibleCount((prev) => Math.min(prev + LOAD_BATCH, languages.length));
   };
 
-    const visibleSubs = [
-        ...COMMON_LANGUAGES.filter((lang) => languages.includes(lang)),
-        ...languages.filter((lang) => !COMMON_LANGUAGES.includes(lang)).slice(
-            0,
-            visibleCount - COMMON_LANGUAGES.length
-        ),
-    ];
+    // Show languages from API search results
+    const visibleSubs = languages.slice(0, visibleCount);
 
     const normalizedVisibleSubs = visibleSubs.map(sub => {
         const [rawCode, label] = sub.split('-'); // e.g., "fre-French"
@@ -70,6 +74,20 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
   // Fallback to getSubtitleMetadata if label not found in normalizedSubs
   const fallbackLabel = subtitleLang ? getSubtitleMetadata(subtitleLang)?.label : null;
   const displayLabel = selectedLabel || fallbackLabel || subtitleLang?.toUpperCase();
+
+  const handleLanguageClick = (iso3: string) => {
+    if (expandedLanguage === iso3) {
+      setExpandedLanguage(null);
+    } else {
+      setExpandedLanguage(iso3);
+    }
+  };
+
+  const handleFileSelect = (langId: string, fileId: string) => {
+    onSelect(langId, fileId);
+    setIsOpen(false);
+    setExpandedLanguage(null);
+  };
 
   return (
     <div className="relative w-full inline-block" ref={dropdownRef}>
@@ -87,34 +105,27 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
                   {(isLoading || isDownloading) && (
                     <p className='text-stone-500 italic text-[12px] flex items-center gap-1 mr-3'>
                         <LoadingIcon size={14} />
-                        <span>{isDownloading ? 'Downloading...' : 'Checking availability...'}</span>
+                        {isDownloading && <span>Downloading...</span>}
+                        {isLoading && <span>Loading...</span>}
                     </p>
-                  )}
-
-                  {!isLoading && !isDownloading && (
-                      <>
-                          {availableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && (
-                            <p className='flex items-center gap-1 px-2'>
-                                <MdCheck className='text-green-400 text-sm' />
-                                <span className='text-green-400 text-[12px] italic'>Available</span>
-                            </p>
-                          )}
-                          {notAvailableSubs.some(a => a.toLowerCase() === subtitleLang.toLowerCase()) && (
-                            <p className='flex items-center gap-1 px-2'>
-                              <RxCross2 className='text-red-400 text-sm' />
-                              <span className='text-red-400 text-[12px] italic'>Not available</span>
-                            </p>
-                          )}
-                      </>
                   )}
               </div>
             ) : (
-                <span className='text-sm'>Select subtitles</span>
+                <span className={twMerge('text-sm flex items-center gap-2', isLoading && 'italic text-stone-400')}>
+                    {isLoading && (
+                      <span className='flex items-center gap-2'>
+                        <LoadingIcon size={14} />
+                        <span>Loading subtitles...</span>
+                      </span>
+                    )}
+                    {selectedLabel && !isLoading ? selectedLabel : ''}
+                    {!selectedLabel && !isLoading && 'Select subtitles'}
+                </span>
             )}
             
             <BsChevronUp className={twMerge(
                 'transition-transform text-sm',
-                isOpen ? 'rotate-180' : ''
+                isOpen ? '' : 'rotate-180'
             )} />
         </Button>
 
@@ -135,47 +146,93 @@ const SubtitleDropdown = ({ languages, onSelect, isLoading, isDownloading = fals
             origin-bottom
             transition-all
             duration-150
-            max-h-52
-            z-20
+            max-h-96
+            z-[60]
             ${isOpen
                 ? 'scale-y-100 opacity-100'
                 : 'scale-y-0 opacity-0 pointer-events-none'}
             `)}
         >
+            {normalizedVisibleSubs.length === 0 ? (
+                <div className="px-4 py-2 text-sm text-stone-400 text-center">
+                    {isLoading ? 'Loading subtitles...' : 'No subtitles available'}
+                </div>
+            ) : null}
             {normalizedVisibleSubs.map(({ iso3, label }) => {
                 const countryCode = resolveCountryCode(iso3);
+                const files = languageFiles[iso3] || [];
+                const isExpanded = expandedLanguage === iso3;
+                const isSelected = normalizedSubtitleLang && iso3.toLowerCase() === normalizedSubtitleLang.toLowerCase();
 
                 return (
-                    <Button
-                        key={iso3}
-                        onClick={() => {
-                            // Only call onSelect if clicking a different language
-                            // If clicking the already selected language, just close the dropdown
-                            if (!normalizedSubtitleLang || iso3.toLowerCase() !== normalizedSubtitleLang) {
-                                onSelect(iso3);
-                            }
-                            setIsOpen(false);
-                        }}
-                        className={`w-full py-2 rounded-none justify-start text-sm flex gap-2 text-white transition-none
-                                    ${normalizedSubtitleLang && iso3.toLowerCase() === normalizedSubtitleLang ? 'bg-stone-700 hover:bg-stone-600' : 'bg-stone-800 hover:bg-stone-700'}`}
-                    >
-                        {countryCode && (
-                            <Flag
-                                code={countryCode}
-                                title={iso3.toUpperCase()}
-                                className='w-5 aspect-auto'
-                            />
+                    <div key={iso3}>
+                        <Button
+                            onClick={() => handleLanguageClick(iso3)}
+                            className={`w-full py-2 rounded-none justify-between text-sm flex gap-2 text-white transition-none
+                                        ${isSelected ? 'bg-blue-600 hover:bg-blue-500' : 'bg-stone-800 hover:bg-stone-700'}`}
+                        >
+                            <div className="flex gap-2 items-center">
+                                {countryCode && (
+                                    <Flag
+                                        code={countryCode}
+                                        title={iso3.toUpperCase()}
+                                        className='w-5 aspect-auto'
+                                    />
+                                )}
+                                <span>{label}</span>
+                                {files.length > 0 && (
+                                    <span className="text-stone-400 text-[10px] italic">
+                                        {files.length} {files.length === 1 ? 'file' : 'files'} available
+                                    </span>
+                                )}
+                            </div>
+                            {files.length > 0 && (
+                                <BsChevronUp className={twMerge(
+                                    'transition-transform text-xs',
+                                    isExpanded ? '' : 'rotate-180'
+                                )} />
+                            )}
+                        </Button>
+                        
+                        {isExpanded && files.length > 0 && (
+                            <div className="bg-stone-800 border-l-2 border-stone-600">
+                                {files.map((file, index) => {
+                                    const isFileSelected = isSelected && selectedFileId === file.fileId;
+                                    // Format date: convert ISO date to readable format (e.g., "2024-01-15" -> "Jan 15, 2024")
+                                    const formatDate = (dateString: string) => {
+                                        if (!dateString) return '';
+                                        try {
+                                            const date = new Date(dateString);
+                                            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                                        } catch {
+                                            return dateString;
+                                        }
+                                    };
+                                    const formattedDate = formatDate(file.uploadDate);
+                                    return (
+                                        <Button
+                                            key={file.fileId}
+                                            onClick={() => handleFileSelect(iso3, file.fileId)}
+                                            className={`w-full py-2 pl-8 rounded-none justify-between text-xs flex gap-2 text-white transition-none
+                                                        ${isFileSelected ? 'bg-blue-600 hover:bg-blue-500' : 'bg-stone-800 hover:bg-stone-700'}`}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                {isFileSelected && (
+                                                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-green-500">
+                                                        <BsCheck className="text-white text-xs" />
+                                                    </span>
+                                                )}
+                                                <span>{`${label}-${index + 1}`}</span>
+                                            </span>
+                                            {formattedDate && (
+                                                <span className="text-stone-400 text-[10px]">{formattedDate}</span>
+                                            )}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
                         )}
-                        {label}
-
-                        {availableSubs.some(a => a.toLowerCase() === iso3.toLowerCase()) && (
-                            <MdCheck className='text-green-300 ml-auto'/>
-                        )}
-
-                        {notAvailableSubs.some(a => a.toLowerCase() === iso3.toLowerCase()) && (
-                            <RxCross2 className='text-red-400 ml-auto'/>
-                        )}
-                    </Button>
+                    </div>
                 );
             })}
 

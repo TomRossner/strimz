@@ -7,6 +7,8 @@ import fs from "fs";
 import { ioServer } from "../index.js";
 import createDir from "../utils/createDirectory.js";
 import deleteDirectory from "../utils/deleteDirectory.js";
+import { extractImdbCodeFromText } from "../utils/extractImdbCode.js";
+import { yts } from "../yts/yts.js";
 
 export let client: WebTorrent.Instance | null = null;
 export const activeTorrents: Map<string, WebTorrent.Torrent> = new Map();
@@ -724,7 +726,7 @@ export const getTorrentData = async (req: Request, res: Response) => {
 
         const tempClient = new WebTorrent(); // Just to get hash and title;
 
-        tempClient.add(torrentFilePath as string, { path: requestedDir }, (torrent) => {
+        tempClient.add(torrentFilePath as string, { path: requestedDir }, async (torrent) => {
             torrent.on("error", (torrentErr) => {
                 console.error("Torrent Error:", torrentErr);
                 torrent.destroy();
@@ -737,9 +739,38 @@ export const getTorrentData = async (req: Request, res: Response) => {
             const hash = torrent.infoHash.toLowerCase();
             const title = torrent.name;
             
+            // Extract IMDB code from title
+            let imdbCode: string | null = extractImdbCodeFromText(title);
+            
+            // If not found in title, try to search for the movie using YTS API
+            if (!imdbCode && title) {
+                try {
+                    // Extract clean title (remove common patterns like [1080p], etc.)
+                    const cleanTitle = title.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim();
+                    const titleParts = cleanTitle.split(/\s+/);
+                    const searchQuery = titleParts.slice(0, 5).join(' '); // Use first 5 words as search query
+                    
+                    const searchResult = await yts.getMovies({
+                        limit: 1,
+                        page: 1,
+                        query_term: searchQuery
+                    });
+                    
+                    if (searchResult.status === 'ok' && searchResult.data?.movies?.length > 0) {
+                        const movie = searchResult.data.movies[0];
+                        if (movie.imdb_code) {
+                            imdbCode = movie.imdb_code;
+                        }
+                    }
+                } catch (error) {
+                    // Silently fail - imdbCode will remain null
+                    console.error('Error searching for IMDB code:', error);
+                }
+            }
+            
             addingTorrents.set(hash, new Promise((resolve, reject) => resolve(torrent)));
 
-            res.status(200).json({hash, title});
+            res.status(200).json({hash, title, imdbCode: imdbCode || undefined});
 
             addingTorrents.delete(hash);
             tempClient?.remove(torrent);

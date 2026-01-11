@@ -8,7 +8,6 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { isAxiosError } from 'axios';
 import { enableMapSet } from 'immer';
-import { downloadSubtitles } from '@/services/subtitles';
 
 enableMapSet();
 
@@ -28,14 +27,16 @@ interface MoviesState {
   watchList: Map<string, Movie>;
   subtitleFilePath: string | null;
   subtitleLang: string | null;
+  selectedSubtitleFileId: string | null;
   isSubtitlesEnabled: boolean;
-  externalTorrent: {hash: string, title: string} | null;
+  externalTorrent: {hash: string, title: string, imdbCode?: string} | null;
   subtitlesSize: number;
   subtitleDelay: number;
   selectedTorrent: Torrent | null;
   vttSubtitlesContent: string | null;
   availableSubtitlesLanguages: string[];
   unavailableSubtitlesLanguages: string[];
+  languageFiles: Record<string, Array<{ fileId: string, fileName: string, uploadDate: string }>>;
 }
 
 const initialState: MoviesState = {
@@ -54,6 +55,7 @@ const initialState: MoviesState = {
   watchList: new Map(),
   subtitleFilePath: null,
   subtitleLang: null,
+  selectedSubtitleFileId: null,
   isSubtitlesEnabled: false,
   externalTorrent: null,
   subtitlesSize: DEFAULT_SUBTITLES_SIZE,
@@ -62,6 +64,7 @@ const initialState: MoviesState = {
   vttSubtitlesContent: null,
   availableSubtitlesLanguages: [],
   unavailableSubtitlesLanguages: [],
+  languageFiles: {},
 }
 
 type FetchMoviesAsync = {
@@ -179,34 +182,12 @@ export const fetchWatchListAsync = createAsyncThunk(
     }
 });
 
-type SubtitlesDownloadProps = {
-  lang: string;
-  imdbCode: string;
-  title: string;
-  year: string;
-  dir: string;
-}
-
 // type FetchAvailableSubtitlesProps = {
 //   imdbCode: string;
 //   title: string;
 //   year: string;
 //   signal: AbortSignal;
 // }
-
-export const startSubtitlesDownloadAsync = createAsyncThunk(
-  'movies/startSubtitlesDownloadAsync',
-  async (downloadProps: SubtitlesDownloadProps, {rejectWithValue}) => {
-    const {lang, imdbCode, title, year, dir} = downloadProps;
-
-    try {
-      const {data: subtitleFilePath} = await downloadSubtitles(lang, imdbCode, title, year, dir);
-      return subtitleFilePath;
-    } catch (error) {
-      console.error(error);
-      return rejectWithValue(error);
-    }
-});
 
 // export const fetchAvailableSubtitlesAsync = createAsyncThunk(
 //   'movies/fetchAvailableSubtitlesAsync',
@@ -274,10 +255,13 @@ const moviesSlice = createSlice({
     setSubtitleLang: (state, action: PayloadAction<string | null>) => {
       state.subtitleLang = action.payload;
     },
+    setSelectedSubtitleFileId: (state, action: PayloadAction<string | null>) => {
+      state.selectedSubtitleFileId = action.payload;
+    },
     setIsSubtitlesEnabled(state, action: PayloadAction<boolean>) {
       state.isSubtitlesEnabled = action.payload;
     },
-    setExternalTorrent(state, action: PayloadAction<{hash: string, title: string} | null>) {
+    setExternalTorrent(state, action: PayloadAction<{hash: string, title: string, imdbCode?: string} | null>) {
       state.externalTorrent = action.payload;
     },
     setSubtitlesSize(state, action: PayloadAction<number>) {
@@ -297,6 +281,9 @@ const moviesSlice = createSlice({
     },
     setUnavailableSubtitlesLanguages(state, action: PayloadAction<string[]>) {
       state.unavailableSubtitlesLanguages = action.payload;
+    },
+    setLanguageFiles(state, action: PayloadAction<Record<string, Array<{ fileId: string, fileName: string, uploadDate: string }>>>) {
+      state.languageFiles = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -361,10 +348,6 @@ const moviesSlice = createSlice({
       .addCase(fetchWatchListAsync.rejected, (state) => {
         state.isLoading = false;
       })
-
-      .addCase(startSubtitlesDownloadAsync.fulfilled, (state, action) => {
-        state.subtitleFilePath = action.payload;
-      })
       
       // .addCase(fetchAvailableSubtitlesAsync.fulfilled, (state, action) => {
       //   state.availableSubtitlesLanguages = action.payload;
@@ -387,6 +370,7 @@ export const {
   setWatchList,
   setSubtitleFilePath,
   setSubtitleLang,
+  setSelectedSubtitleFileId,
   setIsSubtitlesEnabled,
   setExternalTorrent,
   setSubtitlesSize,
@@ -394,7 +378,8 @@ export const {
   setSelectedTorrent,
   setVttSubtitlesContent,
   setAvailableSubtitlesLanguages,
-  setUnavailableSubtitlesLanguages
+  setUnavailableSubtitlesLanguages,
+  setLanguageFiles
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

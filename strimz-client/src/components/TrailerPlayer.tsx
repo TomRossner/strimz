@@ -44,7 +44,7 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
     // Don't render iframe if trailer code is missing or invalid
     if (!yt_trailer_code || !yt_trailer_code.trim()) {
         return (
-            <Dialog size='large' isOpen={isOpen}>
+            <Dialog size='large' isOpen={isOpen} className="!z-[60]">
                 <CloseButton onClose={handleClose} className="absolute top-1 right-1 p-1 border-slate-100 md:block border text-xl" />
                 <div className="w-full aspect-video flex items-center justify-center bg-black text-white">
                     <p>Trailer not available</p>
@@ -54,7 +54,7 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
     }
 
   return (
-    <Dialog size='large' isOpen={isOpen}>
+    <Dialog size='large' isOpen={isOpen} className="!z-[60]">
         <CloseButton onClose={handleClose} className="absolute top-1 right-1 p-1 border-slate-100 md:block border text-xl" />
         <iframe
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

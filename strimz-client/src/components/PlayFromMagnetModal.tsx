@@ -10,8 +10,10 @@ import { selectSettings } from '@/store/settings/settings.selectors';
 import { getTorrentData } from '@/services/movies';
 import { setError, setExternalTorrent } from '@/store/movies/movies.slice';
 import LoadingIcon from './LoadingIcon';
-import { IoWarningOutline } from 'react-icons/io5';
+import { IoWarningOutline, IoCloseCircle } from 'react-icons/io5';
 import { MAGNET_REGEX } from '@/utils/constants';
+
+const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
 const PlayFromMagnetModal = () => {
     const isOpen = useAppSelector(selectPlayFromMagnetModal);
@@ -23,15 +25,18 @@ const PlayFromMagnetModal = () => {
 
     const [magnetLink, setMagnetLink] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [errorMessage, setErrorMessage] = useState<string>('');
 
     const handleChange = (ev: ChangeEvent<HTMLInputElement>) => {
         setMagnetLink(ev.target.value);
+        setErrorMessage(''); // Clear error when user types
     }
 
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
 
         setIsLoading(true);
+        setErrorMessage(''); // Clear previous errors
 
         if (!magnetLink) return;
 
@@ -40,15 +45,33 @@ const PlayFromMagnetModal = () => {
                 return;
             }
 
+            // Create a timeout promise
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error('Request timeout: The operation took too long to complete. Please try again.'));
+                }, REQUEST_TIMEOUT_MS);
+            });
+
             try {
-                const {data: {hash, title}} = await getTorrentData(magnetLink, settings.downloadsFolderPath);
+                // Race between the actual request and the timeout
+                const {data: {hash, title, imdbCode}} = await Promise.race([
+                    getTorrentData(magnetLink, settings.downloadsFolderPath),
+                    timeoutPromise
+                ]);
                 
-                dispatch(setExternalTorrent({hash, title}));
+                dispatch(setExternalTorrent({hash, title, imdbCode}));
 
                 dispatch(closeModal('playFromMagnet'));
                 dispatch(openModal('playTorrentPrompt'));
             } catch (error) {
-                dispatch(setError(typeof error === 'string' ? error : 'An error occurred while fetching torrent data.'));
+                const errorMsg = error instanceof Error 
+                    ? error.message 
+                    : typeof error === 'string' 
+                        ? error 
+                        : 'An error occurred while fetching torrent data.';
+                
+                setErrorMessage(errorMsg);
+                dispatch(setError(errorMsg));
             } finally {
                 setIsLoading(false);
             }
@@ -64,6 +87,7 @@ const PlayFromMagnetModal = () => {
 
         return () => {
             setMagnetLink('');
+            setErrorMessage(''); // Clear error when modal closes
         }
     }, [isOpen]);
 
@@ -91,6 +115,13 @@ const PlayFromMagnetModal = () => {
                 <p className='flex items-center gap-2 text-yellow-300 px-2 italic rounded-sm w-full text-sm font-normal'>
                     <IoWarningOutline className='text-lg' />
                     Invalid magnet link. Make sure it starts with "magnet:?xt=urn:btih:" and includes a valid hash.
+                </p>
+            )}
+
+            {errorMessage && (
+                <p className='flex items-center gap-2 text-red-400 px-2 italic rounded-sm w-full text-sm font-normal'>
+                    <IoCloseCircle className='text-lg' />
+                    {errorMessage}
                 </p>
             )}
             

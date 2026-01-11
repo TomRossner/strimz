@@ -1,4 +1,4 @@
-import React, { ChangeEvent, RefObject, useEffect, useRef, useState } from 'react';
+import React, { ChangeEvent, RefObject, useEffect, useRef, useState, useMemo } from 'react';
 import Button from '../Button';
 import { BsPause, BsPlay } from 'react-icons/bs';
 import { IoExpandOutline, IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
@@ -7,8 +7,8 @@ import TimeTrack from './TimeTrack';
 import VolumeSlider from './VolumeSlider';
 import { PiArrowArcLeft, PiArrowArcRight, PiSubtitlesLight } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitlesSize, selectSubtitleDelay, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages, selectMoviesMap } from '@/store/movies/movies.selectors';
-import { setIsSubtitlesEnabled, setSubtitleFilePath, setSubtitleLang, setAvailableSubtitlesLanguages, setSubtitleDelay, setVttSubtitlesContent, setSelectedMovie } from '@/store/movies/movies.slice';
+import { selectSubtitleFilePath, selectSubtitlesSize, selectSubtitleDelay, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages, selectMoviesMap, selectLanguageFiles, selectSelectedSubtitleFileId, selectExternalTorrent } from '@/store/movies/movies.selectors';
+import { setIsSubtitlesEnabled, setSubtitleFilePath, setSubtitleLang, setAvailableSubtitlesLanguages, setSubtitleDelay, setVttSubtitlesContent, setSelectedMovie, setLanguageFiles, setSelectedSubtitleFileId } from '@/store/movies/movies.slice';
 import { closeModal, openModal } from '@/store/modals/modals.slice';
 import SubtitlesSizeDialog from './SubtitlesSizeDialog';
 import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
@@ -16,13 +16,11 @@ import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } fr
 import { MdEdit } from 'react-icons/md';
 import CloseButton from '../CloseButton';
 import SubtitlesSelector from '@/components/dialog/SubtitlesSelector';
-import { COMMON_LANGUAGES } from '@/utils/languages';
-import { checkAvailability, downloadSubtitles } from '@/services/subtitles';
+import { downloadSubtitleFromApi, searchSubtitlesByImdb } from '@/services/subtitles';
 import { selectSettings } from '@/store/settings/settings.selectors';
-import { CACHE_TTL, getSubsCache, updateSubsCache } from '@/utils/subsLanguagesCache';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { searchMovies } from '@/services/movies';
-import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
+import { toOpenSubtitlesCode, getSubtitleMetadata, normalizeLanguageCode } from '@/utils/detectLanguage';
 import { getDownloadsCache, CachedDownloadInfo } from '@/utils/downloadsCache';
 import { extractMovieTitleAndYear } from '@/utils/extractMovieTitle';
 
@@ -76,6 +74,9 @@ const Controls = ({
     const moviesMap = useAppSelector(selectMoviesMap);
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const availableSubsLanguages = useAppSelector(selectAvailableSubtitlesLanguages);
+    const languageFiles = useAppSelector(selectLanguageFiles);
+    const selectedSubtitleFileId = useAppSelector(selectSelectedSubtitleFileId);
+    const externalTorrent = useAppSelector(selectExternalTorrent);
     const settings = useAppSelector(selectSettings);
     
     // Try to get movie from store using slug, fallback to selectedMovie
@@ -92,6 +93,7 @@ const Controls = ({
     const searchInProgressRef = useRef<boolean>(false);
     const lastSearchedTitleRef = useRef<string | null>(null);
     const processedMovieRef = useRef<string | null>(null);
+    const lastFetchedImdbRef = useRef<string | null>(null);
 
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -147,37 +149,77 @@ const Controls = ({
     const movieFromDownloads = downloadInfo && slug ? moviesMap.get(downloadInfo.slug) : null;
     const movieDataForCache = movieFromStore || movieFromDownloads || selectedMovie;
 
-    // Load cached subtitle availability on mount (same as MovieInfoPanel)
-    // Also watch selectedMovie in case it gets updated after title search
+    // Load subtitle availability from API - only if not already loaded and no subtitle is selected
+    // Don't fetch if subtitleLang, subtitleFilePath, or languages are already set
     const finalMovieForCache = movieDataForCache || selectedMovie;
     
     useEffect(() => {
         // Wait for movie data to be available (especially important when playing from disk)
         // Use the most current movie data - check selectedMovie first (most up-to-date), then movieDataForCache
+        // For external torrents, use imdbCode from externalTorrent
         const movieToUse = selectedMovie || movieDataForCache;
-        const imdbCode = movieToUse?.imdb_code;
+        const imdbCode = externalTorrent?.imdbCode || movieToUse?.imdb_code;
         const year = movieToUse?.year;
         
-        if (!imdbCode || !year) {
-            // Clear state if no movie data
-            dispatch(setAvailableSubtitlesLanguages([]));
-            setNotAvailableSubs([]);
+        // Check if languages are already loaded
+        const hasExistingLanguages = availableSubsLanguages.length > 0 || Object.keys(languageFiles).length > 0;
+        
+        // Reset fetch tracking if movie changed
+        if (imdbCode && lastFetchedImdbRef.current && lastFetchedImdbRef.current !== imdbCode) {
+            lastFetchedImdbRef.current = null;
+        }
+        
+        if (!imdbCode) {
+            // Don't clear state - preserve existing languages even if movie data isn't available yet
+            // The movie data might be loading, and we don't want to lose the subtitle state
+            // For external torrents, we don't have year, so we only check imdbCode
+            return;
+        }
+        
+        // Don't fetch if languages are already loaded for this movie
+        // This prevents unnecessary API calls when player mounts
+        if (hasExistingLanguages) {
+            return;
+        }
+        
+        // Don't fetch if we've already fetched for this imdb_code
+        if (imdbCode && lastFetchedImdbRef.current === imdbCode) {
             return;
         }
 
-        const cacheKey = `${imdbCode}-${year}`;
-        const cached = getSubsCache()[cacheKey];
+        // Fetch fresh data from OpenSubtitles API only if not already loaded
+        const fetchSubtitles = async () => {
+            try {
+                // Mark as fetched before making the request to prevent duplicate calls
+                lastFetchedImdbRef.current = imdbCode;
+                
+                const response = await searchSubtitlesByImdb(imdbCode, undefined, 'movie');
+                const { languages, languageFiles: files } = response.data;
 
-        if (cached && Date.now() - cached.ts < CACHE_TTL) {
-            // Replace state from cache (cache is source of truth, don't merge with existing state)
-            dispatch(setAvailableSubtitlesLanguages(cached.available));
-            setNotAvailableSubs(cached.unavailable);
-        } else {
-            // Clear state if no cache
-            dispatch(setAvailableSubtitlesLanguages([]));
-            setNotAvailableSubs([]);
-        }
-    }, [selectedMovie, movieDataForCache, dispatch]);
+                if (languages && languages.length > 0) {
+                    dispatch(setAvailableSubtitlesLanguages(languages));
+                    dispatch(setLanguageFiles(files || {}));
+                } else {
+                    dispatch(setAvailableSubtitlesLanguages([]));
+                    dispatch(setLanguageFiles({}));
+                }
+            } catch (error) {
+                console.error('Error fetching subtitles from OpenSubtitles API:', error);
+                dispatch(setAvailableSubtitlesLanguages([]));
+                dispatch(setLanguageFiles({}));
+                // Reset on error so we can retry if needed
+                if (lastFetchedImdbRef.current === imdbCode) {
+                    lastFetchedImdbRef.current = null;
+                }
+            }
+        };
+
+        fetchSubtitles();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // Note: We intentionally exclude movieDataForCache, selectedMovie, availableSubsLanguages, languageFiles,
+        // subtitleLang, and subtitleFilePath from dependencies to prevent re-fetching when player mounts.
+        // We only want to fetch when the movie changes (imdb_code/year changes), not when subtitle state changes.
+    }, [selectedMovie?.imdb_code, selectedMovie?.year, movieDataForCache?.imdb_code, movieDataForCache?.year, externalTorrent?.imdbCode, dispatch]);
 
     // Try to fetch movie data from downloads cache when hash is available, or search by title for file-only playback
     useEffect(() => {
@@ -345,9 +387,11 @@ const Controls = ({
         // We use processedMovieRef to track which movie context we've already processed.
     }, [hash, title, slug, moviesMap, dispatch]);
 
-    const handleSelectSubtitleLanguage = async (langId: string) => {
-        // If clicking on the current selected language, do nothing
-        if (subtitleLang && subtitleLang.toLowerCase() === langId.toLowerCase()) {
+    const handleSelectSubtitleLanguage = async (langId: string, fileId: string) => {
+        // If clicking on the current selected file (same language AND same fileId), do nothing
+        if (subtitleLang && selectedSubtitleFileId && 
+            subtitleLang.toLowerCase() === langId.toLowerCase() && 
+            selectedSubtitleFileId === fileId) {
             return;
         }
         
@@ -482,99 +526,35 @@ const Controls = ({
             }
         }
         
-        // Set the selected language immediately so UI updates right away
+        // Update selected language and file ID in store
         dispatch(setSubtitleLang(langId));
-        
-        // Reset subtitle file path if changing language
-        if (langId !== subtitleLang && subtitleFilePath) {
-            dispatch(setSubtitleFilePath(null));
-        }
-        
-        // Movie data is available - proceed like MovieInfoPanel but with auto-download for Controls
-        const cacheKey = `${movie.imdb_code}-${movie.year}`;
-        const cached = getSubsCache()[cacheKey];
+        dispatch(setSelectedSubtitleFileId(fileId));
 
-        // If language is already known in cache, just update state and download if available
-        if (
-            cached &&
-            Date.now() - cached.ts < CACHE_TTL &&
-            (cached.available.includes(langId) || cached.unavailable.includes(langId))
-        ) {
-            dispatch(setAvailableSubtitlesLanguages(cached.available));
-            setNotAvailableSubs(cached.unavailable);
+        // Reset subtitle file path when selecting a new file
+        // The file will be downloaded immediately for Controls.tsx
+        dispatch(setSubtitleFilePath(null));
 
-            // If clicking on another available language, download it automatically (Controls.tsx behavior)
-            if (cached.available.includes(langId)) {
-                // Always download for Controls.tsx when selecting an available language
-                setIsDownloadingSubs(true);
-                try {
-                    // Convert language code to OpenSubtitles format
-                    const openSubtitlesLangCode = toOpenSubtitlesCode(langId);
-                    const { data } = await downloadSubtitles(
-                        openSubtitlesLangCode,
-                        movie.imdb_code,
-                        movie.title,
-                        movie.year.toString(),
-                        settings.downloadsFolderPath
-                    );
-                    dispatch(setSubtitleFilePath(data));
-                } catch (error) {
-                    console.error('Failed to download subtitles:', error);
-                } finally {
-                    setIsDownloadingSubs(false);
-                }
+        // Download subtitle file immediately (Controls.tsx behavior - auto-download when selecting)
+        if (fileId && settings.downloadsFolderPath) {
+            setIsDownloadingSubs(true);
+            try {
+                // Convert language code to OpenSubtitles format
+                const openSubtitlesLangCode = toOpenSubtitlesCode(langId);
+                const { data: downloadedPath } = await downloadSubtitleFromApi(
+                    fileId,
+                    movie.imdb_code,
+                    movie.title,
+                    movie.year.toString(),
+                    openSubtitlesLangCode,
+                    settings.downloadsFolderPath
+                );
+                dispatch(setSubtitleFilePath(downloadedPath));
+                dispatch(setIsSubtitlesEnabled(true)); // Enable subtitles when downloaded
+            } catch (error) {
+                console.error('Error downloading subtitle from API:', error);
+            } finally {
+                setIsDownloadingSubs(false);
             }
-            return;
-        }
-
-        // Otherwise, check availability
-        setIsLoadingSubs(true);
-
-        try {
-            // Convert language code to OpenSubtitles format
-            const openSubtitlesLangCode = toOpenSubtitlesCode(langId);
-            
-            const {
-                data: { isAvailable }
-            } = await checkAvailability(
-                openSubtitlesLangCode,
-                movie.imdb_code,
-                movie.title,
-                movie.year.toString()
-            );
-
-            // Update cache
-            updateSubsCache(cacheKey, langId, isAvailable);
-
-            // Update state
-            if (isAvailable) {
-                const newState = [...new Set([...availableSubsLanguages, langId])];
-                dispatch(setAvailableSubtitlesLanguages(newState));
-                
-                // Auto-download if available (Controls.tsx behavior - auto-download when found available)
-                setIsDownloadingSubs(true);
-                try {
-                    const openSubtitlesLangCode = toOpenSubtitlesCode(langId);
-                    const { data } = await downloadSubtitles(
-                        openSubtitlesLangCode,
-                        movie.imdb_code,
-                        movie.title,
-                        movie.year.toString(),
-                        settings.downloadsFolderPath
-                    );
-                    dispatch(setSubtitleFilePath(data));
-                } catch (error) {
-                    console.error('Failed to download subtitles:', error);
-                } finally {
-                    setIsDownloadingSubs(false);
-                }
-            } else {
-                setNotAvailableSubs(prev => [...new Set([...prev, langId])]);
-            }
-        } catch (error) {
-            console.error('Error checking subtitle availability:', error);
-        } finally {
-            setIsLoadingSubs(false);
         }
     };
 
@@ -598,54 +578,70 @@ const Controls = ({
         return () => observer.disconnect();
     }, [videoRef]);
 
-    // Track previous movie identifier to detect movie changes
-    const prevMovieIdRef = useRef<string | null>(null);
-    // Create a unique identifier: prefer imdb_code+year, fallback to hash+title, then just title
-    const currentMovieId = finalMovieForCache?.imdb_code && finalMovieForCache?.year 
-        ? `${finalMovieForCache.imdb_code}-${finalMovieForCache.year}` 
-        : hash && title
-        ? `${hash}-${title}`
-        : title || src || null;
+    // Track previous movie imdb_code to detect actual movie changes
+    // Use imdb_code as the primary identifier since it's the most reliable
+    const prevMovieImdbRef = useRef<string | null>(null);
+    const hasInitializedRef = useRef<boolean>(false);
+    // Use selectedMovie first (most reliable), then fallback to finalMovieForCache
+    const currentMovieImdb = selectedMovie?.imdb_code || finalMovieForCache?.imdb_code || null;
 
-    // Clear subtitle state when movie changes (different movie identifier)
-    // This ensures old movie's subtitle availability doesn't persist to new movie
+    // Clear subtitle state only when movie actually changes (different imdb_code)
+    // IMPORTANT: Don't clear on initial mount - preserve subtitle state when navigating from MovieDialog to Player
+    // Even if selectedMovie is null initially, preserve subtitle state as it might be from the previous session
     useEffect(() => {
-        // Only clear if movie actually changed (not on initial mount)
-        if (prevMovieIdRef.current !== null && prevMovieIdRef.current !== currentMovieId) {
-            dispatch(setAvailableSubtitlesLanguages([]));
-            setNotAvailableSubs([]);
+        // On initial mount, just track the movie without clearing anything
+        // This preserves subtitle state when navigating from MovieDialog to Player
+        // Even if currentMovieImdb is null, preserve state - it might become available soon
+        if (!hasInitializedRef.current) {
+            hasInitializedRef.current = true;
+            if (currentMovieImdb) {
+                prevMovieImdbRef.current = currentMovieImdb;
+            }
+            // IMPORTANT: Don't clear anything on initial mount - preserve existing subtitle state
+            // This ensures languages loaded in MovieDialog persist when Player mounts
+            return;
+        }
+
+        // After initial mount, only clear if movie actually changed (different imdb_code)
+        // Don't clear if:
+        // 1. currentMovieImdb becomes available for the first time (was null, now has value)
+        // 2. We have existing languages/files that should be preserved
+        // Only clear if we had a previous movie and it's different
+        if (prevMovieImdbRef.current !== null && currentMovieImdb !== null && prevMovieImdbRef.current !== currentMovieImdb) {
+            // Different movie - clear subtitle selection
             dispatch(setSubtitleLang(null));
+            dispatch(setSelectedSubtitleFileId(null));
             dispatch(setSubtitleFilePath(null));
             dispatch(setIsSubtitlesEnabled(false));
             dispatch(setSubtitleDelay(0));
             dispatch(setVttSubtitlesContent(null));
-            // Don't clear selectedMovie - it should persist and only update when clicking MovieCard
+            // Clear available languages too since it's a different movie
+            dispatch(setAvailableSubtitlesLanguages([]));
+            dispatch(setLanguageFiles({}));
+            setNotAvailableSubs([]);
             // Reset search flags when movie changes
             searchInProgressRef.current = false;
             lastSearchedTitleRef.current = null;
             processedMovieRef.current = null;
+            lastFetchedImdbRef.current = null;
         }
-        // Update ref for next comparison
-        prevMovieIdRef.current = currentMovieId;
-    }, [currentMovieId, dispatch]);
 
-    // Cleanup on unmount (same as MovieInfoPanel)
-    useEffect(() => {
-        return () => {
-            dispatch(setAvailableSubtitlesLanguages([]));
-            setNotAvailableSubs([]);
-            dispatch(setSubtitleLang(null));
-            dispatch(setSubtitleFilePath(null));
-            dispatch(setIsSubtitlesEnabled(false));
-            dispatch(setSubtitleDelay(0));
-            dispatch(setVttSubtitlesContent(null));
-            // Don't clear selectedMovie - it should persist and only update when clicking MovieCard
-            // Reset search flags on unmount
-            searchInProgressRef.current = false;
-            lastSearchedTitleRef.current = null;
-            processedMovieRef.current = null;
-        };
-    }, [dispatch]);
+        // Update ref to track current movie (only if imdb_code exists and we've initialized)
+        // This ensures we don't overwrite with null if movie is still loading
+        // But also update if it becomes available (null -> value)
+        if (currentMovieImdb && hasInitializedRef.current) {
+            // Only update if it's different or if we're setting it for the first time
+            if (prevMovieImdbRef.current !== currentMovieImdb) {
+                prevMovieImdbRef.current = currentMovieImdb;
+            }
+        }
+    }, [currentMovieImdb, selectedMovie, dispatch]);
+
+    // NOTE: Cleanup of subtitle states is handled by Player.tsx cleanup effect
+    // We don't need to clear subtitle states here because:
+    // 1. Player.tsx already handles cleanup on unmount
+    // 2. Having cleanup here causes issues with React StrictMode double-invocation
+    // 3. Controls unmounting shouldn't clear subtitle states (Player should handle that)
 
     useEffect(() => {
         const video = videoRef.current;
@@ -945,9 +941,48 @@ const Controls = ({
                 <SubtitlesSelector
                     buttonOnly={true}
                     containerClassName="w-full"
-                    availableSubs={availableSubsLanguages}
-                    notAvailableSubs={notAvailableSubs}
-                    languages={COMMON_LANGUAGES}
+                    languages={useMemo(() => {
+                        // Format languages from Redux state (same as MovieInfoPanel)
+                        // Use availableSubsLanguages if available, otherwise use languageFiles keys
+                        const languageCodes = availableSubsLanguages.length > 0 
+                            ? availableSubsLanguages 
+                            : Object.keys(languageFiles);
+                        
+                        const commonIso3Codes = ['eng', 'fra', 'spa', 'deu', 'ita', 'rus', 'jpn', 'ara', 'heb', 'hin'];
+                        const commonLanguages: string[] = [];
+                        const otherLanguages: string[] = [];
+                        
+                        languageCodes.forEach(iso3 => {
+                            const normalized = normalizeLanguageCode(iso3);
+                            const metadata = getSubtitleMetadata(iso3);
+                            // Skip languages that don't have a proper label
+                            if (!metadata || metadata.label === 'Subtitles') {
+                                return;
+                            }
+                            const label = metadata.label;
+                            const code = toOpenSubtitlesCode(iso3);
+                            const formatted = `${code}-${label}`;
+                            
+                            if (commonIso3Codes.includes(normalized)) {
+                                commonLanguages.push(formatted);
+                            } else {
+                                otherLanguages.push(formatted);
+                            }
+                        });
+                        
+                        // Sort common languages by priority order, then add others
+                        const sortedCommon = commonLanguages.sort((a, b) => {
+                            const aCode = normalizeLanguageCode(a.split('-')[0]);
+                            const bCode = normalizeLanguageCode(b.split('-')[0]);
+                            const aIndex = commonIso3Codes.indexOf(aCode);
+                            const bIndex = commonIso3Codes.indexOf(bCode);
+                            return aIndex - bIndex;
+                        });
+                        
+                        const sortedOther = otherLanguages.sort();
+                        return [...sortedCommon, ...sortedOther];
+                    }, [availableSubsLanguages, languageFiles])}
+                    languageFiles={languageFiles}
                     isLoading={isLoadingSubs}
                     isDownloading={isDownloadingSubs}
                     onSelectSubtitle={handleSelectSubtitleLanguage}

@@ -6,7 +6,7 @@ import { BiSearch } from 'react-icons/bi';
 import { DEFAULT_FETCH_LIMIT, DEFAULT_GENRE, DEFAULT_PAGE, DEFAULT_QUALITY, DEFAULT_RATING } from '../utils/constants';
 import { selectFilters, selectQuery } from '../store/movies/movies.selectors';
 import { Filters } from '../utils/types';
-import { extractImdbCode } from '../utils/extractImdbCode';
+import { extractImdbCodeFromText } from '../utils/extractImdbCode';
 import Button from './Button';
 
 const scrollToTop = () => {
@@ -27,7 +27,7 @@ const Search = () => {
 
     const params: Filters = useMemo(() => {
         const trimmedQuery = query.trim();
-        const extractedQuery = trimmedQuery ? extractImdbCode(trimmedQuery) : '';
+        const extractedQuery = trimmedQuery ? extractImdbCodeFromText(trimmedQuery) || trimmedQuery : '';
         
         return {
             genre: filters.genre ?? DEFAULT_GENRE,
@@ -56,7 +56,7 @@ const Search = () => {
             hasMounted.current = true;
     
             if (currentQuery && !query.length) {
-                const extractedQuery = extractImdbCode(currentQuery);
+                const extractedQuery = extractImdbCodeFromText(currentQuery) || currentQuery;
                 const newParams: Filters = {
                     ...params,
                     page: DEFAULT_PAGE,

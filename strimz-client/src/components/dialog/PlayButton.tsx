@@ -7,7 +7,7 @@ import { twMerge } from 'tailwind-merge';
 
 interface PlayButtonProps {
     isDisabled: boolean;
-    onPlay: () => void;
+    onPlay: () => Promise<void>;
     diskSpaceInfo?: {
         hasEnoughSpace: boolean | null;
         fileSizeInBytes: number;
@@ -18,8 +18,12 @@ interface PlayButtonProps {
 const PlayButton = ({isDisabled, onPlay, diskSpaceInfo}: PlayButtonProps) => {
   const dispatch = useAppDispatch();
 
-  const handlePlay = () => {
-    onPlay();
+  const handlePlay = async () => {
+    // Call onPlay first (which handles subtitle download and navigation)
+    // Wait for it to complete to ensure subtitle states are set before closing modal
+    await onPlay();
+    // Close modal after subtitle states are set and navigation starts
+    // Don't reset subtitle states - they should persist to the player
     dispatch(closeModal('movie'));
   }
   

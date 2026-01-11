@@ -43,11 +43,12 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                     ${size === "medium" && "md:w-[65%]"}
                     ${size === "small" && "md:w-[40%]"}
                     ${size === "fit" && "md:w-fit"}
+                    ${className}
                 `)}
             >
                 {title && <p className='text-2xl text-slate-100 font-bold px-2 py-1'>{title}</p>}
 
-                <div id='dialogContent' className={twMerge(`w-full md:flex ${className}`)}>
+                <div id='dialogContent' className={twMerge(`w-full md:flex`, className)}>
                     {children}
                 </div>
             </motion.div>

@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpdateCheckSkipped: (cb) => ipcRenderer.removeListener('update-check-skipped', cb),
   offUpdateCheckFailed: (cb) => ipcRenderer.removeListener('update-check-failed', cb),
   offDownloadProgress: (cb) => ipcRenderer.removeListener('update-download-progress', cb),
+  offExternalTorrent: (cb) => ipcRenderer.removeListener(CHANNELS.EXTERNAL_TORRENT, cb),
 
   ipcRenderer: {
       send: (channel, data) => {

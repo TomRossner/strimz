@@ -12,20 +12,27 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { BsInfoCircle } from 'react-icons/bs';
 import SubtitleDropdown from './SubtitlesDropdown';
 
+interface SubtitleFile {
+    fileId: string;
+    fileName: string;
+    uploadDate: string;
+}
+
 interface SubtitlesSelectorProps {
     buttonOnly?: boolean;
     buttonClassName?: string;
     reverseButtonPosition?: boolean;
     containerClassName?: string;
     useOnSelect?: boolean;
-    onSelectSubtitle: (langId: string) => void;
+    onSelectSubtitle: (langId: string, fileId: string) => void;
     subtitleContainerClassName?: string;
     isSelected?: boolean;
     isLoading: boolean;
     isDownloading?: boolean;
     languages: string[];
-    availableSubs: string[];
-    notAvailableSubs: string[];
+    languageFiles: Record<string, Array<SubtitleFile>>;
+    availableSubs?: string[];
+    notAvailableSubs?: string[];
 }
 
 const SubtitlesSelector = ({
@@ -37,6 +44,7 @@ const SubtitlesSelector = ({
     onSelectSubtitle,
     useOnSelect,
     languages = [],
+    languageFiles = {},
     availableSubs = [],
     notAvailableSubs = [],
     isLoading,
@@ -122,7 +130,14 @@ const SubtitlesSelector = ({
 
         {subtitleFilePath && (
             <div
-                onClick={() => onSelectSubtitle(subtitleLang as string)}
+                onClick={() => {
+                    // Get fileId from languageFiles if available
+                    const files = languageFiles[subtitleLang as string] || [];
+                    const fileId = files.length > 0 ? files[0].fileId : '';
+                    if (fileId) {
+                        onSelectSubtitle(subtitleLang as string, fileId);
+                    }
+                }}
                 className={twMerge(`
                     flex
                     items-center
@@ -166,9 +181,8 @@ const SubtitlesSelector = ({
         )}
 
         <SubtitleDropdown
-            notAvailableSubs={notAvailableSubs}
-            availableSubs={availableSubs}
             languages={languages}
+            languageFiles={languageFiles}
             onSelect={onSelectSubtitle}
             isLoading={isLoading}
             isDownloading={isDownloading}

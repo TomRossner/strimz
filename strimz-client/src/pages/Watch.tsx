@@ -7,8 +7,9 @@ import LoadingScreen from '../components/LoadingScreen';
 import { selectSettings } from '../store/settings/settings.selectors';
 import { selectSocket } from '@/store/socket/socket.selectors';
 import Player from '@/components/player/Player';
-import { selectMovie, selectSubtitleLang } from '@/store/movies/movies.selectors';
-import { downloadSubtitles } from '@/services/subtitles';
+import { selectMovie, selectSubtitleLang, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
+import { downloadSubtitleFromApi } from '@/services/subtitles';
+import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
 import { Download, setDownloads } from '@/store/downloads/downloads.slice';
 import { selectDownloads } from '@/store/downloads/downloads.selectors';
 import { addNewTorrent, playTorrent } from '@/services/movies';
@@ -31,6 +32,7 @@ const WatchMoviePage = () => {
     const movie = useAppSelector(selectMovie);
 
     const subtitleLang = useAppSelector(selectSubtitleLang);
+    const selectedSubtitleFileId = useAppSelector(selectSelectedSubtitleFileId);
 
     const downloads = useAppSelector(selectDownloads);
 
@@ -56,6 +58,7 @@ const WatchMoviePage = () => {
     useEffect(() => {
         if (
             !subtitleLang ||
+            !selectedSubtitleFileId ||
             !movie?.imdb_code ||
             !title ||
             !movie.year ||
@@ -63,13 +66,26 @@ const WatchMoviePage = () => {
         ) return;
 
         const startSubtitlesDownload = async () => {
-            const {data: subtitleFilePath} = await downloadSubtitles(subtitleLang, movie.imdb_code, title, movie.year.toString(), settings.downloadsFolderPath);
-            dispatch(setSubtitleFilePath(subtitleFilePath));
+            try {
+                const openSubtitlesLangCode = toOpenSubtitlesCode(subtitleLang);
+                const {data: subtitleFilePath} = await downloadSubtitleFromApi(
+                    selectedSubtitleFileId,
+                    movie.imdb_code,
+                    title,
+                    movie.year.toString(),
+                    openSubtitlesLangCode,
+                    settings.downloadsFolderPath
+                );
+                dispatch(setSubtitleFilePath(subtitleFilePath));
+            } catch (error) {
+                console.error('Error downloading subtitle from API:', error);
+            }
         }
 
         startSubtitlesDownload();
     }, [
         subtitleLang,
+        selectedSubtitleFileId,
         movie?.imdb_code,
         movie?.year,
         title,

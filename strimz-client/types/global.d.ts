@@ -42,11 +42,12 @@ declare global {
             offUpdateCheckSkipped: (cb) => void,
             offUpdateCheckFailed: (cb) => void,
             offDownloadProgress: (cb) => void,
+            offExternalTorrent: (cb) => void,
 
             ipcRenderer: {
                 send: (channel, data?) => void,
                 on: (channel, data?) => void,
-                removeAllListener: (channel) => void,
+                removeAllListeners: (channel) => void,
                 invoke: (channel, ...args) => Promise<unknown>,
             }
         }

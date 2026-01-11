@@ -5,8 +5,8 @@ import { closeModal, openModal } from '@/store/modals/modals.slice';
 import Button from '../Button';
 import { BsInfoCircle } from 'react-icons/bs';
 import MovieInfoPanel from './InfoPanel';
-import { selectExternalTorrent, selectSelectedTorrent } from '@/store/movies/movies.selectors';
-import { setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setIsSubtitlesEnabled, setSubtitleDelay, setVttSubtitlesContent, setSelectedMovie } from '@/store/movies/movies.slice';
+import { selectSelectedTorrent } from '@/store/movies/movies.selectors';
+import { setAvailableSubtitlesLanguages, setLanguageFiles, setSubtitleLang, setSelectedSubtitleFileId, setSubtitleFilePath, setIsSubtitlesEnabled, setSubtitleDelay, setVttSubtitlesContent, setSelectedMovie, setExternalTorrent } from '@/store/movies/movies.slice';
 import { selectMovieDownloadInfoPanel } from '@/store/modals/modals.selectors';
 import { DownloadProgressData } from '@/utils/types';
 import { pauseDownload } from '@/services/movies';
@@ -22,7 +22,6 @@ interface TopOverlayProps {
 
 const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo, videoRef}: TopOverlayProps) => {
     const dispatch = useAppDispatch();
-    const externalTorrent = useAppSelector(selectExternalTorrent);
     const isInfoPanelOpen = useAppSelector(selectMovieDownloadInfoPanel);
     const selectedTorrent = useAppSelector(selectSelectedTorrent);
     const [searchParams] = useSearchParams();
@@ -61,8 +60,6 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
         <p className='flex items-start gap-2'>
             <BackButton
                 cb={async () => {
-                    if (externalTorrent) return;
-
                     const video = videoRef.current;
                     if (video) {
                         video.pause();
@@ -70,10 +67,11 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                         video.load();
                     }
 
-                    // Clear all subtitle state before navigating away
-                    // Clear selectedMovie only if playing from Downloads page
+                    // Reset all subtitle states when quitting player
                     dispatch(setAvailableSubtitlesLanguages([]));
+                    dispatch(setLanguageFiles({}));
                     dispatch(setSubtitleLang(null));
+                    dispatch(setSelectedSubtitleFileId(null));
                     dispatch(setSubtitleFilePath(null));
                     dispatch(setIsSubtitlesEnabled(false));
                     dispatch(setSubtitleDelay(0));
@@ -83,6 +81,7 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                     }
 
                     // Pause download if we have a hash (torrent-based download)
+                    // External torrents don't have selectedTorrent, so skip this
                     // Try hash from URL params first, then downloadInfo, then selectedTorrent
                     const downloadHash = hash || downloadInfo?.hash || selectedTorrent?.hash;
                     if (downloadHash) {
@@ -100,6 +99,10 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                             }
                         });
                         dispatch(openModal('movie'));
+                    } else if (from === 'external') {
+                        // External torrent - navigate to home and clear external torrent
+                        dispatch(setExternalTorrent(null));
+                        navigate('/');
                     } else {
                         navigate(-1);
                     }

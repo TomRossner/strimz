@@ -49,11 +49,19 @@ export function startBackend() {
   return backendProcess;
 }
 
-export function waitForBackendReady(retries = 30, interval = 500) {
+export function waitForBackendReady() {
+  // In dev mode, allow more time for compilation/startup
+  const retries = isDev ? 120 : 60; // 60 seconds in dev, 30 seconds in prod
+  const interval = 500;
+  
   return new Promise((resolve, reject) => {
+    let attempts = 0;
+    
     const check = () => {
+      attempts++;
       http.get(`${API_URL}/ping`, res => {
         if (res.statusCode === 200) {
+          log.info(`Backend ready after ${attempts} attempts`);
           resolve();
         } else {
           retry();
@@ -62,10 +70,14 @@ export function waitForBackendReady(retries = 30, interval = 500) {
     };
 
     const retry = () => {
-      if (--retries === 0) return reject(new Error('Backend not ready after multiple retries.'));
+      if (attempts >= retries) {
+        const timeoutSeconds = (retries * interval) / 1000;
+        return reject(new Error(`Backend not ready after ${timeoutSeconds} seconds (${attempts} attempts).`));
+      }
       setTimeout(check, interval);
     };
 
-    check();
+    // Small initial delay before first check
+    setTimeout(check, interval);
   });
 }

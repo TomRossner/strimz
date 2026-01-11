@@ -57,9 +57,9 @@ const Home = () => {
           return;
         }
 
-        const {data: {hash, title}} = await getTorrentData(path, settings.downloadsFolderPath);
+        const {data: {hash, title, imdbCode}} = await getTorrentData(path, settings.downloadsFolderPath);
         
-        dispatch(setExternalTorrent({hash, title}));
+        dispatch(setExternalTorrent({hash, title, imdbCode}));
         dispatch(openModal('playTorrentPrompt'));
     }, [settings.downloadsFolderPath, dispatch, externalTorrent]);
 
@@ -95,12 +95,15 @@ const Home = () => {
       window.electronAPI.ipcRenderer.send('subscribe-to-updates');
   
       return () => {
-          window.electronAPI.offCheckingForUpdate(checkingHandler);
-          window.electronAPI.offUpdateAvailable(availableHandler);
-          window.electronAPI.offUpdateNotAvailable(notAvailableHandler);
-          window.electronAPI.offUpdateDownloaded(updateDownloadedHandler);
-          window.electronAPI.offUpdateCheckSkipped(skippedHandler);
-          window.electronAPI.offUpdateCheckFailed(failedHandler);
+          // Use removeAllListeners to ensure all listeners are removed
+          // Some listeners use wrapper functions in preload.js which prevents
+          // removeListener from matching correctly
+          window.electronAPI.ipcRenderer.removeAllListeners('checking-for-update');
+          window.electronAPI.ipcRenderer.removeAllListeners('update-available');
+          window.electronAPI.ipcRenderer.removeAllListeners('update-not-available');
+          window.electronAPI.ipcRenderer.removeAllListeners('update-downloaded');
+          window.electronAPI.ipcRenderer.removeAllListeners('update-check-skipped');
+          window.electronAPI.ipcRenderer.removeAllListeners('update-check-failed');
       }
   }, [dispatch]);
 
@@ -108,6 +111,12 @@ const Home = () => {
     if (settings.downloadsFolderPath.length) {
       const handleExternalTorrent = async (path: string) => await handleGetTorrentData(path);
       window.electronAPI.onExternalTorrent(handleExternalTorrent);
+      
+      return () => {
+        // Use removeAllListeners because the wrapper function in preload.js
+        // prevents removeListener from matching the exact handler
+        window.electronAPI.ipcRenderer.removeAllListeners('external-torrent');
+      };
     }
   }, [settings, handleGetTorrentData]);
 
