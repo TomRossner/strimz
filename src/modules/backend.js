@@ -51,7 +51,8 @@ export function startBackend() {
 
 export function waitForBackendReady() {
   // In dev mode, allow more time for compilation/startup
-  const retries = isDev ? 120 : 60; // 60 seconds in dev, 30 seconds in prod
+  // In prod, allow more time as packaged apps can be slower to start
+  const retries = isDev ? 120 : 180; // 60 seconds in dev, 90 seconds in prod
   const interval = 500;
   
   return new Promise((resolve, reject) => {
