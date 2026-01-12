@@ -4,6 +4,7 @@ import { startBackend, waitForBackendReady } from './modules/backend.js';
 import { attachIPCHandlers } from './modules/ipcHandlers.js';
 import { setupAutoUpdater } from './modules/autoUpdater.js';
 import { clearDownloadFolderAsync, ensureDefaultDownloadPath } from './modules/utils.js';
+import { startStaticServer, stopStaticServer } from './modules/staticServer.js';
 import log from 'electron-log';
 import store from './store.js';
 import electronUpdater from "electron-updater";
@@ -35,6 +36,17 @@ app.whenReady().then(async () => {
 
     try {
       await waitForBackendReady(backendProcess);
+      
+      // Start static server in production to serve app over HTTP (fixes YouTube embed referrer issues)
+      if (!isDev) {
+        try {
+          const port = await startStaticServer();
+          log.info(`Static server started on port ${port}`);
+        } catch (err) {
+          log.error('Failed to start static server:', err);
+        }
+      }
+      
       mainWindow = createMainWindow(isDev);
 
       const torrentArg = process.argv.find(arg => arg.endsWith(".torrent") || arg.startsWith("magnet:"));
@@ -79,11 +91,13 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   if (backendProcess) {
     log.info("Killing backend process...");
     backendProcess.kill();
   }
+  // Stop static server
+  await stopStaticServer();
 });
 
 app.on('window-all-closed', () => {

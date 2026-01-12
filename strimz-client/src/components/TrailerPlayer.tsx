@@ -16,22 +16,22 @@ const setIframeSrc = (trailerCode: string): string => {
     // Clean the trailer code to ensure it's valid (remove any whitespace or invalid characters)
     const cleanCode = trailerCode.trim();
     
-    // For Electron apps using file:// protocol, we need special handling
-    // YouTube doesn't accept file:// as origin, so we use youtube-nocookie.com
-    // which is more permissive, or omit the origin parameter
+    // Check if we're in Electron with file:// protocol (fallback case)
     const isFileProtocol = typeof window !== 'undefined' && 
         window.location.protocol === 'file:';
     
     // Use youtube-nocookie.com for better compatibility in Electron
+    // In production, we now serve over HTTP, so we can use regular YouTube
     const baseUrl = isFileProtocol 
         ? 'https://www.youtube-nocookie.com/embed'
         : 'https://www.youtube.com/embed';
     
-    // Only add origin parameter if we have a valid HTTP/HTTPS origin
+    // Add origin parameter if we have a valid HTTP/HTTPS origin
+    // This is required for YouTube to identify the embedder and avoid Error 153
     let originParam = '';
-    if (!isFileProtocol && typeof window !== 'undefined' && window.location.origin) {
+    if (typeof window !== 'undefined' && window.location.origin) {
         const origin = window.location.origin;
-        // Only add origin if it's a valid HTTP/HTTPS origin
+        // Only add origin if it's a valid HTTP/HTTPS origin (not file://)
         if (origin.startsWith('http://') || origin.startsWith('https://')) {
             originParam = `&origin=${encodeURIComponent(origin)}`;
         }
@@ -79,7 +79,6 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
             allowFullScreen
             src={setIframeSrc(yt_trailer_code)}
             title={title}
-            referrerPolicy="no-referrer-when-downgrade"
             className="w-full aspect-video"
         />
     </Dialog>

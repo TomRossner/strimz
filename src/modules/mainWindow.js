@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron';
 import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { CLIENT_URL } from '../constants.js';
+import { getServerUrl } from './staticServer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,9 +20,19 @@ export function createMainWindow(isDev) {
     autoHideMenuBar: !isDev,
   });
 
-  const url = isDev
-    ? CLIENT_URL
-    : `file://${path.resolve(__dirname, '../../strimz-client/dist/index.html')}`;
+  let url;
+  if (isDev) {
+    url = CLIENT_URL;
+  } else {
+    // Use HTTP server in production to fix YouTube embed referrer issues
+    const serverUrl = getServerUrl();
+    if (serverUrl) {
+      url = serverUrl;
+    } else {
+      // Fallback to file:// if server not ready yet
+      url = `file://${path.resolve(__dirname, '../../strimz-client/dist/index.html')}`;
+    }
+  }
 
   mainWindow.loadURL(url);
 
