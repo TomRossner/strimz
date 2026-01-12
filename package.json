@@ -63,6 +63,10 @@
                 "to": "backend"
             },
             {
+                "from": "./strimz-backend/package.json",
+                "to": "backend/package.json"
+            },
+            {
                 "from": "./strimz-backend/node_modules",
                 "to": "backend/node_modules"
             },

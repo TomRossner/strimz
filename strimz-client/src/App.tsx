@@ -9,8 +9,6 @@ import { selectError, selectFilters, selectMoviesMap } from './store/movies/movi
 import ErrorDialog from './components/ErrorDialog';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { getFavorites, getWatchList } from './services/localStorage';
-import FiltersDialog from './components/FiltersDialog';
-import MovieDialog from './components/dialog/MovieDialog';
 import { DEFAULT_PARAMS } from './utils/constants';
 import Overlay from './components/Overlay';
 import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayFromMagnetModal, selectPlayTorrentPrompt, selectVpnModal } from './store/modals/modals.selectors';
@@ -18,9 +16,7 @@ import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
 import { selectIsVpnActive } from './store/vpn/vpn.selectors';
-import PlayTorrentPrompt from './components/PlayTorrentPrompt';
 import { fetchUserSettings } from './store/settings/settings.slice';
-import PlayFromMagnetModal from './components/PlayFromMagnetModal';
 import DownloadsPage from './pages/Downloads';
 import { fetchAllDownloadsAsync, fetchDownloadedFilesAsync, setCompleted } from './store/downloads/downloads.slice';
 import { createNewStreamClient } from './utils/createStreamClient';
@@ -30,12 +26,19 @@ import { selectDownloads, selectDownloadedFiles, selectCompleted } from './store
 import { selectSocket } from './store/socket/socket.selectors';
 import { DownloadProgressData } from './utils/types';
 
+// Lazy load pages
 const WatchMoviePage = lazy(() => import('./pages/Watch'));
 const WatchFilePage = lazy(() => import('./pages/WatchFile'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const FavoritesPage = lazy(() => import('./pages/Favorites'));
 // const ReportsPage = lazy(() => import('./pages/Reports'));
 const WatchListPage = lazy(() => import('./pages/WatchList'));
+
+// Lazy load heavy dialog components
+const MovieDialog = lazy(() => import('./components/dialog/MovieDialog'));
+const FiltersDialog = lazy(() => import('./components/FiltersDialog'));
+const PlayTorrentPrompt = lazy(() => import('./components/PlayTorrentPrompt'));
+const PlayFromMagnetModal = lazy(() => import('./components/PlayFromMagnetModal'));
 
 const MoviesPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -182,10 +185,12 @@ const MoviesPage = () => {
     <>
       <Overlay active={isOverlayActive} />
       <ErrorDialog onClose={handleErrorClose} />
-      <MovieDialog />
-      <FiltersDialog />
-      <PlayFromMagnetModal />
-      <PlayTorrentPrompt />
+      <Suspense fallback={null}>
+        <MovieDialog />
+        <FiltersDialog />
+        <PlayFromMagnetModal />
+        <PlayTorrentPrompt />
+      </Suspense>
       <VpnReminderDialog isActive={isVpnActive} />
 
       <Menu />

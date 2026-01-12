@@ -3,14 +3,39 @@ config();
 import axios from "axios";
 import { normalizeLanguageCode } from "../utils/detectLanguage.js";
 import { extractSrtFiles } from "../utils/srtExtractor.js";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
-const USER_AGENT = `Strimz v${packageJson.version}`;
+
+// Try multiple paths to find package.json (handles both dev and packaged app)
+let packageVersion: string | null = null;
+const possiblePaths = [
+    join(__dirname, '../package.json'), // Backend's own package.json (packaged app)
+    join(__dirname, '../../package.json'), // Root package.json (dev mode)
+    join(__dirname, '../../../package.json'), // Alternative packaged path
+];
+
+for (const packagePath of possiblePaths) {
+    try {
+        if (existsSync(packagePath)) {
+            const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
+            if (packageJson.version) {
+                packageVersion = packageJson.version;
+                break;
+            }
+        }
+    } catch (error) {
+        // Continue to next path
+        continue;
+    }
+}
+
+// Allow override via environment variable, or use found version, or omit version if not found
+const version = process.env.APP_VERSION || packageVersion;
+const USER_AGENT = version ? `Strimz v${version}` : 'Strimz';
 
 export const searchSubtitles = async (id: string, lang: string) => {
     const options = {

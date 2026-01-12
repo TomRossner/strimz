@@ -39,46 +39,92 @@ export function startBackend() {
     log.error(`[Backend STDERR]: ${data.toString().trim()}`);
   });
 
-  if (isDev) {
-    backendProcess.stdout.on("data", (data) => {
-      console.log(`[Backend STDOUT]: ${data.toString().trim()}`);
-      log.info(`[Backend STDOUT]: ${data.toString().trim()}`);
-    });
-  }
+  // Always log stdout to help debug startup issues
+  backendProcess.stdout.on("data", (data) => {
+    const output = data.toString().trim();
+    console.log(`[Backend STDOUT]: ${output}`);
+    log.info(`[Backend STDOUT]: ${output}`);
+  });
 
+  // Log process exit to help debug
+  backendProcess.on('exit', (code, signal) => {
+    if (code !== null && code !== 0) {
+      log.error(`Backend process exited with non-zero code ${code} and signal ${signal}`);
+      console.error(`Backend process exited with non-zero code ${code} and signal ${signal}`);
+    } else {
+      log.warn(`Backend process exited with code ${code} and signal ${signal}`);
+      console.warn(`Backend process exited with code ${code} and signal ${signal}`);
+    }
+  });
+  
+  log.info(`Backend process started (PID: ${backendProcess.pid}, path: ${backendRelativePath})`);
+  
   return backendProcess;
 }
 
-export function waitForBackendReady() {
+export function waitForBackendReady(backendProcess) {
   // In dev mode, allow more time for compilation/startup
-  // In prod, allow more time as packaged apps can be slower to start
-  const retries = isDev ? 120 : 180; // 60 seconds in dev, 90 seconds in prod
+  // In prod, allow significantly more time as packaged apps can be much slower to start
+  // Increased timeout to handle slower systems and heavy dependency loading
+  const retries = isDev ? 120 : 360; // 60 seconds in dev, 180 seconds (3 min) in prod
   const interval = 500;
   
   return new Promise((resolve, reject) => {
     let attempts = 0;
+    const startTime = Date.now();
     
     const check = () => {
       attempts++;
-      http.get(`${API_URL}/ping`, res => {
+      const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+      
+      // Check if backend process has crashed/exited
+      if (backendProcess && backendProcess.exitCode !== null) {
+        const errorMsg = `Backend process exited with code ${backendProcess.exitCode} before becoming ready (${elapsedSeconds}s elapsed). Check backend logs for errors.`;
+        log.error(errorMsg);
+        return reject(new Error(errorMsg));
+      }
+      
+      // Log progress every 10 attempts (5 seconds) to track startup
+      if (attempts % 10 === 0) {
+        log.info(`Waiting for backend... (attempt ${attempts}/${retries}, ${elapsedSeconds}s elapsed)`);
+      }
+      
+      const req = http.get(`${API_URL}/ping`, {
+        timeout: 3000 // 3 second timeout per request to avoid hanging
+      }, (res) => {
         if (res.statusCode === 200) {
-          log.info(`Backend ready after ${attempts} attempts`);
+          const totalSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+          log.info(`Backend ready after ${attempts} attempts (${totalSeconds} seconds)`);
           resolve();
         } else {
           retry();
         }
-      }).on('error', retry);
+        res.resume(); // Consume response data to free up memory
+      }).on('error', (err) => {
+        // Only log connection errors occasionally to avoid spam
+        if (attempts % 20 === 0) {
+          log.debug(`Backend ping error (attempt ${attempts}): ${err.message}`);
+        }
+        retry();
+      }).on('timeout', () => {
+        req.destroy();
+        retry();
+      });
     };
 
     const retry = () => {
       if (attempts >= retries) {
         const timeoutSeconds = (retries * interval) / 1000;
+        const totalSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+        const processStatus = backendProcess ? (backendProcess.exitCode !== null ? ` (process exited with code ${backendProcess.exitCode})` : ' (process still running)') : '';
+        log.error(`Backend not ready after ${timeoutSeconds} seconds timeout (${attempts} attempts, ${totalSeconds}s elapsed)${processStatus}. Check backend logs for startup errors.`);
         return reject(new Error(`Backend not ready after ${timeoutSeconds} seconds (${attempts} attempts).`));
       }
       setTimeout(check, interval);
     };
 
     // Small initial delay before first check
+    log.info(`Starting backend readiness check (timeout: ${retries * interval / 1000}s)`);
     setTimeout(check, interval);
   });
 }

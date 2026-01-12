@@ -33,6 +33,7 @@ app.use(cors({
 }));
 app.use(morgan('dev'));
 
+// Register ping endpoint first to make it available as early as possible
 app.use('/api/ping', (req: Request, res: Response) => {
     try {
         res.status(200).json('Pong');
@@ -40,6 +41,7 @@ app.use('/api/ping', (req: Request, res: Response) => {
         res.status(500).json({error: "Internal server error. Please restart the app."});
     }
 });
+
 app.use('/api/movies', moviesRouter);
 app.use('/api/stream', streamRouter);
 app.use('/api/subtitles', subtitlesRouter);
@@ -50,10 +52,15 @@ app.use('/api/suggestions', suggestionsRouter);
 
 const init = async (): Promise<void> => {
     try {
-        httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}...`));
+        httpServer.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}...`);
+            // Ensure ping endpoint is ready
+            console.log('Ping endpoint available at /api/ping');
+        });
         ioServer.on('connection', (socket: Socket) => handleSocket(socket));
     } catch (error) {
-        console.error(error);
+        console.error('Failed to start server:', error);
+        process.exit(1);
     }
 }
 
