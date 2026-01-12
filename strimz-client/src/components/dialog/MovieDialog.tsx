@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import CloseButton from '../CloseButton';
 import CoverImage from './CoverImage';
 import MovieInfoPanel from './MovieInfoPanel';
@@ -39,6 +39,24 @@ const MovieDialog = () => {
   const isSummaryModalOpen = useAppSelector(selectSummaryModal);
 
   const movie = useAppSelector(selectMovie);
+
+  // Compute summary using the same logic as Metadata component
+  const movieSummary = useMemo(() => {
+    if (!movie) return "";
+    
+    if (!movie.summary?.length && !movie.description_full?.length) {
+      return "No summary";
+    }
+
+    const regex = /\s*[-–—]+[^-–—]*\.?$|[-–—]\.$/;
+    const punctuationRegex = /[?.!]$/;
+
+    const summary = movie.summary 
+      ? movie.summary.replace(regex, "").trim() 
+      : movie.description_full!.replace(regex, "").trim();
+
+    return `${summary}${punctuationRegex.test(summary) ? "" : "."}`;
+  }, [movie]);
 
   useEffect(() => {
       if (isOpen) {
@@ -121,7 +139,7 @@ const MovieDialog = () => {
       />
       
       <TrailerPlayer isOpen={isTrailerDialogOpen} title={movie?.title ?? ""} yt_trailer_code={movie?.yt_trailer_code} />
-      <SummaryDialog isOpen={isSummaryModalOpen} summary={movie?.summary || ""} />
+      <SummaryDialog isOpen={isSummaryModalOpen} summary={movieSummary} />
       
       {movie && (
         <>

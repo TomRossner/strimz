@@ -15,11 +15,29 @@ const setIframeSrc = (trailerCode: string): string => {
     // Add additional parameters for better compatibility and to avoid Error 153
     // Clean the trailer code to ensure it's valid (remove any whitespace or invalid characters)
     const cleanCode = trailerCode.trim();
-    const origin = typeof window !== 'undefined' && window.location.origin 
-        ? encodeURIComponent(window.location.origin)
-        : '';
-    const originParam = origin ? `&origin=${origin}` : '';
-    return `https://www.youtube.com/embed/${cleanCode}?autoplay=1&enablejsapi=1&modestbranding=1&rel=0${originParam}`;
+    
+    // For Electron apps using file:// protocol, we need special handling
+    // YouTube doesn't accept file:// as origin, so we use youtube-nocookie.com
+    // which is more permissive, or omit the origin parameter
+    const isFileProtocol = typeof window !== 'undefined' && 
+        window.location.protocol === 'file:';
+    
+    // Use youtube-nocookie.com for better compatibility in Electron
+    const baseUrl = isFileProtocol 
+        ? 'https://www.youtube-nocookie.com/embed'
+        : 'https://www.youtube.com/embed';
+    
+    // Only add origin parameter if we have a valid HTTP/HTTPS origin
+    let originParam = '';
+    if (!isFileProtocol && typeof window !== 'undefined' && window.location.origin) {
+        const origin = window.location.origin;
+        // Only add origin if it's a valid HTTP/HTTPS origin
+        if (origin.startsWith('http://') || origin.startsWith('https://')) {
+            originParam = `&origin=${encodeURIComponent(origin)}`;
+        }
+    }
+    
+    return `${baseUrl}/${cleanCode}?autoplay=1&enablejsapi=1&modestbranding=1&rel=0${originParam}`;
 }
 
 const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => {
@@ -61,7 +79,7 @@ const TrailerPlayer = ({yt_trailer_code, title, isOpen}: TrailerPlayerProps) => 
             allowFullScreen
             src={setIframeSrc(yt_trailer_code)}
             title={title}
-            referrerPolicy={"strict-origin-when-cross-origin"}
+            referrerPolicy="no-referrer-when-downgrade"
             className="w-full aspect-video"
         />
     </Dialog>
