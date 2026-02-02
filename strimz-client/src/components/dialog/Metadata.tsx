@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Movie } from '../MovieCard';
 import { BsCircleFill } from 'react-icons/bs';
 import Rating from './Rating';
@@ -9,17 +9,19 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { openModal } from '../../store/modals/modals.slice';
 import Button from '../Button';
 import { addToFavorites, addToWatchList, getFavorites, getWatchList, removeFromFavorites, removeFromWatchList } from '@/services/localStorage';
-import { setFavorites, setWatchList } from '@/store/movies/movies.slice';
+import { setFavorites, setTrailerCode, setWatchList } from '@/store/movies/movies.slice';
 import { selectFavorites, selectWatchList } from '@/store/movies/movies.selectors';
+import { getMovieMetadata } from '@/services/movies';
 import { MdFavoriteBorder, MdFavorite } from "react-icons/md";
 import { ImEye, ImEyeBlocked } from "react-icons/im";
+import LoadingIcon from '../LoadingIcon';
 
 const formatMinutes = (minutes: number): string => {
     return minutes < 10 ? `0${minutes}` : `${minutes}`;
 }
 
-const calculateRuntime = (totalMinutes: number): string => {
-    if (!totalMinutes) return 'Unknown duration';
+const calculateRuntime = (totalMinutes: number | undefined): string => {
+    if (totalMinutes == null || !Number.isFinite(totalMinutes)) return 'Unknown duration';
 
     const minutes = formatMinutes(totalMinutes % 60);
     const hours = Math.floor(totalMinutes / 60);
@@ -34,13 +36,13 @@ interface MetadataProps {
 const Metadata = ({movie}: MetadataProps) => {
     const {
         language,
-        rating,
+        rating: movieRating,
         genres,
-        runtime,
-        yt_trailer_code,
+        runtime: movieRuntime,
         year,
         id,
         slug,
+        imdb_code,
     } = movie;
 
     const dispatch = useAppDispatch();
@@ -48,18 +50,60 @@ const Metadata = ({movie}: MetadataProps) => {
     const favorites = useAppSelector(selectFavorites);
     const watchList = useAppSelector(selectWatchList);
 
-    const movieSummary = useMemo(() => {
-        if (!movie?.summary?.length && !movie?.description_full?.length) {
-            return "No summary"
+    const [tmdbMetadata, setTmdbMetadata] = useState<{ runtime?: number; rating?: number; summary?: string; yt_trailer_code?: string } | null>(null);
+    const [isLoadingTmdb, setIsLoadingTmdb] = useState(false);
+
+    const movieSummary = movie?.summary || movie?.description_full;
+    const needsTmdb = !!imdb_code;
+    const isLoadingRating = needsTmdb && movieRating == null && isLoadingTmdb;
+    const isLoadingRuntime = needsTmdb && movieRuntime == null && isLoadingTmdb;
+    const isLoadingSummary = needsTmdb && !movieSummary?.length && isLoadingTmdb;
+
+    useEffect(() => {
+        setTmdbMetadata(null);
+        setIsLoadingTmdb(false);
+        dispatch(setTrailerCode(null));
+    }, [imdb_code, dispatch]);
+
+    useEffect(() => {
+        if (!needsTmdb) {
+            setIsLoadingTmdb(false);
+            return;
+        }
+        let cancelled = false;
+        setIsLoadingTmdb(true);
+        getMovieMetadata(imdb_code!)
+            .then((data) => {
+                if (!cancelled) {
+                    setTmdbMetadata({ runtime: data.runtime, rating: data.rating, summary: data.summary, yt_trailer_code: data.yt_trailer_code });
+                    dispatch(setTrailerCode(data.yt_trailer_code ?? null));
+                    setIsLoadingTmdb(false);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setTmdbMetadata(null);
+                    setIsLoadingTmdb(false);
+                }
+            });
+        return () => { cancelled = true; };
+    }, [imdb_code, needsTmdb, dispatch]);
+
+    const runtime = movieRuntime ?? tmdbMetadata?.runtime;
+    const rating = movieRating ?? tmdbMetadata?.rating;
+    const summaryText = movieSummary ?? tmdbMetadata?.summary;
+
+    const formattedSummary = useMemo((): string | undefined => {
+        if (!summaryText?.length) {
+            return isLoadingSummary ? undefined : "No summary";
         }
 
-        const regex = /\s*[-–—]+[^-–—]*\.?$|[-–—]\.$/;
+        const regex = /\s+[-–—]+[^-–—]*\.?$|[-–—]\.$/;
         const punctuationRegex = /[?.!]$/;
 
-        const summary = movie.summary ? movie.summary.replace(regex, "").trim() : movie.description_full!.replace(regex, "").trim();
-
-        return `${summary}${punctuationRegex.test(summary) ? "" : "."}`;
-    }, [movie]);
+        const cleaned = summaryText.replace(regex, "").trim();
+        return `${cleaned}${punctuationRegex.test(cleaned) ? "" : "."}`;
+    }, [summaryText, isLoadingSummary]);
 
     const handleSummaryClick = () => {
         dispatch(openModal('summary'));
@@ -69,6 +113,8 @@ const Metadata = ({movie}: MetadataProps) => {
         dispatch(openModal('trailer'));
     }
 
+    const ytTrailerCode = tmdbMetadata?.yt_trailer_code;
+
     const handleFavorites = useCallback((id: string) => {
         const userFavorites = getFavorites();
     
@@ -76,7 +122,7 @@ const Metadata = ({movie}: MetadataProps) => {
             removeFromFavorites(id);
     
             const updatedFavoritesMap = new Map(
-                Array.from(favorites.entries()).filter(([key, value]) => value.id !== id)
+                Array.from(favorites.entries()).filter(([, value]) => value.id !== id)
             );
             dispatch(setFavorites(updatedFavoritesMap));
     
@@ -97,7 +143,7 @@ const Metadata = ({movie}: MetadataProps) => {
         if (userWatchList?.find(i => i === id)) {
             removeFromWatchList(id);
 
-            const updatedWatchListMap = new Map(Array.from(watchList.entries()).filter(([key, value]) => value.id !== id));
+            const updatedWatchListMap = new Map(Array.from(watchList.entries()).filter(([, value]) => value.id !== id));
             dispatch(setWatchList(updatedWatchListMap));
 
             return;
@@ -128,16 +174,24 @@ const Metadata = ({movie}: MetadataProps) => {
 
             <span className='text-[4px]'><BsCircleFill/></span>
 
-            {calculateRuntime(runtime)}
+            {isLoadingRuntime || isLoadingRating ? (
+                <span className="flex items-center gap-1 text-stone-400 animate-pulse italic font-light">
+                    <LoadingIcon size={16} />
+                    Loading metadata...
+                </span>
+            ) : (
+                <>
+                    {calculateRuntime(runtime)}
+                    <span className='text-[4px]'><BsCircleFill/></span>
 
-            <span className='text-[4px]'><BsCircleFill/></span>
-
-            <Rating rating={rating} />
+                    <Rating rating={rating} />
+                </>
+            )}
         </p>
 
         <Genres genres={genres} />
-        <Summary onClick={handleSummaryClick} summary={movieSummary} />
-        <WatchTrailerButton isDisabled={!yt_trailer_code} onPlay={handlePlayTrailer} ytTrailerCode={yt_trailer_code} />
+        <Summary onClick={handleSummaryClick} summary={formattedSummary ?? undefined} isLoading={isLoadingSummary} />
+        <WatchTrailerButton isDisabled={!ytTrailerCode} onPlay={handlePlayTrailer} ytTrailerCode={ytTrailerCode ?? ''} />
 
         <div className='w-full flex items-center gap-2'>
             <Button

@@ -1,5 +1,10 @@
 import { config } from 'dotenv';
-config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import path from "path";
+config({path: path.join(__dirname, "../.env")});
 
 import { handleSocket } from "./utils/socket.js";
 import express, { Request, Response } from 'express';

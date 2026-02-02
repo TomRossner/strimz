@@ -128,6 +128,13 @@ export const getMoviesByIds = async (ids: string[]) => {
     return await axios.post(`${MOVIES_FETCH_URL}`, {ids});
 }
 
+export type MovieMetadataResponse = { runtime?: number; rating?: number; summary?: string; yt_trailer_code?: string };
+
+export const getMovieMetadata = async (imdbCode: string): Promise<MovieMetadataResponse> => {
+    const { data } = await axios.get<MovieMetadataResponse>(`${MOVIES_FETCH_URL}/metadata/${imdbCode}`);
+    return data;
+};
+
 export const getTorrentData = async (torrentFilePath: string, dir: string) => {
     return await axios.post(`${API_URL}/stream/get-torrent-data`, {torrentFilePath, dir});
 }

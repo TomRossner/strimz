@@ -1,8 +1,8 @@
 {
     "name": "strimz",
-    "version": "1.4.7",
+    "version": "1.4.8",
     "main": "src/main.js",
-    "description": "Strimz v1.4.7",
+    "description": "Strimz v1.4.8",
     "type": "module",
     "license": "MIT",
     "repository": {

@@ -11,8 +11,8 @@ export type Movie = {
   title: string;
   slug: string;
   year: number;
-  rating: number;
-  runtime: number;
+  rating?: number;
+  runtime?: number;
   genres: string[];
   summary: string;
   yt_trailer_code: string;

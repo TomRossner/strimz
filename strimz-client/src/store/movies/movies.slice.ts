@@ -37,6 +37,7 @@ interface MoviesState {
   availableSubtitlesLanguages: string[];
   unavailableSubtitlesLanguages: string[];
   languageFiles: Record<string, Array<{ fileId: string, fileName: string, uploadDate: string }>>;
+  trailerCode: string | null;
 }
 
 const initialState: MoviesState = {
@@ -65,6 +66,7 @@ const initialState: MoviesState = {
   availableSubtitlesLanguages: [],
   unavailableSubtitlesLanguages: [],
   languageFiles: {},
+  trailerCode: null,
 }
 
 type FetchMoviesAsync = {
@@ -75,6 +77,20 @@ type FetchMoviesAsync = {
   query: string | null;
   limit: number;
 }
+
+/** Normalize rating/runtime from API (handles different shapes and string values). */
+const normalizeRating = (m: Record<string, unknown>): number | undefined => {
+  const v = m.rating ?? (m as Record<string, unknown>).Rating ?? (m as Record<string, unknown>).imdb_rating;
+  if (v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+const normalizeRuntime = (m: Record<string, unknown>): number | undefined => {
+  const v = m.runtime ?? (m as Record<string, unknown>).Runtime ?? (m as Record<string, unknown>).runtime_minutes;
+  if (v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
 const constructUrl = (baseUrl: string, filters: Filters): string => {
   const query = filters.query_term ?? "";
@@ -108,27 +124,30 @@ export const fetchMoviesAsync = createAsyncThunk(
       const {data} = await fetchMovies(url);
       const {data: {movies, movie_count}} = data;
 
-      const filteredMovies: Movie[] = filterByLanguage(movies ?? [], DEFAULT_LANGUAGES).map(movie => {
-        return {
-          id: movie.id,
-          title: movie.title,
-          slug: movie.slug,
-          year: movie.year,
-          rating: movie.rating,
-          runtime: movie.runtime,
-          genres: movie.genres,
-          summary: movie.summary,
-          yt_trailer_code: movie.yt_trailer_code,
-          language: movie.language,
-          background_image: movie.background_image,
-          background_image_original: movie.background_image_original,
-          small_cover_image: movie.small_cover_image,
-          medium_cover_image: movie.medium_cover_image,
-          large_cover_image: movie.large_cover_image,
-          torrents: movie.torrents,
-          imdb_code: movie.imdb_code,
-        } as Movie;
-      });
+      const rawMovies = (movies ?? []) as Record<string, unknown>[];
+      const filteredByLang = filterByLanguage(
+        rawMovies as Movie[],
+        DEFAULT_LANGUAGES
+      ) as Record<string, unknown>[];
+      const filteredMovies: Movie[] = filteredByLang.map((movie) => ({
+        id: movie.id,
+        title: movie.title,
+        slug: movie.slug,
+        year: movie.year,
+        rating: normalizeRating(movie),
+        runtime: normalizeRuntime(movie),
+        genres: movie.genres,
+        summary: movie.summary,
+        yt_trailer_code: movie.yt_trailer_code,
+        language: movie.language,
+        background_image: movie.background_image,
+        background_image_original: movie.background_image_original,
+        small_cover_image: movie.small_cover_image,
+        medium_cover_image: movie.medium_cover_image,
+        large_cover_image: movie.large_cover_image,
+        torrents: movie.torrents,
+        imdb_code: movie.imdb_code,
+      } as Movie));
 
       const count = !!movies && (movies.length >= filters.limit) ? movie_count : filteredMovies.length;
 
@@ -152,14 +171,35 @@ export const fetchMoviesAsync = createAsyncThunk(
     }
 });
 
+const rawMovieToMovie = (m: Record<string, unknown>): Movie => ({
+  id: m.id as string,
+  title: m.title as string,
+  slug: m.slug as string,
+  year: m.year as number,
+  rating: normalizeRating(m),
+  runtime: normalizeRuntime(m),
+  genres: (m.genres as string[]) ?? [],
+  summary: (m.summary as string) ?? '',
+  yt_trailer_code: (m.yt_trailer_code as string) ?? '',
+  language: (m.language as string) ?? '',
+  background_image: (m.background_image as string) ?? '',
+  background_image_original: (m.background_image_original as string) ?? '',
+  small_cover_image: (m.small_cover_image as string) ?? '',
+  medium_cover_image: (m.medium_cover_image as string) ?? '',
+  large_cover_image: (m.large_cover_image as string) ?? '',
+  torrents: (m.torrents as object[]) ?? [],
+  imdb_code: (m.imdb_code as string) ?? '',
+});
+
 export const fetchFavoritesAsync = createAsyncThunk(
   'movies/fetchFavoritesAsync',
   async (ids: string[], {rejectWithValue}) => {
     try {
       const {data: {movies}} = await getMoviesByIds(ids);
+      const raw = (movies ?? []) as Record<string, unknown>[];
 
-      return movies?.length
-        ? new Map(movies.map((m: Movie) => [m.slug, m]))
+      return raw.length
+        ? new Map(raw.map((m) => [m.slug as string, rawMovieToMovie(m)]))
         : new Map();
     } catch (error) {
       console.error(error);
@@ -172,9 +212,10 @@ export const fetchWatchListAsync = createAsyncThunk(
   async (ids: string[], {rejectWithValue}) => {
     try {
       const {data: {movies}} = await getMoviesByIds(ids);
+      const raw = (movies ?? []) as Record<string, unknown>[];
 
-      return movies?.length
-        ? new Map(movies.map((m: Movie) => [m.slug, m]))
+      return raw.length
+        ? new Map(raw.map((m) => [m.slug as string, rawMovieToMovie(m)]))
         : new Map();
     } catch (error) {
       console.error(error);
@@ -285,6 +326,9 @@ const moviesSlice = createSlice({
     setLanguageFiles(state, action: PayloadAction<Record<string, Array<{ fileId: string, fileName: string, uploadDate: string }>>>) {
       state.languageFiles = action.payload;
     },
+    setTrailerCode(state, action: PayloadAction<string | null>) {
+      state.trailerCode = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -379,7 +423,8 @@ export const {
   setVttSubtitlesContent,
   setAvailableSubtitlesLanguages,
   setUnavailableSubtitlesLanguages,
-  setLanguageFiles
+  setLanguageFiles,
+  setTrailerCode
 } = moviesSlice.actions;
 
 export default moviesSlice.reducer;

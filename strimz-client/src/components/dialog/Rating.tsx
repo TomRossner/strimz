@@ -1,5 +1,4 @@
 import {BsStarFill, BsStarHalf, BsStar} from "react-icons/bs";
-// import {LiaImdb} from "react-icons/lia";
 import React, { ReactElement } from "react";
 import { MAX_STARS } from "../../utils/constants";
 
@@ -21,7 +20,7 @@ const calculateRating = (idx: number, rating: number): ReactElement => {
     
     if (idx === ratingHalfRounded) {
         return decimals > fullStarMinDecimalValue
-            ? <span key={idx}><BsStar className="text-yellow-300" /></span>
+            ? <span key={idx}><BsStarFill className="text-yellow-300" /></span>
             : (
                 <span key={idx}>
                     {decimals > halfStarMinDecimalValue
@@ -32,29 +31,31 @@ const calculateRating = (idx: number, rating: number): ReactElement => {
             )
     }
 
-    return idx > ratingHalfRounded
-        ? <span key={idx}><BsStar className="text-yellow-300" /></span>
-        : <span key={idx}><BsStar className="text-yellow-300" /><BsStar className="text-yellow-300" /></span>;
+    return <span key={idx}><BsStar className="text-yellow-300" /></span>;
 }
 
-// const starOutlined = 
-// const starFilled = ;
-// const starHalfFilled = ;
-
 const Rating = ({rating}: RatingProps) => {
+  if (rating === undefined || rating === null) {
+    return (
+      <span className="flex items-center gap-2 text-stone-500">
+        No rating available
+      </span>
+    );
+  }
+
+  const ratingOutOf5 = rating / 2;
   return (
-    <span className='flex items-center gap-2'>
-        {/* <span><LiaImdb id="imdb"/></span> */}
+    <span className="flex items-center gap-2">
         <span className="flex items-center">
-            {[...Array(MAX_STARS)].map((_: unknown, idx: number) => {
-                return (rating! / 2) === MAX_STARS
+            {[...Array(MAX_STARS)].map((_: unknown, idx: number) =>
+                ratingOutOf5 === MAX_STARS
                     ? <span key={idx}><BsStarFill className="text-yellow-300" /></span>
-                    : calculateRating(idx, rating!);
-            })}
+                    : calculateRating(idx, rating)
+            )}
         </span>
-        <span>({(rating! / 2)} / {MAX_STARS})</span>
+        <span>({ratingOutOf5 % 1 === 0 ? ratingOutOf5 : ratingOutOf5.toFixed(1)} / {MAX_STARS})</span>
     </span>
-  )
+  );
 }
 
 export default Rating;

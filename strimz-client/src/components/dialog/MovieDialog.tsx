@@ -7,8 +7,8 @@ import Dialog from '../Dialog';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { selectMovieModal, selectSummaryModal, selectTrailerModal } from '../../store/modals/modals.selectors';
 import { closeModal } from '../../store/modals/modals.slice';
-import { setAvailableSubtitlesLanguages, setLanguageFiles, setSubtitleLang, setSelectedSubtitleFileId, setSubtitleFilePath, setIsSubtitlesEnabled, setVttSubtitlesContent, setSubtitleDelay } from '../../store/movies/movies.slice';
-import { selectMovie } from '../../store/movies/movies.selectors';
+import { setAvailableSubtitlesLanguages, setLanguageFiles, setSubtitleLang, setSelectedSubtitleFileId, setSubtitleFilePath, setIsSubtitlesEnabled, setVttSubtitlesContent, setSubtitleDelay, setTrailerCode } from '../../store/movies/movies.slice';
+import { selectMovie, selectTrailerCode } from '../../store/movies/movies.selectors';
 import Overlay from '../Overlay';
 import TrailerPlayer from '../TrailerPlayer';
 import SummaryDialog from './SummaryDialog';
@@ -30,6 +30,7 @@ const MovieDialog = () => {
     dispatch(setLanguageFiles({}));
     dispatch(setVttSubtitlesContent(null));
     dispatch(setSubtitleDelay(0));
+    dispatch(setTrailerCode(null));
     // Don't clear selectedMovie here - it should persist when navigating to player
     // Only clear it when explicitly closing (not when navigating to play)
     // The Player component will handle clearing it when appropriate
@@ -39,6 +40,7 @@ const MovieDialog = () => {
   const isSummaryModalOpen = useAppSelector(selectSummaryModal);
 
   const movie = useAppSelector(selectMovie);
+  const trailerCode = useAppSelector(selectTrailerCode);
 
   // Compute summary using the same logic as Metadata component
   const movieSummary = useMemo(() => {
@@ -48,7 +50,7 @@ const MovieDialog = () => {
       return "No summary";
     }
 
-    const regex = /\s*[-–—]+[^-–—]*\.?$|[-–—]\.$/;
+    const regex = /\s+[-–—]+[^-–—]*\.?$|[-–—]\.$/;
     const punctuationRegex = /[?.!]$/;
 
     const summary = movie.summary 
@@ -138,8 +140,8 @@ const MovieDialog = () => {
         className='backdrop-blur-[2px]'
       />
       
-      <TrailerPlayer isOpen={isTrailerDialogOpen} title={movie?.title ?? ""} yt_trailer_code={movie?.yt_trailer_code} />
-      <SummaryDialog isOpen={isSummaryModalOpen} summary={movieSummary} />
+      <TrailerPlayer isOpen={isTrailerDialogOpen} title={movie?.title ?? ""} yt_trailer_code={movie?.yt_trailer_code ?? trailerCode ?? undefined} />
+      <SummaryDialog isOpen={isSummaryModalOpen} summary={movieSummary} imdbCode={movie?.imdb_code} />
       
       {movie && (
         <>

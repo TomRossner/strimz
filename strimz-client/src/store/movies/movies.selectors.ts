@@ -25,3 +25,4 @@ export const selectAvailableSubtitlesLanguages = (state: RootState) => state.mov
 export const selectUnavailableSubtitlesLanguages = (state: RootState) => state.movies.unavailableSubtitlesLanguages;
 export const selectLanguageFiles = (state: RootState) => state.movies.languageFiles;
 export const selectSelectedSubtitleFileId = (state: RootState) => state.movies.selectedSubtitleFileId;
+export const selectTrailerCode = (state: RootState) => state.movies.trailerCode;

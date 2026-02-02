@@ -1,13 +1,15 @@
 import React from 'react';
 import { twMerge } from 'tailwind-merge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import LoadingIcon from '../LoadingIcon';
 
 interface SummaryProps {
   onClick: () => void;
-  summary: string;
+  summary: string | undefined;
+  isLoading?: boolean;
 }
 
-const Summary = ({onClick, summary = ''}: SummaryProps) => {
+const Summary = ({onClick, summary, isLoading = false}: SummaryProps) => {
   return (
     <Tooltip>
       <TooltipTrigger className='text-start'>
@@ -31,7 +33,14 @@ const Summary = ({onClick, summary = ''}: SummaryProps) => {
           `)}
         >
           <p className='font-semibold mb-1'>Summary:</p>
-          {summary}
+          {isLoading ? (
+            <span className="flex items-center gap-2 text-stone-400 animate-pulse italic font-light">
+              <LoadingIcon size={14} />
+              Loading summary...
+            </span>
+          ) : (
+            summary || 'No summary'
+          )}
         </summary>
       </TooltipTrigger>
       <TooltipContent>Read more</TooltipContent>

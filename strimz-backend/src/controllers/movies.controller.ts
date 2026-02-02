@@ -1,9 +1,82 @@
 import { Request, Response } from "express";
+import axios from "axios";
 import { Filters, getAllMovies, getMovieCast } from "../scraper/scraper.js";
 import { FETCH_LIMIT, PAGE_NUMBER } from "../utils/constants.js";
 import { yts } from "../yts/yts.js";
 import { getCorrected } from "../utils/spell.js";
 import { AxiosError } from "axios";
+import { TMDB_BASE, TMDB_READ_ACCESS_TOKEN } from "../utils/constants.js";
+
+export const getMovieMetadata = async (req: Request, res: Response): Promise<Response | void> => {
+    try {
+        const { imdbCode } = req.params;
+        if (!imdbCode?.startsWith("tt")) {
+            return res.status(400).json({ error: "Invalid IMDb code" });
+        }
+
+        const findOptions = {
+            method: 'GET',
+            url: `${TMDB_BASE}/find/${imdbCode}?external_source=imdb_id&language=en-US`,
+            headers: {
+              accept: 'application/json',
+              Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN as string}`
+            }
+        };
+
+        const findRes = await axios.request<{ movie_results?: { id: number }[] }>(findOptions);
+        const movieResults = findRes.data?.movie_results;
+        const tmdbId = movieResults?.[0]?.id;
+        if (tmdbId == null) {
+            return res.status(404).json({ error: "Movie not found on TMDB", runtime: undefined, rating: undefined, summary: undefined, yt_trailer_code: undefined });
+        }
+        
+        const detailsOptions = {
+            method: 'GET',
+            url: `${TMDB_BASE}/movie/${tmdbId}?language=en-US`,
+            headers: {
+              accept: 'application/json',
+              Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN as string}`
+            }
+        };
+
+        const [detailsRes, videosRes] = await Promise.all([
+            axios.request<{ runtime?: number; vote_average?: number; overview?: string }>(detailsOptions),
+            axios.request<{ results?: { site: string; type: string; key: string }[] }>({
+                method: 'GET',
+                url: `${TMDB_BASE}/movie/${tmdbId}/videos?language=en-US`,
+                headers: {
+                    accept: 'application/json',
+                    Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN as string}`
+                }
+            })
+        ]);
+
+        const videos = videosRes.data?.results ?? [];
+        const trailer = videos.find(
+            (v) => v.site === 'YouTube' && (v.type === 'Trailer')
+        );
+        const yt_trailer_code = trailer?.key;
+
+        return res.status(200).json({ 
+            runtime: detailsRes.data.runtime, 
+            rating: detailsRes.data.vote_average,
+            summary: detailsRes.data.overview,
+            yt_trailer_code
+        });
+    } catch (error) {
+        console.error("TMDB metadata error:", error);
+        if (axios.isAxiosError(error) && error.response?.status) {
+            return res.status(error.response.status).json({
+                error: error.response.data?.status_message || "TMDB request failed",
+                runtime: undefined,
+                rating: undefined,
+                summary: undefined,
+                yt_trailer_code: undefined
+            });
+        }
+        return res.status(502).json({ error: "Failed to fetch movie metadata", runtime: undefined, rating: undefined, summary: undefined, yt_trailer_code: undefined });
+    }
+};
 
 export const getCast = async (req: Request, res: Response): Promise<Response | void> => {
     try {
@@ -121,11 +194,24 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
             (m: Record<string, unknown>) => !languages.length || languagesMap.has(m.language)
         );
 
+        const toNum = (v: unknown): number | undefined => {
+            if (v == null) return undefined;
+            const n = typeof v === 'number' ? v : Number(v);
+            return Number.isFinite(n) ? n : undefined;
+        };
+        const normalizeMovie = (m: Record<string, unknown>) => {
+            const rating = toNum(m.rating ?? (m as Record<string, unknown>).Rating ?? (m as Record<string, unknown>).imdb_rating);
+            const runtime = toNum(m.runtime ?? (m as Record<string, unknown>).Runtime ?? (m as Record<string, unknown>).runtime_minutes);
+            return { ...m, rating, runtime };
+        };
+
+        const normalizedMovies = filteredMovies.map((m: Record<string, unknown>) => normalizeMovie(m));
+
         res.status(200).json({
             ...originalResponse,
             data: {
                 ...originalResponse.data,
-                movies: filteredMovies
+                movies: normalizedMovies
             }
         });
     } catch (error) {
@@ -153,11 +239,22 @@ export const getMovies = async (req: Request, res: Response) => {
 
         let movies: object[] = [];
 
+        const toNum = (v: unknown): number | undefined => {
+            if (v == null) return undefined;
+            const n = typeof v === 'number' ? v : Number(v);
+            return Number.isFinite(n) ? n : undefined;
+        };
+        const normalizeMovie = (m: Record<string, unknown>) => {
+            const rating = toNum(m.rating ?? (m as Record<string, unknown>).Rating ?? (m as Record<string, unknown>).imdb_rating);
+            const runtime = toNum(m.runtime ?? (m as Record<string, unknown>).Runtime ?? (m as Record<string, unknown>).runtime_minutes);
+            return { ...m, rating, runtime };
+        };
+
         for (const movieId of ids) {
             const response = await yts.getMovie({movieId, withCast: false, withImages: true});
 
-            if (response) {
-                movies = [...movies, response.data.movie];
+            if (response?.data?.movie) {
+                movies = [...movies, normalizeMovie(response.data.movie as Record<string, unknown>)];
             }
         }
 
