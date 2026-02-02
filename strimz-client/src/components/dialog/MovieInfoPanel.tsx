@@ -23,6 +23,22 @@ import { getMovieSuggestions } from '@/services/suggestions';
 import MovieCard from '../MovieCard';
 import { getMoviesByIds } from '@/services/movies';
 
+function ensureGenres(m: Record<string, unknown>): string[] {
+    const raw = m.genres ?? m.genre;
+    if (Array.isArray(raw) && raw.length > 0) {
+        const first = raw[0];
+        if (typeof first === 'string') return raw as string[];
+        if (typeof first === 'object' && first !== null && 'name' in first) {
+            return (raw as { name: string }[]).map((g) => g.name);
+        }
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+        const split = raw.split(/[,/]/).map((s) => s.trim()).filter(Boolean);
+        return split.length > 0 ? split : [raw.trim()];
+    }
+    return [];
+}
+
 interface MovieInfoPanelProps {
     movie: Movie;
     close: () => void;
@@ -169,7 +185,12 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
         try {
             const response = await getMoviesByIds([suggestionMovie.id]);
             if (response.data?.movies && response.data.movies.length > 0) {
-                const fullMovie = response.data.movies[0];
+                const fullMovie = response.data.movies[0] as Movie & Record<string, unknown>;
+                const genres = ensureGenres(fullMovie);
+                const movieToSet: Movie = {
+                    ...fullMovie,
+                    genres: genres.length > 0 ? genres : (suggestionMovie.genres ?? []),
+                };
                 
                 // Preload images for faster display
                 if (fullMovie.large_cover_image) {
@@ -181,7 +202,7 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
                     bgImg.src = fullMovie.background_image;
                 }
                 
-                dispatch(setSelectedMovie(fullMovie));
+                dispatch(setSelectedMovie(movieToSet));
             } else {
                 // Fallback to suggestion movie if full details not available
                 dispatch(setSelectedMovie(suggestionMovie));

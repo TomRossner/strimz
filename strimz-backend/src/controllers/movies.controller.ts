@@ -25,7 +25,8 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
                 runtime: undefined, 
                 rating: undefined, 
                 summary: undefined, 
-                yt_trailer_code: undefined 
+                yt_trailer_code: undefined,
+                genres: []
             });
         }
 
@@ -42,7 +43,7 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
         const movieResults = findRes.data?.movie_results;
         const tmdbId = movieResults?.[0]?.id;
         if (tmdbId == null) {
-            return res.status(404).json({ error: "Movie not found on TMDB", runtime: undefined, rating: undefined, summary: undefined, yt_trailer_code: undefined });
+            return res.status(404).json({ error: "Movie not found on TMDB", runtime: undefined, rating: undefined, summary: undefined, yt_trailer_code: undefined, genres: [] });
         }
         
         const detailsOptions = {
@@ -55,7 +56,7 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
         };
 
         const [detailsRes, videosRes] = await Promise.all([
-            axios.request<{ runtime?: number; vote_average?: number; overview?: string }>(detailsOptions),
+            axios.request<{ runtime?: number; vote_average?: number; overview?: string; genres?: { id: number; name: string }[] }>(detailsOptions),
             axios.request<{ results?: { site: string; type: string; key: string }[] }>({
                 method: 'GET',
                 url: `${TMDB_BASE}/movie/${tmdbId}/videos?language=en-US`,
@@ -71,12 +72,15 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
             (v) => v.site === 'YouTube' && (v.type === 'Trailer')
         );
         const yt_trailer_code = trailer?.key;
+        const rawGenres = detailsRes.data.genres ?? [];
+        const genres = rawGenres.map((g: { id?: number; name: string }) => (g && typeof g.name === 'string' ? g.name : '')).filter(Boolean);
 
         return res.status(200).json({ 
             runtime: detailsRes.data.runtime, 
             rating: detailsRes.data.vote_average,
             summary: detailsRes.data.overview,
-            yt_trailer_code
+            yt_trailer_code,
+            genres
         });
     } catch (error) {
         console.error("TMDB metadata error:", error instanceof Error ? error.message : error);
@@ -89,7 +93,8 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
                 runtime: undefined,
                 rating: undefined,
                 summary: undefined,
-                yt_trailer_code: undefined
+                yt_trailer_code: undefined,
+                genres: []
             });
         }
         
@@ -100,7 +105,8 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
             runtime: undefined, 
             rating: undefined, 
             summary: undefined, 
-            yt_trailer_code: undefined 
+            yt_trailer_code: undefined,
+            genres: []
         });
     }
 };
@@ -271,10 +277,27 @@ export const getMovies = async (req: Request, res: Response) => {
             const n = typeof v === 'number' ? v : Number(v);
             return Number.isFinite(n) ? n : undefined;
         };
+        const normalizeGenres = (m: Record<string, unknown>): string[] => {
+            const raw = m.genres ?? (m as Record<string, unknown>).Genres ?? m.genre ?? (m as Record<string, unknown>).Genre;
+            if (Array.isArray(raw) && raw.length > 0) {
+                const first = raw[0];
+                if (typeof first === 'string') return raw as string[];
+                if (typeof first === 'object' && first !== null && 'name' in first) {
+                    return (raw as { name: string }[]).map((g) => g.name);
+                }
+            }
+            if (typeof raw === 'string' && raw.trim()) {
+                const split = raw.split(/[,/]/).map((s) => s.trim()).filter(Boolean);
+                if (split.length > 0) return split;
+                return [raw.trim()];
+            }
+            return [];
+        };
         const normalizeMovie = (m: Record<string, unknown>) => {
             const rating = toNum(m.rating ?? (m as Record<string, unknown>).Rating ?? (m as Record<string, unknown>).imdb_rating);
             const runtime = toNum(m.runtime ?? (m as Record<string, unknown>).Runtime ?? (m as Record<string, unknown>).runtime_minutes);
-            return { ...m, rating, runtime };
+            const genres = normalizeGenres(m);
+            return { ...m, rating, runtime, genres };
         };
 
         for (const movieId of ids) {

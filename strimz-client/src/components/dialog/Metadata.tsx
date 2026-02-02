@@ -16,6 +16,8 @@ import { MdFavoriteBorder, MdFavorite } from "react-icons/md";
 import { ImEye, ImEyeBlocked } from "react-icons/im";
 import LoadingIcon from '../LoadingIcon';
 
+const GENRES_TO_LOAD = 3;
+
 const formatMinutes = (minutes: number): string => {
     return minutes < 10 ? `0${minutes}` : `${minutes}`;
 }
@@ -33,24 +35,52 @@ interface MetadataProps {
     movie: Movie;
 }
 
+const normalizeGenres = (movie: { genres?: unknown; genre?: unknown }): string[] => {
+    const raw = movie.genres ?? movie.genre;
+    if (Array.isArray(raw) && raw.length > 0) {
+        const first = raw[0];
+        if (typeof first === 'string') return raw as string[];
+        if (typeof first === 'object' && first !== null && 'name' in first) {
+            return (raw as { name: string }[]).map((g) => g.name);
+        }
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+        const split = raw.split(/[,/]/).map((s) => s.trim()).filter(Boolean);
+        if (split.length > 0) return split;
+        return [raw.trim()];
+    }
+    return [];
+};
+
 const Metadata = ({movie}: MetadataProps) => {
     const {
         language,
         rating: movieRating,
-        genres,
         runtime: movieRuntime,
         year,
         id,
         slug,
         imdb_code,
     } = movie;
+    const movieGenres = normalizeGenres(movie);
 
     const dispatch = useAppDispatch();
 
     const favorites = useAppSelector(selectFavorites);
     const watchList = useAppSelector(selectWatchList);
 
-    const [tmdbMetadata, setTmdbMetadata] = useState<{ runtime?: number; rating?: number; summary?: string; yt_trailer_code?: string } | null>(null);
+    const [tmdbMetadata, setTmdbMetadata] = useState<{ runtime?: number; rating?: number; summary?: string; yt_trailer_code?: string; genres?: string[] | { id: number; name: string }[] } | null>(null);
+    const tmdbGenresNormalized = useMemo((): string[] => {
+        const raw = tmdbMetadata?.genres;
+        if (!raw || !Array.isArray(raw) || raw.length === 0) return [];
+        const first = raw[0];
+        if (typeof first === 'string') return raw as string[];
+        if (typeof first === 'object' && first !== null && 'name' in first) {
+            return (raw as { id?: number; name: string }[]).map((g) => (g?.name ?? '')).filter(Boolean);
+        }
+        return [];
+    }, [tmdbMetadata?.genres]);
+    const genres = movieGenres.length > 0 ? movieGenres : tmdbGenresNormalized;
     const [isLoadingTmdb, setIsLoadingTmdb] = useState(false);
 
     const movieSummary = movie?.summary || movie?.description_full;
@@ -58,6 +88,7 @@ const Metadata = ({movie}: MetadataProps) => {
     const isLoadingRating = needsTmdb && movieRating == null && isLoadingTmdb;
     const isLoadingRuntime = needsTmdb && movieRuntime == null && isLoadingTmdb;
     const isLoadingSummary = needsTmdb && !movieSummary?.length && isLoadingTmdb;
+    const isLoadingGenres = needsTmdb && movieGenres.length === 0 && isLoadingTmdb;
 
     useEffect(() => {
         setTmdbMetadata(null);
@@ -75,7 +106,7 @@ const Metadata = ({movie}: MetadataProps) => {
         getMovieMetadata(imdb_code!)
             .then((data) => {
                 if (!cancelled) {
-                    setTmdbMetadata({ runtime: data.runtime, rating: data.rating, summary: data.summary, yt_trailer_code: data.yt_trailer_code });
+                    setTmdbMetadata({ runtime: data.runtime, rating: data.rating, summary: data.summary, yt_trailer_code: data.yt_trailer_code, genres: data.genres });
                     dispatch(setTrailerCode(data.yt_trailer_code ?? null));
                     setIsLoadingTmdb(false);
                 }
@@ -189,7 +220,15 @@ const Metadata = ({movie}: MetadataProps) => {
             )}
         </p>
 
-        <Genres genres={genres} />
+        {isLoadingGenres ? (
+            <div className='flex gap-1 items-center flex-wrap mb-3' aria-label="Loading categories">
+                {[...Array(GENRES_TO_LOAD)].map((_, index) => (
+                    <span key={index} className="inline-block text-sm py-1 px-2 bg-gray-500 rounded-md animate-pulse w-14 min-h-[28px]" />
+                ))}
+            </div>
+        ) : (
+            <Genres genres={genres} />
+        )}
         <Summary onClick={handleSummaryClick} summary={formattedSummary ?? undefined} isLoading={isLoadingSummary} />
         <WatchTrailerButton isDisabled={!ytTrailerCode} onPlay={handlePlayTrailer} ytTrailerCode={ytTrailerCode ?? ''} />
 
