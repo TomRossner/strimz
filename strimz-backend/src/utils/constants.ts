@@ -1,12 +1,7 @@
 import path from "path";
 import os from "os";
 import { Limits } from "../yts/yts.js";
-import { config } from "dotenv";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-config({ path: path.join(__dirname, "../../.env") });
+// Note: dotenv is loaded in index.ts at startup - do not load here to avoid path issues in production
 
 const PAGE_NUMBER: number = 1;
 

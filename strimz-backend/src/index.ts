@@ -4,7 +4,13 @@ const __dirname = dirname(__filename);
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import path from "path";
-config({path: path.join(__dirname, "../.env")});
+import { existsSync } from "fs";
+
+// Try production path first (Electron packaged app), then development path
+const prodEnvPath = path.join(__dirname, ".env");
+const devEnvPath = path.join(__dirname, "../.env");
+const envPath = existsSync(prodEnvPath) ? prodEnvPath : devEnvPath;
+config({ path: envPath });
 
 import { handleSocket } from "./utils/socket.js";
 import express, { Request, Response } from 'express';
@@ -55,8 +61,25 @@ app.use('/api/client', clientRouter);
 app.use('/api/torrents', torrentsRouter);
 app.use('/api/suggestions', suggestionsRouter);
 
+const validateEnvVars = (): void => {
+    console.log(`Loading environment from: ${envPath}`);
+    
+    const requiredVars = ['TMDB_BASE', 'TMDB_READ_ACCESS_TOKEN'];
+    const missingVars = requiredVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+        console.warn(`⚠️  Warning: Missing environment variables: ${missingVars.join(', ')}`);
+        console.warn('   Movie metadata endpoint will not work without these.');
+        console.warn(`   Checked path: ${envPath} (exists: ${existsSync(envPath)})`);
+    } else {
+        console.log('✓ TMDB configuration loaded successfully');
+    }
+};
+
 const init = async (): Promise<void> => {
     try {
+        validateEnvVars();
+        
         httpServer.listen(PORT, () => {
             console.log(`Server running on port ${PORT}...`);
             // Ensure ping endpoint is ready

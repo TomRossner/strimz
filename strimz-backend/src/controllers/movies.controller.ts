@@ -14,12 +14,27 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
             return res.status(400).json({ error: "Invalid IMDb code" });
         }
 
+        // Validate environment variables are set
+        if (!TMDB_BASE || !TMDB_READ_ACCESS_TOKEN) {
+            console.error("TMDB configuration missing:", { 
+                hasTmdbBase: !!TMDB_BASE, 
+                hasTmdbToken: !!TMDB_READ_ACCESS_TOKEN 
+            });
+            return res.status(503).json({ 
+                error: "TMDB service not configured", 
+                runtime: undefined, 
+                rating: undefined, 
+                summary: undefined, 
+                yt_trailer_code: undefined 
+            });
+        }
+
         const findOptions = {
             method: 'GET',
             url: `${TMDB_BASE}/find/${imdbCode}?external_source=imdb_id&language=en-US`,
             headers: {
               accept: 'application/json',
-              Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN as string}`
+              Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN}`
             }
         };
 
@@ -64,17 +79,29 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
             yt_trailer_code
         });
     } catch (error) {
-        console.error("TMDB metadata error:", error);
-        if (axios.isAxiosError(error) && error.response?.status) {
-            return res.status(error.response.status).json({
-                error: error.response.data?.status_message || "TMDB request failed",
+        console.error("TMDB metadata error:", error instanceof Error ? error.message : error);
+        
+        if (axios.isAxiosError(error)) {
+            const status = error.response?.status || 502;
+            const message = error.response?.data?.status_message || error.message || "TMDB request failed";
+            return res.status(status).json({
+                error: message,
                 runtime: undefined,
                 rating: undefined,
                 summary: undefined,
                 yt_trailer_code: undefined
             });
         }
-        return res.status(502).json({ error: "Failed to fetch movie metadata", runtime: undefined, rating: undefined, summary: undefined, yt_trailer_code: undefined });
+        
+        // Handle non-Axios errors (network issues, timeouts, etc.)
+        const errorMessage = error instanceof Error ? error.message : "Failed to fetch movie metadata";
+        return res.status(502).json({ 
+            error: errorMessage, 
+            runtime: undefined, 
+            rating: undefined, 
+            summary: undefined, 
+            yt_trailer_code: undefined 
+        });
     }
 };
 

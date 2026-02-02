@@ -71,6 +71,10 @@
                 "to": "backend/node_modules"
             },
             {
+                "from": "./strimz-backend/.env",
+                "to": "backend/.env"
+            },
+            {
                 "from": "node-bin/node.exe",
                 "to": "node/node.exe"
             }
