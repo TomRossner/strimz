@@ -1,7 +1,18 @@
 import path from "path";
 import os from "os";
 import { Limits } from "../yts/yts.js";
-// Note: dotenv is loaded in index.ts at startup - do not load here to avoid path issues in production
+import { config } from 'dotenv';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { existsSync } from "fs";
+
+// Try production path first (Electron packaged app), then development path
+const prodEnvPath = path.join(__dirname, "../.env");
+const devEnvPath = path.join(__dirname, "../../.env");
+const envPath = existsSync(prodEnvPath) ? prodEnvPath : devEnvPath;
+config({ path: envPath });
 
 const PAGE_NUMBER: number = 1;
 
