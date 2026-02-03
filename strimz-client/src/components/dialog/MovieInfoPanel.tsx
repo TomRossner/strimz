@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import TitleWrapper from './TitleWrapper';
+import CloseButton from '../CloseButton';
 import { Movie } from '../MovieCard';
 import { DiskSpaceInfo, Torrent } from '../../utils/types';
 import QualitySelector from './QualitySelector';
@@ -22,6 +23,9 @@ import { toOpenSubtitlesCode, getSubtitleMetadata, normalizeLanguageCode } from 
 import { getMovieSuggestions } from '@/services/suggestions';
 import MovieCard from '../MovieCard';
 import { getMoviesByIds } from '@/services/movies';
+import Cast from './Cast';
+
+type MovieInfoPanelTab = 'general' | 'cast';
 
 function ensureGenres(m: Record<string, unknown>): string[] {
     const raw = m.genres ?? m.genre;
@@ -53,6 +57,8 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
         large_cover_image,
         title
     } = movie;
+
+    const [activeTab, setActiveTab] = useState<MovieInfoPanelTab>('general');
 
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
@@ -423,13 +429,49 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
 
         fetchSuggestions();
     }, [movie.id]);
+
+    useEffect(() => {
+        setActiveTab('general');
+    }, [movie?.id]);
     
   return (
-    <div className='min-h-full overflow-y-auto overflow-x-hidden md:relative w-full flex flex-col justify-between absolute top-0 md:grow md:justify-center relative'>
+    <div className='min-h-0 h-full overflow-y-auto overflow-x-hidden md:relative w-full flex flex-col justify-between top-0 md:grow md:flex-1 md:justify-center relative'>
+        <nav className="flex shrink-0 gap-0 items-center border-b border-stone-700 bg-stone-800" aria-label="Movie details tabs">
+            <button
+                type="button"
+                onClick={() => setActiveTab('general')}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'general'
+                        ? 'bg-stone-900 text-white border-b-2 border-stone-500 -mb-px'
+                        : 'text-stone-400 hover:text-white hover:bg-stone-800/50'
+                }`}
+            >
+                General
+            </button>
+            <button
+                type="button"
+                onClick={() => setActiveTab('cast')}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'cast'
+                        ? 'bg-stone-900 text-white border-b-2 border-stone-500 -mb-px'
+                        : 'text-stone-400 hover:text-white hover:bg-stone-800/50'
+                }`}
+            >
+                Cast
+            </button>
+            <CloseButton
+                onClose={handleClose}
+                className="!relative !top-0 !right-1 ml-auto p-1.5 text-base border-0 shrink-0 md:!flex"
+                title="Close"
+            />
+        </nav>
+
+        {activeTab === 'general' && (
+        <>
         <MobileCoverSpacer />
 
         <div className='flex flex-col inset-0 bg-gradient-to-t from-stone-950 from-30% md:from-40% md:grow px-2 relative'>
-            <TitleWrapper onClose={handleClose} title={title} />
+            <TitleWrapper title={title} />
             <Metadata movie={movie} />
 
             <div className='py-1 flex w-full gap-3 md:h-full h-32 flex-col'>
@@ -543,6 +585,14 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
                 onClick={toggleSuggestions}
                 aria-hidden="true"
             />
+        )}
+        </>
+        )}
+
+        {activeTab === 'cast' && (
+            <div className="flex-1 min-h-0 max-h-full overflow-hidden px-2 py-2 bg-gradient-to-t from-stone-950 from-30% md:from-40%">
+                <Cast movie={movie} />
+            </div>
         )}
     </div>
   )

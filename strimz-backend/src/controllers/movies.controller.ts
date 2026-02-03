@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import axios from "axios";
-import { Filters, getAllMovies, getMovieCast } from "../scraper/scraper.js";
+import { Filters, getAllMovies } from "../scraper/scraper.js";
 import { FETCH_LIMIT, PAGE_NUMBER } from "../utils/constants.js";
 import { yts } from "../yts/yts.js";
 import { getCorrected } from "../utils/spell.js";
@@ -111,23 +111,79 @@ export const getMovieMetadata = async (req: Request, res: Response): Promise<Res
     }
 };
 
+type TmdbCastMember = { name: string; character?: string; profile_path?: string | null };
+type TmdbCrewMember = { name: string; job?: string; profile_path?: string | null; known_for_department?: string };
+
 export const getCast = async (req: Request, res: Response): Promise<Response | void> => {
     try {
-        const {movieId} = req.params;
+        const { imdbCode } = req.params;
 
-        const {
-            data: {
-                movie: {
-                    cast,
-                }
-            }
-        } = await getMovieCast(movieId);
+        if (!imdbCode?.startsWith("tt")) {
+            return res.status(400).json({ error: "Invalid IMDb code" });
+        }
 
-        return res.status(200).send(cast);
+        if (!TMDB_BASE || !TMDB_READ_ACCESS_TOKEN) {
+            return res.status(503).json({ error: "TMDB service not configured" });
+        }
+
+        const findRes = await axios.request<{ movie_results?: { id: number }[] }>({
+            method: "GET",
+            url: `${TMDB_BASE}/find/${imdbCode}?external_source=imdb_id&language=en-US`,
+            headers: {
+                accept: "application/json",
+                Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN}`,
+            },
+        });
+
+        const tmdbId = findRes.data?.movie_results?.[0]?.id;
+        if (tmdbId == null) {
+            return res.status(404).json({ error: "Movie not found on TMDB" });
+        }
+
+        const creditsRes = await axios.request<{ cast?: TmdbCastMember[]; crew?: TmdbCrewMember[] }>({
+            method: "GET",
+            url: `${TMDB_BASE}/movie/${tmdbId}/credits`,
+            headers: {
+                accept: "application/json",
+                Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN}`,
+            },
+        });
+
+        const rawCast = creditsRes.data?.cast ?? [];
+        const cast = rawCast
+            .slice(0, 10)
+            .map((c) => ({
+                name: c.name,
+                character_name: c.character,
+                profile_path: c.profile_path ?? undefined,
+            }));
+
+        const rawCrew = creditsRes.data?.crew ?? [];
+        const directors = rawCrew
+            .filter((c) => c.known_for_department === "Directing" || c.job === "Director")
+            .filter((c, i, arr) => arr.findIndex((d) => d.name === c.name) === i)
+            .slice(0, 5)
+            .map((c) => ({
+                name: c.name,
+                profile_path: c.profile_path ?? undefined,
+            }));
+
+        const writers = rawCrew
+            .filter((c) => c.known_for_department === "Writing" || c.job === "Writer" || c.job === "Screenplay" || c.job === "Novel")
+            .filter((c, i, arr) => arr.findIndex((d) => d.name === c.name) === i)
+            .slice(0, 3)
+            .map((c) => ({
+                name: c.name,
+                profile_path: c.profile_path ?? undefined,
+            }));
+
+        return res.status(200).json({ cast, directors, writers });
     } catch (error) {
-        return res.status(400).send({error: 'Failed fetching cast and images'});
+        console.error("TMDB credits error:", error instanceof Error ? error.message : error);
+        const status = axios.isAxiosError(error) ? (error.response?.status ?? 502) : 400;
+        return res.status(status).json({ error: "Failed fetching cast" });
     }
-}
+};
 
 export const handleFetchMovies = async (req: Request, res: Response): Promise<void | Response<any, Record<string, any>>> => {
     try {

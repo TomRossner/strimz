@@ -39,7 +39,7 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                     md:bottom-0
                     shadow-md
                     overflow-y-auto
-                    ${size === "large" && "md:w-[97%]"}
+                    ${size === "large" && "md:w-[97%] md:h-[90vh] md:flex md:flex-col md:min-h-0"}
                     ${size === "medium" && "md:w-[65%]"}
                     ${size === "small" && "md:w-[40%]"}
                     ${size === "fit" && "md:w-fit"}
@@ -48,7 +48,7 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
             >
                 {title && <p className='text-2xl text-slate-100 font-bold px-2 py-1'>{title}</p>}
 
-                <div id='dialogContent' className={twMerge(`w-full md:flex`, className)}>
+                <div id='dialogContent' className={twMerge(`w-full md:flex flex-1 min-h-0`, size === "large" && "md:min-h-0", className)}>
                     {children}
                 </div>
             </motion.div>

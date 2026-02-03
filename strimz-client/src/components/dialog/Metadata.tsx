@@ -229,7 +229,9 @@ const Metadata = ({movie}: MetadataProps) => {
         ) : (
             <Genres genres={genres} />
         )}
+
         <Summary onClick={handleSummaryClick} summary={formattedSummary ?? undefined} isLoading={isLoadingSummary} />
+        {/* <Cast movie={movie} /> */}
         <WatchTrailerButton isDisabled={!ytTrailerCode} onPlay={handlePlayTrailer} ytTrailerCode={ytTrailerCode ?? ''} />
 
         <div className='w-full flex items-center gap-2'>

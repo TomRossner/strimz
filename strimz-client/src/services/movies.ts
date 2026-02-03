@@ -135,6 +135,16 @@ export const getMovieMetadata = async (imdbCode: string): Promise<MovieMetadataR
     return data;
 };
 
+export type CastMember = { name: string; character_name?: string; profile_path?: string };
+export type DirectorMember = { name: string; profile_path?: string };
+export type WriterMember = { name: string; profile_path?: string };
+export type CreditsResponse = { cast: CastMember[]; directors: DirectorMember[]; writers: WriterMember[] };
+
+export const getMovieCast = async (imdbCode: string): Promise<CreditsResponse> => {
+    const { data } = await axios.get<CreditsResponse>(`${MOVIES_FETCH_URL}/credits/${imdbCode}`);
+    return data;
+};
+
 export const getTorrentData = async (torrentFilePath: string, dir: string) => {
     return await axios.post(`${API_URL}/stream/get-torrent-data`, {torrentFilePath, dir});
 }

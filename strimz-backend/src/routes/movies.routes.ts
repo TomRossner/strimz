@@ -6,6 +6,6 @@ const moviesRouter = express.Router();
 moviesRouter.get('/', searchMovies);
 moviesRouter.post('/', getMovies);
 moviesRouter.get('/metadata/:imdbCode', getMovieMetadata);
-moviesRouter.get('/:movieId/cast', getCast);
+moviesRouter.get('/credits/:imdbCode', getCast);
 
 export default moviesRouter;
