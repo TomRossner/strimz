@@ -20,16 +20,13 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                 exit={{ scale: 0.8, opacity: 0, transition: { duration: 0.1 } }}
                 className={twMerge(`
                     fixed
-                    min-h-[100vh]
-                    max-w-[900px]
                     w-full
-                    md:min-h-[15vh]
-                    md:h-fit
+                    min-h-fit
                     my-auto
                     top-0
-                    md:border
-                    border-gray-400
                     rounded-sm
+                    border
+                    border-gray-400
                     bg-stone-900
                     z-20
                     left-0
@@ -39,8 +36,8 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                     md:bottom-0
                     shadow-md
                     overflow-y-auto
-                    ${size === "large" && "md:w-[97%] md:h-[90vh] md:flex md:flex-col md:min-h-0"}
-                    ${size === "medium" && "md:w-[65%]"}
+                    ${size === "large" && "lg:w-[97%] xl:h-[80vh] md:flex md:flex-col xl:rounded-sm md:max-w-[900px] lg:max-w-[950px] lg:h-[95vh] xl:max-w-[1080px] lg:max-h-[97vh] md:min-h-[15vh]"}
+                    ${size === "medium" && "sm:w-[75%] lg:w-[55%] xl:w-[45%]"}
                     ${size === "small" && "md:w-[40%]"}
                     ${size === "fit" && "md:w-fit"}
                     ${className}

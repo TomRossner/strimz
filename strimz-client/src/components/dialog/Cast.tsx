@@ -20,7 +20,7 @@ function PersonCard({
   const imgSrc = profilePath ? `${TMDB_IMAGE_BASE}${profilePath}` : null;
   return (
     <div className="flex flex-col items-center text-center gap-1">
-      <div className="w-28 h-36 rounded-3xl overflow-hidden bg-stone-700 shrink-0 flex items-center justify-center">
+      <div className="w-28 h-36 lg:w-36 lg:h-48 rounded-3xl overflow-hidden bg-stone-700 shrink-0 flex items-center justify-center">
         {imgSrc ? (
           <img src={imgSrc} alt={name} className="w-full h-full object-cover" />
         ) : (

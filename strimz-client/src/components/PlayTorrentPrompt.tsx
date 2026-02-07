@@ -46,7 +46,7 @@ const PlayTorrentPrompt = () => {
   return (
     <Dialog
         isOpen={isOpen && !!torrent}
-        size='medium'
+        size='small'
         title={`Play external torrent?`}
         className='z-40'
     >
