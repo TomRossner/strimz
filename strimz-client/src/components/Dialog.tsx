@@ -36,7 +36,7 @@ const Dialog = ({isOpen, children, size, title, className}: DialogProps) => {
                     md:bottom-0
                     shadow-md
                     overflow-y-auto
-                    ${size === "large" && "lg:w-[97%] xl:h-[80vh] md:flex md:flex-col xl:rounded-sm md:max-w-[900px] lg:max-w-[950px] lg:h-[95vh] xl:max-w-[1080px] lg:max-h-[97vh] md:min-h-[15vh]"}
+                    ${size === "large" && "lg:w-[97%] xl:h-[90vh] 2xl:h-[80vh] 2xl:max-w-[1200px] md:flex md:flex-col xl:rounded-sm md:max-w-[900px] lg:max-w-[950px] lg:h-[95vh] xl:max-w-[1080px] lg:max-h-[97vh] md:min-h-[15vh]"}
                     ${size === "medium" && "sm:w-[75%] lg:w-[55%] xl:w-[45%]"}
                     ${size === "small" && "md:w-[40%]"}
                     ${size === "fit" && "md:w-fit"}
