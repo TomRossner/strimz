@@ -559,7 +559,7 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
                             <p>Loading suggestions...</p>
                         </div>
                     ) : suggestions.length > 0 ? (
-                        <div className="grid grid-cols-2 grid-rows-2 gap-3 h-full">
+                        <div className="grid 2xl:grid-cols-3 2xl:grid-rows-2 grid-cols-1 grid-rows-auto md:grid-cols-2 md:grid-rows-auto sm:grid-cols-1 sm:grid-rows-auto gap-3 h-full overflow-y-auto">
                             {suggestions.slice(0, 4).map((suggestion) => (
                                 <div key={suggestion.id} className="w-full h-full [&>button]:min-w-0 [&>button]:max-w-none [&>button]:w-full [&>button]:h-full [&>button]:max-h-full [&>button]:hover:scale-100 [&>button]:border-0 [&>button]:hover:border-0 [&>button]:outline-0 [&>button]:hover:outline [&>button]:hover:outline-1 [&>button]:hover:outline-stone-400">
                                     <MovieCard
