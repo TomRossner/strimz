@@ -11,12 +11,10 @@ import electronUpdater from "electron-updater";
 
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('enable-direct-composition');
-app.commandLine.appendSwitch('enable-features', 'DirectCompositionOverlays');
-app.commandLine.appendSwitch('disable-frame-rate-limit');
-app.commandLine.appendSwitch('disable-gpu-vsync');
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
+// Keep fullscreen video on the same surface as DOM subtitles. A hardware
+// overlay plane presents separately and tears when caption text updates.
+app.commandLine.appendSwitch('disable-direct-composition-video-overlays');
 
 const { autoUpdater } = electronUpdater;
 const isDev = !app.isPackaged;

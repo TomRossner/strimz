@@ -565,7 +565,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                     <div
                         ref={containerRef}
                         onMouseLeave={() => setControlsVisible(false)}
-                        className='flex flex-col justify-center w-full h-[98vh] relative'
+                        className='player-stage flex flex-col justify-center w-full h-[98vh] relative'
                     >
                         <TopOverlay
                             videoRef={videoRef as RefObject<HTMLVideoElement>}

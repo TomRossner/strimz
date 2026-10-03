@@ -121,11 +121,6 @@ const Subtitles = React.memo(({
         bottom: styleValues.bottom,
         textAlign: 'center' as const,
         pointerEvents: 'none' as const,
-        // GPU acceleration
-        transform: 'translate3d(0, 0, 0)',
-        backfaceVisibility: 'hidden' as const,
-        WebkitBackfaceVisibility: 'hidden' as const,
-        willChange: 'transform' as const,
     }), [styleValues]);
 
     // Update subtitle text directly via ref to avoid React re-renders and flickering

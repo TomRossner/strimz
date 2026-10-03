@@ -29,6 +29,13 @@ body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* Fullscreen promotes <video> to a hardware overlay plane. A CSS filter
+   keeps it on the same surface as DOM subtitles so cue updates don't tear. */
+.player-stage:fullscreen video,
+.player-stage:-webkit-full-screen video {
+  filter: opacity(0.999);
+}
 /* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
