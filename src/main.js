@@ -26,7 +26,7 @@ let updateState = { downloaded: false };
 
 app.whenReady().then(async () => {
   ensureDefaultDownloadPath();
-  attachIPCHandlers(isDev);
+  attachIPCHandlers(isDev, updateState);
 
   if (!process.env.IS_BACKEND_PROCESS) {
     log.info("Starting backend process...");

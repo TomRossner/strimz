@@ -48,11 +48,16 @@ export function setupAutoUpdater(win, updateState) {
 
   autoUpdater.on('update-downloaded', () => {
     log.info("Update downloaded");
-    updateState.downloaded = true;
-    win.webContents.send('update-downloaded');
+    if (updateState) updateState.downloaded = true;
+    if (!win.isDestroyed()) {
+      win.webContents.send('update-downloaded');
+    }
   });
 
   autoUpdater.on('error', (error) => {
     log.error('Auto updater error:', error);
+    if (!win.isDestroyed()) {
+      win.webContents.send('update-check-failed', error?.message || 'Update check failed');
+    }
   });
 }

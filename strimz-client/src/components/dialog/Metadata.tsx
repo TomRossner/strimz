@@ -8,7 +8,7 @@ import Genres from './Genres';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { openModal } from '../../store/modals/modals.slice';
 import Button from '../Button';
-import { addToFavorites, addToWatchList, getFavorites, getWatchList, removeFromFavorites, removeFromWatchList } from '@/services/localStorage';
+import { addToFavorites, addToWatchList, getFavorites, getWatchList, removeFavoriteMovie, removeFromFavorites, removeFromWatchList, removeWatchListMovie, saveFavoriteMovie, saveWatchListMovie } from '@/services/localStorage';
 import { setFavorites, setTrailerCode, setWatchList } from '@/store/movies/movies.slice';
 import { selectFavorites, selectWatchList } from '@/store/movies/movies.selectors';
 import { getMovieMetadata } from '@/services/movies';
@@ -145,12 +145,14 @@ const Metadata = ({movie}: MetadataProps) => {
     }
 
     const ytTrailerCode = tmdbMetadata?.yt_trailer_code;
+    const languageLabel = language?.trim();
 
     const handleFavorites = useCallback((id: string) => {
         const userFavorites = getFavorites();
     
         if (userFavorites?.find(f => f === id)) {
             removeFromFavorites(id);
+            removeFavoriteMovie(id);
     
             const updatedFavoritesMap = new Map(
                 Array.from(favorites.entries()).filter(([, value]) => value.id !== id)
@@ -161,6 +163,7 @@ const Metadata = ({movie}: MetadataProps) => {
         }
     
         addToFavorites(id);
+        saveFavoriteMovie(movie);
     
         const updatedFavoritesMap = new Map(favorites);
         updatedFavoritesMap.set(slug, movie);
@@ -173,6 +176,7 @@ const Metadata = ({movie}: MetadataProps) => {
 
         if (userWatchList?.find(i => i === id)) {
             removeFromWatchList(id);
+            removeWatchListMovie(id);
 
             const updatedWatchListMap = new Map(Array.from(watchList.entries()).filter(([, value]) => value.id !== id));
             dispatch(setWatchList(updatedWatchListMap));
@@ -181,6 +185,7 @@ const Metadata = ({movie}: MetadataProps) => {
         }
 
         addToWatchList(id);
+        saveWatchListMovie(movie);
 
         const updatedWatchListMap = new Map(watchList);
         updatedWatchListMap.set(slug, movie);
@@ -190,16 +195,17 @@ const Metadata = ({movie}: MetadataProps) => {
   return (
     <div className='flex flex-col gap-1.5 text-white w-full'>
         <p className='text-white flex items-center gap-2 flex-wrap'>
-            {language && (
-                <span
-                    title={language.toUpperCase()}
-                    className='rounded-md px-2 py-1 text-sm text-center bg-blue-400'
-                >
-                    {language.toUpperCase()}
-                </span>
+            {languageLabel && (
+                <>
+                    <span
+                        title={languageLabel.toUpperCase()}
+                        className='rounded-md px-2 py-1 text-sm text-center bg-blue-400'
+                    >
+                        {languageLabel.toUpperCase()}
+                    </span>
+                    <span className='text-[4px]'><BsCircleFill/></span>
+                </>
             )}
-
-            <span className='text-[4px]'><BsCircleFill/></span>
 
             {year}
 

@@ -58,6 +58,54 @@ export const getFavorites = (): string[] => {
     return favorites ? JSON.parse(favorites) : [];
 }
 
+const FAVORITE_MOVIES_KEY = 'user_favorite_movies';
+const WATCH_LIST_MOVIES_KEY = 'user_watch_list_movies';
+
+const readStoredMovies = (key: string): Record<string, Record<string, unknown>> => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        return parsed as Record<string, Record<string, unknown>>;
+    } catch {
+        return {};
+    }
+}
+
+export const getFavoriteMovies = (): Record<string, Record<string, unknown>> => {
+    return readStoredMovies(FAVORITE_MOVIES_KEY);
+}
+
+export const saveFavoriteMovie = (movie: { id: string }) => {
+    const stored = getFavoriteMovies();
+    stored[String(movie.id)] = movie as Record<string, unknown>;
+    localStorage.setItem(FAVORITE_MOVIES_KEY, JSON.stringify(stored));
+}
+
+export const removeFavoriteMovie = (movieId: string) => {
+    const stored = getFavoriteMovies();
+    delete stored[String(movieId)];
+    localStorage.setItem(FAVORITE_MOVIES_KEY, JSON.stringify(stored));
+}
+
+export const getWatchListMovies = (): Record<string, Record<string, unknown>> => {
+    return readStoredMovies(WATCH_LIST_MOVIES_KEY);
+}
+
+export const saveWatchListMovie = (movie: { id: string }) => {
+    const stored = getWatchListMovies();
+    stored[String(movie.id)] = movie as Record<string, unknown>;
+    localStorage.setItem(WATCH_LIST_MOVIES_KEY, JSON.stringify(stored));
+}
+
+export const removeWatchListMovie = (movieId: string) => {
+    const stored = getWatchListMovies();
+    delete stored[String(movieId)];
+    localStorage.setItem(WATCH_LIST_MOVIES_KEY, JSON.stringify(stored));
+}
+
 
 
 // Watch list

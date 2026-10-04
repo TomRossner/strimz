@@ -1,8 +1,8 @@
 import { getMoviesByIds } from '@/services/movies';
+import { getFavoriteMovies, getWatchListMovies } from '@/services/localStorage';
 import { Movie } from '../../components/MovieCard';
 import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_LANGUAGES, DEFAULT_SUBTITLES_SIZE } from '../../utils/constants';
 import { fetchMovies } from '../../utils/fetchMovies';
-import { filterByLanguage } from '../../utils/filterByLanguage';
 import { Filters, Torrent } from '../../utils/types';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
@@ -125,10 +125,11 @@ export const fetchMoviesAsync = createAsyncThunk(
       const {data: {movies, movie_count}} = data;
 
       const rawMovies = (movies ?? []) as Record<string, unknown>[];
-      const filteredByLang = filterByLanguage(
-        rawMovies as Movie[],
-        DEFAULT_LANGUAGES
-      ) as Record<string, unknown>[];
+      const isSearch = !!String(filters.query_term ?? "").trim();
+      const filteredByLang = rawMovies.filter((movie) => {
+        if (isSearch && movie.in_theatres) return true;
+        return DEFAULT_LANGUAGES.includes(String(movie.language ?? ""));
+      });
       const filteredMovies: Movie[] = filteredByLang.map((movie) => ({
         id: movie.id,
         title: movie.title,
@@ -191,36 +192,48 @@ const rawMovieToMovie = (m: Record<string, unknown>): Movie => ({
   imdb_code: (m.imdb_code as string) ?? '',
 });
 
-export const fetchFavoritesAsync = createAsyncThunk(
-  'movies/fetchFavoritesAsync',
-  async (ids: string[], {rejectWithValue}) => {
-    try {
-      const {data: {movies}} = await getMoviesByIds(ids);
-      const raw = (movies ?? []) as Record<string, unknown>[];
+const loadSavedMovies = async (
+  ids: string[],
+  snapshots: Record<string, Record<string, unknown>>
+): Promise<Map<string, Movie>> => {
+  let fromApi: Movie[] = [];
 
-      return raw.length
-        ? new Map(raw.map((m) => [m.slug as string, rawMovieToMovie(m)]))
-        : new Map();
+  if (ids.length) {
+    try {
+      const response = await getMoviesByIds(ids);
+      const raw = (response.data?.movies ?? []) as Record<string, unknown>[];
+      fromApi = raw.map(rawMovieToMovie);
     } catch (error) {
       console.error(error);
-      return rejectWithValue(error);
     }
+  }
+
+  const movies = new Map<string, Movie>();
+
+  for (const id of ids) {
+    const snapshot = snapshots[id] ? rawMovieToMovie(snapshots[id]) : undefined;
+    const apiMovie = fromApi.find((movie) =>
+      String(movie.id) === String(id) || movie.imdb_code === id || movie.slug === id
+    );
+    const apiMatchesSnapshot = !snapshot?.imdb_code || !apiMovie?.imdb_code || apiMovie.imdb_code === snapshot.imdb_code;
+    const chosen = apiMovie && apiMatchesSnapshot ? apiMovie : (snapshot ?? apiMovie);
+    if (!chosen?.id) continue;
+    movies.set(chosen.slug || String(chosen.id), chosen);
+  }
+
+  return movies;
+};
+
+export const fetchFavoritesAsync = createAsyncThunk(
+  'movies/fetchFavoritesAsync',
+  async (ids: string[]) => {
+    return loadSavedMovies(ids, getFavoriteMovies());
 });
 
 export const fetchWatchListAsync = createAsyncThunk(
   'movies/fetchWatchListAsync',
-  async (ids: string[], {rejectWithValue}) => {
-    try {
-      const {data: {movies}} = await getMoviesByIds(ids);
-      const raw = (movies ?? []) as Record<string, unknown>[];
-
-      return raw.length
-        ? new Map(raw.map((m) => [m.slug as string, rawMovieToMovie(m)]))
-        : new Map();
-    } catch (error) {
-      console.error(error);
-      return rejectWithValue(error);
-    }
+  async (ids: string[]) => {
+    return loadSavedMovies(ids, getWatchListMovies());
 });
 
 // type FetchAvailableSubtitlesProps = {

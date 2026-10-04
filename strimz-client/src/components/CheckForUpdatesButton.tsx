@@ -16,13 +16,13 @@ const setStatusText = (updateStatus: string) => {
         case 'available':
             return 'Downloading...';
         case 'up-to-date':
-            return 'Check for updates';
+            return "You're up to date";
         case 'downloaded':
             return 'Update ready, click to install';
         case 'skipped':
             return 'Check for updates';
         case 'failed':
-            return 'Check for updates';
+            return 'Update check failed';
     
         default:
             return 'Check for updates';
@@ -53,6 +53,10 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
 
     useEffect(() => {
         const updateDownloadedHandler = () => dispatch(setUpdateStatus('downloaded'));
+        const updateAvailableHandler = () => dispatch(setUpdateStatus('available'));
+        const updateNotAvailableHandler = () => dispatch(setUpdateStatus('up-to-date'));
+        const updateSkippedHandler = () => dispatch(setUpdateStatus('skipped'));
+        const updateFailedHandler = () => dispatch(setUpdateStatus('failed'));
 
         const downloadProgressHandler = (progressData: ProgressData) => {
             dispatch(setUpdateStatus(progressData.percent === 100 ? 'downloaded' : 'available'));
@@ -60,11 +64,20 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
         }
     
         window.electronAPI.onUpdateDownloaded(updateDownloadedHandler);
+        window.electronAPI.onUpdateAvailable(updateAvailableHandler);
+        window.electronAPI.onUpdateNotAvailable(updateNotAvailableHandler);
+        window.electronAPI.onUpdateCheckSkipped(updateSkippedHandler);
+        window.electronAPI.onUpdateCheckFailed(updateFailedHandler);
         window.electronAPI.onDownloadProgress(downloadProgressHandler);
     
         return () => {
-            window.electronAPI.offDownloadProgress(downloadProgressHandler);
-            window.electronAPI.offUpdateDownloaded(updateDownloadedHandler);
+            // Preload wraps these callbacks, so removeListener cannot match them.
+            window.electronAPI.ipcRenderer.removeAllListeners('update-downloaded');
+            window.electronAPI.ipcRenderer.removeAllListeners('update-available');
+            window.electronAPI.ipcRenderer.removeAllListeners('update-not-available');
+            window.electronAPI.ipcRenderer.removeAllListeners('update-check-skipped');
+            window.electronAPI.ipcRenderer.removeAllListeners('update-check-failed');
+            window.electronAPI.ipcRenderer.removeAllListeners('update-download-progress');
         }
     }, [dispatch]);
 

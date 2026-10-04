@@ -120,10 +120,12 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
         return [...sortedCommon, ...sortedOther];
     }, [availableSubsLanguages, languageFiles]);
 
+    const canStream = Array.isArray(torrents) && torrents.length > 0;
+
     const selectedTorrent: Torrent | null = useMemo(() => {
         const torrents = movie?.torrents as Torrent[];
 
-        if (hash && selectedQuality) {
+        if (Array.isArray(torrents) && hash && selectedQuality) {
             const torrent: Torrent | undefined = torrents.find(t => (t.quality === selectedQuality) && (t.hash === hash));
             
             if (torrent) {
@@ -376,8 +378,9 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
 
     // Fetch suggestions when movie changes
     useEffect(() => {
-        if (!movie.id) {
+        if (!movie.id || !canStream) {
             setSuggestions([]);
+            setIsLoadingSuggestions(false);
             return;
         }
 
@@ -428,7 +431,7 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
         };
 
         fetchSuggestions();
-    }, [movie.id]);
+    }, [movie.id, canStream]);
 
     useEffect(() => {
         setActiveTab('general');
@@ -474,38 +477,39 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
             <TitleWrapper title={title} />
             <Metadata movie={movie} />
 
-            <div className='py-1 flex w-full gap-3 md:h-full h-32 flex-col'>
-                <QualitySelector selected={selectedQuality} torrents={torrents} handleSelect={handleQualityChange} />
-                <TorrentSelector handleSelect={handleTorrentSelect} quality={selectedQuality} torrents={torrents} hash={hash} />
-            </div>
+            {canStream ? (
+                <>
+                    <div className='py-1 flex w-full gap-3 md:h-full h-32 flex-col'>
+                        <QualitySelector selected={selectedQuality} torrents={torrents} handleSelect={handleQualityChange} />
+                        <TorrentSelector handleSelect={handleTorrentSelect} quality={selectedQuality} torrents={torrents} hash={hash} />
+                    </div>
 
-            <SubtitlesSelector
-                languages={formattedLanguages}
-                languageFiles={languageFiles}
-                isLoading={isLoadingSubtitles}
-                isDownloading={isDownloadingSubs}
-                onSelectSubtitle={handleSelectSubsLanguage}
-            />
-            {/* <SubtitleDropdown
-                availableSubs={availableSubs}
-                isLoading={isLoadingSubs}
-                onSelect={handleSelectSubsLanguage}
-            /> */}
+                    <SubtitlesSelector
+                        languages={formattedLanguages}
+                        languageFiles={languageFiles}
+                        isLoading={isLoadingSubtitles}
+                        isDownloading={isDownloadingSubs}
+                        onSelectSubtitle={handleSelectSubsLanguage}
+                    />
 
-            <FileSize 
-                size={selectedTorrent?.size} 
-                selectedTorrent={selectedTorrent}
-                downloadedQuality={downloadedMovieInfo?.quality}
-                onWatchDownloaded={downloadedMovieInfo ? handleWatchDownloaded : undefined}
-            />
+                    <FileSize 
+                        size={selectedTorrent?.size} 
+                        selectedTorrent={selectedTorrent}
+                        downloadedQuality={downloadedMovieInfo?.quality}
+                        onWatchDownloaded={downloadedMovieInfo ? handleWatchDownloaded : undefined}
+                    />
 
-            <div className='flex w-full items-center justify-center flex-col py-1 gap-1'>
-                <PlayButton
-                    isDisabled={!selectedTorrent || !selectedQuality || hasEnoughSpace === false || !diskSpace}
-                    onPlay={handlePlay}
-                    diskSpaceInfo={{ hasEnoughSpace, fileSizeInBytes, freeBytes: diskSpace?.free ?? 0 }}
-                />
-            </div>
+                    <div className='flex w-full items-center justify-center flex-col py-1 gap-1'>
+                        <PlayButton
+                            isDisabled={!selectedTorrent || !selectedQuality || hasEnoughSpace === false || !diskSpace}
+                            onPlay={handlePlay}
+                            diskSpaceInfo={{ hasEnoughSpace, fileSizeInBytes, freeBytes: diskSpace?.free ?? 0 }}
+                        />
+                    </div>
+                </>
+            ) : (
+                <p className="py-3 text-sm text-slate-300">In theatres now. This title isn't available to stream yet.</p>
+            )}
         </div>
 
         {/* Suggestions Sidebar Handle */}

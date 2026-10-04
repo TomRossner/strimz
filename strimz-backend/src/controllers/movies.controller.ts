@@ -260,11 +260,20 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
             sortBy: sort_by as string
         };
 
+        const emptyMovieList = { data: { movies: [] as Record<string, unknown>[], movie_count: 0 } };
+        const loadCatalog = (query: string) => getAllMovies(filters, page, limit, query).catch((error: unknown) => {
+            console.error(
+                "Movie search catalog failed:",
+                error instanceof Error ? error.message : error
+            );
+            return emptyMovieList;
+        });
+
         const [originalResponse, correctedResponse] = await Promise.all([
-            getAllMovies(filters, page, limit, originalQueryTerm),
+            loadCatalog(originalQueryTerm),
             (correctedQueryTerm.length && (correctedQueryTerm !== originalQueryTerm))
-                ? getAllMovies(filters, page, limit, correctedQueryTerm)
-                : Promise.resolve({ data: { movies: [] } })
+                ? loadCatalog(correctedQueryTerm)
+                : Promise.resolve(emptyMovieList)
         ]);
 
         const movieMap = new Map<string, Record<string, unknown>>();
@@ -288,13 +297,54 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
             const n = typeof v === 'number' ? v : Number(v);
             return Number.isFinite(n) ? n : undefined;
         };
-        const normalizeMovie = (m: Record<string, unknown>) => {
+        const normalizeMovie = (m: Record<string, unknown>): Record<string, unknown> => {
             const rating = toNum(m.rating ?? (m as Record<string, unknown>).Rating ?? (m as Record<string, unknown>).imdb_rating);
             const runtime = toNum(m.runtime ?? (m as Record<string, unknown>).Runtime ?? (m as Record<string, unknown>).runtime_minutes);
             return { ...m, rating, runtime };
         };
 
         const normalizedMovies = filteredMovies.map((m: Record<string, unknown>) => normalizeMovie(m));
+        const queryForTheatres = originalQueryTerm.trim();
+
+        if (queryForTheatres && page === PAGE_NUMBER) {
+            try {
+                const inTheatres = await ensureInTheatresMovies();
+                const inTheatresKeys = new Set(
+                    inTheatres.map((movie) => String(movie.imdb_code || movie.id).toLowerCase())
+                );
+                const genreFilter = typeof genre === "string" ? genre.trim().toLowerCase() : "";
+
+                for (const movie of normalizedMovies) {
+                    const key = String(movie.imdb_code || movie.id).toLowerCase();
+                    if (inTheatresKeys.has(key)) {
+                        movie.in_theatres = true;
+                    }
+                }
+
+                const seen = new Set(
+                    normalizedMovies.map((movie) => String(movie.imdb_code || movie.id).toLowerCase())
+                );
+                const theatreMatches = inTheatres.filter((movie) => {
+                    const key = String(movie.imdb_code || movie.id).toLowerCase();
+                    if (seen.has(key) || !matchesInTheatresQuery(movie, queryForTheatres)) return false;
+                    if (genreFilter) {
+                        const genres = Array.isArray(movie.genres)
+                            ? movie.genres.map((entry) => String(entry).toLowerCase())
+                            : [];
+                        if (genres.length > 0 && !genres.includes(genreFilter)) return false;
+                    }
+                    if (minRating > 0 && Number(movie.rating ?? 0) < minRating) return false;
+                    return true;
+                });
+
+                normalizedMovies.unshift(...theatreMatches);
+            } catch (theatreError) {
+                console.error(
+                    "In theatres search merge failed:",
+                    theatreError instanceof Error ? theatreError.message : theatreError
+                );
+            }
+        }
 
         res.status(200).json({
             ...originalResponse,
@@ -318,12 +368,265 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
     }
 }
 
+type TmdbNowPlayingMovie = {
+    id: number;
+    title?: string;
+    overview?: string;
+    poster_path?: string | null;
+    backdrop_path?: string | null;
+    release_date?: string;
+    vote_average?: number;
+};
+
+type TmdbNowPlayingResponse = {
+    page?: number;
+    total_pages?: number;
+    results?: TmdbNowPlayingMovie[];
+};
+
+type TmdbExternalIdsResponse = {
+    imdb_id?: string | null;
+};
+
+type InTheatresCache = {
+    expiresAt: number;
+    movies: Record<string, unknown>[];
+};
+
+const IN_THEATRES_CACHE_MS = 30 * 60 * 1000;
+const IN_THEATRES_LOOKUP_CONCURRENCY = 6;
+const IN_THEATRES_MAX_PAGES = 5;
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+
+let inTheatresCache: InTheatresCache | null = null;
+
+const mapWithConcurrency = async <T, R>(
+    items: T[],
+    concurrency: number,
+    mapper: (item: T) => Promise<R>
+): Promise<R[]> => {
+    const results = new Array<R>(items.length);
+    let nextIndex = 0;
+
+    const worker = async () => {
+        while (nextIndex < items.length) {
+            const current = nextIndex;
+            nextIndex += 1;
+            results[current] = await mapper(items[current]);
+        }
+    };
+
+    await Promise.all(
+        Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+    );
+
+    return results;
+};
+
+const tmdbHeaders = () => ({
+    accept: "application/json",
+    Authorization: `Bearer ${TMDB_READ_ACCESS_TOKEN}`,
+});
+
+const toListedNumber = (value: unknown): number | undefined => {
+    if (value == null) return undefined;
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const normalizeListedMovie = (movie: Record<string, unknown>) => ({
+    ...movie,
+    rating: toListedNumber(movie.rating ?? movie.Rating ?? movie.imdb_rating),
+    runtime: toListedNumber(movie.runtime ?? movie.Runtime ?? movie.runtime_minutes),
+});
+
+const tmdbImage = (path: string | null | undefined, size: string): string => {
+    if (!path) return "";
+    return `${TMDB_IMAGE_BASE}/${size}${path}`;
+};
+
+const toTheatricalMovie = (movie: TmdbNowPlayingMovie, imdbId?: string): Record<string, unknown> => {
+    const year = Number(movie.release_date?.slice(0, 4));
+    const title = movie.title ?? "";
+
+    return {
+        id: String(movie.id),
+        title,
+        slug: imdbId || String(movie.id),
+        year: Number.isFinite(year) ? year : 0,
+        rating: toListedNumber(movie.vote_average),
+        summary: movie.overview ?? "",
+        yt_trailer_code: "",
+        language: "",
+        genres: [],
+        background_image: tmdbImage(movie.backdrop_path, "w1280"),
+        background_image_original: tmdbImage(movie.backdrop_path, "original"),
+        small_cover_image: tmdbImage(movie.poster_path, "w185"),
+        medium_cover_image: tmdbImage(movie.poster_path, "w342"),
+        large_cover_image: tmdbImage(movie.poster_path, "w500"),
+        torrents: [],
+        imdb_code: imdbId ?? "",
+    };
+};
+
+const findYtsMovieByImdb = async (imdbId: string): Promise<Record<string, unknown> | null> => {
+    const response = await yts.getMovies({
+        query_term: imdbId,
+        limit: 5,
+        page: 1,
+    });
+
+    const candidates = (response?.data?.movies ?? []) as Record<string, unknown>[];
+    const match = candidates.find((movie) => movie.imdb_code === imdbId);
+
+    if (!match) return null;
+    if (!Array.isArray(match.torrents) || match.torrents.length === 0) return null;
+
+    return normalizeListedMovie(match);
+};
+
+const fetchNowPlayingPage = async (page: number): Promise<TmdbNowPlayingResponse> => {
+    const response = await axios.request<TmdbNowPlayingResponse>({
+        method: "GET",
+        url: `${TMDB_BASE}/movie/now_playing?language=en-US&page=${page}`,
+        headers: tmdbHeaders(),
+    });
+
+    return response.data ?? {};
+};
+
+const normalizeSearchText = (value: string): string => {
+    return value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+};
+
+const matchesInTheatresQuery = (movie: Record<string, unknown>, query: string): boolean => {
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return false;
+
+    const imdbCode = String(movie.imdb_code ?? "").toLowerCase();
+    if (imdbCode && (imdbCode === normalizedQuery || normalizedQuery.includes(imdbCode))) {
+        return true;
+    }
+
+    const titleWords = normalizeSearchText(String(movie.title ?? "")).split(" ").filter(Boolean);
+    const queryWords = normalizedQuery.split(" ").filter(Boolean);
+    if (!titleWords.length || !queryWords.length) return false;
+
+    return queryWords.every((word) => titleWords.some((titleWord) => titleWord === word || titleWord.startsWith(word)));
+};
+
+let inTheatresRequest: Promise<Record<string, unknown>[]> | null = null;
+
+async function loadMoviesInTheatres(): Promise<Record<string, unknown>[]> {
+    if (!TMDB_BASE || !TMDB_READ_ACCESS_TOKEN) {
+        throw new Error("TMDB service not configured");
+    }
+
+    const firstPage = await fetchNowPlayingPage(1);
+        const totalPages = Math.min(Math.max(firstPage.total_pages ?? 1, 1), IN_THEATRES_MAX_PAGES);
+        const remainingPages = totalPages > 1
+            ? await Promise.all(
+                Array.from({ length: totalPages - 1 }, (_, index) => fetchNowPlayingPage(index + 2))
+            )
+            : [];
+
+        const playing = [firstPage, ...remainingPages]
+            .flatMap((page) => page.results ?? [])
+            .filter((movie) => Number.isFinite(movie.id));
+
+        const movies = await mapWithConcurrency(playing, IN_THEATRES_LOOKUP_CONCURRENCY, async (movie): Promise<Record<string, unknown>> => {
+            let imdbId: string | undefined;
+
+            try {
+                const externalIds = await axios.request<TmdbExternalIdsResponse>({
+                    method: "GET",
+                    url: `${TMDB_BASE}/movie/${movie.id}/external_ids`,
+                    headers: tmdbHeaders(),
+                });
+
+                if (externalIds.data?.imdb_id?.startsWith("tt")) {
+                    imdbId = externalIds.data.imdb_id;
+                }
+            } catch (error) {
+                console.error(
+                    `In theatres IMDb lookup failed for "${movie.title ?? movie.id}":`,
+                    error instanceof Error ? error.message : error
+                );
+            }
+
+            if (imdbId) {
+                try {
+                    const streamable = await findYtsMovieByImdb(imdbId);
+                    if (streamable) return { ...streamable, in_theatres: true };
+                } catch (error) {
+                    console.error(
+                        `In theatres stream lookup failed for "${movie.title ?? movie.id}":`,
+                        error instanceof Error ? error.message : error
+                    );
+                }
+            }
+
+            return { ...toTheatricalMovie(movie, imdbId), in_theatres: true };
+        });
+
+        const uniqueMovies = Array.from(
+            new Map(movies.map((movie) => [String(movie.imdb_code || movie.id), movie])).values()
+        );
+        const streamableCount = uniqueMovies.filter((movie) => Array.isArray(movie.torrents) && movie.torrents.length > 0).length;
+
+        inTheatresCache = {
+            movies: uniqueMovies,
+            expiresAt: Date.now() + IN_THEATRES_CACHE_MS,
+        };
+
+        console.log(`In theatres: ${uniqueMovies.length} titles, ${streamableCount} available to stream`);
+
+        return uniqueMovies;
+}
+
+async function ensureInTheatresMovies(): Promise<Record<string, unknown>[]> {
+    if (inTheatresCache && inTheatresCache.expiresAt > Date.now()) {
+        return inTheatresCache.movies;
+    }
+
+    if (!inTheatresRequest) {
+        inTheatresRequest = loadMoviesInTheatres().finally(() => {
+            inTheatresRequest = null;
+        });
+    }
+
+    return inTheatresRequest;
+}
+
+export const getMoviesInTheatres = async (_req: Request, res: Response): Promise<Response | void> => {
+    try {
+        const movies = await ensureInTheatresMovies();
+        return res.status(200).json({ movies });
+    } catch (error) {
+        console.error("In theatres error:", error instanceof Error ? error.message : error);
+        const status = error instanceof Error && error.message === "TMDB service not configured"
+            ? 503
+            : axios.isAxiosError(error) ? (error.response?.status ?? 502) : 502;
+        return res.status(status).json({
+            error: error instanceof Error ? error.message : "Failed fetching movies in theatres",
+            movies: [],
+        });
+    }
+};
+
 export const getMovies = async (req: Request, res: Response) => {
     try {
         const {ids} = req.body;
 
-        if (!ids.length) {
-            return res.status(200).json([]);
+        if (!Array.isArray(ids) || !ids.length) {
+            return res.status(200).json({ movies: [] });
         }
 
         let movies: object[] = [];
@@ -356,12 +659,37 @@ export const getMovies = async (req: Request, res: Response) => {
             return { ...m, rating, runtime, genres };
         };
 
-        for (const movieId of ids) {
-            const response = await yts.getMovie({movieId, withCast: false, withImages: true});
+        const findSavedMovie = async (movieId: string): Promise<Record<string, unknown> | null> => {
+            const key = movieId.trim().toLowerCase();
+            if (!key) return null;
 
-            if (response?.data?.movie) {
-                movies = [...movies, normalizeMovie(response.data.movie as Record<string, unknown>)];
+            if (!Number.isNaN(Number(key))) {
+                try {
+                    const response = await yts.getMovie({ movieId: movieId.trim(), withCast: false, withImages: true });
+                    const listed = response?.data?.movie as Record<string, unknown> | undefined;
+                    if (response?.status !== "error" && listed && String(listed.id) === movieId.trim()) {
+                        return normalizeMovie(listed);
+                    }
+                } catch (error) {
+                    console.error(
+                        `Movie lookup failed for "${movieId}":`,
+                        error instanceof Error ? error.message : error
+                    );
+                }
             }
+
+            const inTheatres = await ensureInTheatresMovies().catch(() => []);
+            return inTheatres.find((movie) => {
+                const id = String(movie.id ?? "").toLowerCase();
+                const imdbCode = String(movie.imdb_code ?? "").toLowerCase();
+                const slug = String(movie.slug ?? "").toLowerCase();
+                return id === key || imdbCode === key || slug === key;
+            }) ?? null;
+        };
+
+        for (const movieId of ids) {
+            const movie = await findSavedMovie(String(movieId));
+            if (movie) movies = [...movies, movie];
         }
 
         return res.status(200).json({movies});

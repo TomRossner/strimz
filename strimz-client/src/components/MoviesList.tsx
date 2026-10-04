@@ -8,6 +8,7 @@ import MoviesListSkeleton from './MoviesListSkeleton';
 import { DEFAULT_FETCH_LIMIT, DEFAULT_GENRE, DEFAULT_QUALITY, DEFAULT_RATING } from '../utils/constants';
 import { OrderBy, SortBy } from '../services/movies';
 import { openModal } from '../store/modals/modals.slice';
+import { selectMovieModal } from '../store/modals/modals.selectors';
 import { Filters } from '../utils/types';
 import { selectSettings } from '../store/settings/settings.selectors';
 import Button from './Button';
@@ -24,6 +25,7 @@ const MoviesList = () => {
   const currentQuery = useAppSelector(selectQuery);
 
   const settings = useAppSelector(selectSettings);
+  const isMovieDialogOpen = useAppSelector(selectMovieModal);
 
   const lastFetchParams = useAppSelector(selectLastFetchParams);
 
@@ -64,19 +66,23 @@ const MoviesList = () => {
   }, [params, dispatch]);
 
   const handleScroll = useCallback(() => {
+    if (isMovieDialogOpen) return;
+
     if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight) {
       handleLoadMore();
     }
-  }, [handleLoadMore]);
+  }, [handleLoadMore, isMovieDialogOpen]);
 
   useEffect(() => {
-    if (hasNextPage && settings.loadOnScroll) window.addEventListener('scroll', handleScroll);
+    if (hasNextPage && settings.loadOnScroll && !isMovieDialogOpen) {
+      window.addEventListener('scroll', handleScroll);
+    }
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
     }
 
-  }, [hasNextPage, settings.loadOnScroll, handleScroll]);
+  }, [hasNextPage, settings.loadOnScroll, handleScroll, isMovieDialogOpen]);
 
   return (
     <div

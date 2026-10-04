@@ -128,6 +128,10 @@ export const getMoviesByIds = async (ids: string[]) => {
     return await axios.post(`${MOVIES_FETCH_URL}`, {ids});
 }
 
+export const getMoviesInTheatres = async () => {
+    return await axios.get<{ movies: Record<string, unknown>[] }>(`${MOVIES_FETCH_URL}/in-theatres`);
+}
+
 export type MovieMetadataResponse = { runtime?: number; rating?: number; summary?: string; yt_trailer_code?: string; genres?: string[] };
 
 export const getMovieMetadata = async (imdbCode: string): Promise<MovieMetadataResponse> => {

@@ -126,7 +126,8 @@ export function attachIPCHandlers(isDev, updateState) {
   });
 
   ipcMain.on('check-for-updates', (event) => {
-    const win = BrowserWindow.getFocusedWindow();
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
 
     if (isDev) {
       console.log('Skipping update check: app is in development');
@@ -138,7 +139,9 @@ export function attachIPCHandlers(isDev, updateState) {
 
     autoUpdater.checkForUpdates().catch((err) => {
       console.error('Error while checking for updates:', err);
-      win.webContents.send('update-check-failed', err.message || 'Unknown error');
+      if (!win.isDestroyed()) {
+        win.webContents.send('update-check-failed', err?.message || 'Unknown error');
+      }
     });
   });
 

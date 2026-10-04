@@ -76,6 +76,8 @@ const MovieCard = ({ movie, setOpen }: Props) => {
     setOpen();
   };
 
+  const canStream = Array.isArray(torrents) && torrents.length > 0;
+
   return (
     <Button
       key={id}
@@ -94,14 +96,16 @@ const MovieCard = ({ movie, setOpen }: Props) => {
         duration-150
         hover:scale-[1.04]
         hover:border
-        ${favorites.has(movie.slug) && "border-2 border-yellow-300"}
-        ${favorites.has(movie.slug) ? "hover:border-yellow-300" : "hover:border-gray-300"}
+        ${favorites?.has(movie.slug) && "border-2 border-yellow-300"}
+        ${favorites?.has(movie.slug) ? "hover:border-yellow-300" : "hover:border-gray-300"}
         p-0
       `}
     >
-      <div className="absolute z-[5] bg-white text-black drop-shadow-md top-1 right-1 rounded-sm font-semibold px-2 py-1 text-center">
-        {getBestTorrentQuality(torrents as Torrent[])}
-      </div>
+      {canStream && (
+        <div className="absolute z-[5] bg-white text-black drop-shadow-md top-1 right-1 rounded-sm font-semibold px-2 py-1 text-center">
+          {getBestTorrentQuality(torrents as Torrent[])}
+        </div>
+      )}
       {(large_cover_image || medium_cover_image || small_cover_image) && (
         <img
           src={large_cover_image || medium_cover_image || small_cover_image || undefined}
