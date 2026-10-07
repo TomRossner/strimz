@@ -61,12 +61,15 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
             <BackButton
                 cb={async () => {
                     const video = videoRef.current;
-                    if (video) {
+                    const playingInPip = !!video && document.pictureInPictureElement === video;
+
+                    if (video && !playingInPip) {
                         video.pause();
                         video.src = "";
                         video.load();
                     }
 
+                    if (!playingInPip) {
                     // Reset all subtitle states when quitting player
                     dispatch(setAvailableSubtitlesLanguages([]));
                     dispatch(setLanguageFiles({}));
@@ -80,10 +83,7 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                         dispatch(setSelectedMovie(null));
                     }
 
-                    // Pause download if we have a hash (torrent-based download)
-                    // External torrents don't have selectedTorrent, so skip this
-                    // Try hash from URL params first, then downloadInfo, then selectedTorrent
-                    const downloadHash = hash || downloadInfo?.hash || selectedTorrent?.hash;
+                    const downloadHash = hash || downloadInfo?.hash;
                     if (downloadHash) {
                         try {
                             await pauseDownload(downloadHash);
@@ -91,7 +91,8 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                             console.error('Error pausing download:', error);
                         }
                     }
-                    
+                    }
+
                     if (from === '/') {
                         navigate('/', {
                             state: {
@@ -100,8 +101,7 @@ const TopOverlay = ({isVisible, title, videoDimensions: { height }, downloadInfo
                         });
                         dispatch(openModal('movie'));
                     } else if (from === 'external') {
-                        // External torrent - navigate to home and clear external torrent
-                        dispatch(setExternalTorrent(null));
+                        if (!playingInPip) dispatch(setExternalTorrent(null));
                         navigate('/');
                     } else {
                         navigate(-1);

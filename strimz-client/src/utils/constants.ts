@@ -26,6 +26,27 @@ export const DEFAULT_LANGUAGES: string[] = [
   'he',
 ]
 
+export const MOVIE_LANGUAGE_OPTIONS: { code: string; label: string }[] = [
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'French' },
+  { code: 'he', label: 'Hebrew' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'tr', label: 'Turkish' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'pl', label: 'Polish' },
+  { code: 'sv', label: 'Swedish' },
+  { code: 'th', label: 'Thai' },
+]
+
 export const DEFAULTS: Filters = {
   page: DEFAULT_PAGE,
   genre: DEFAULT_GENRE,
@@ -35,6 +56,9 @@ export const DEFAULTS: Filters = {
   quality: DEFAULT_QUALITY,
   query_term: '',
   sort_by: DEFAULT_SORT_BY,
+  year_from: '',
+  year_to: '',
+  languages: DEFAULT_LANGUAGES.join(','),
 }
 
 export const DEFAULT_FETCH_MOVIES_URL: string = `
@@ -50,6 +74,9 @@ export const DEFAULT_PARAMS: Filters & {page: number} = {
   quality: DEFAULT_QUALITY,
   query_term: '',
   sort_by: DEFAULT_SORT_BY,
+  year_from: '',
+  year_to: '',
+  languages: DEFAULT_LANGUAGES.join(','),
 }
 
 export const DEFAULT_SUBTITLES_SIZE: number = 30; // px

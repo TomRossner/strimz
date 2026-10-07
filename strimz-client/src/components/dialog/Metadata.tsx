@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Movie } from '../MovieCard';
 import { BsCircleFill } from 'react-icons/bs';
 import Rating from './Rating';
@@ -14,7 +14,10 @@ import { selectFavorites, selectWatchList } from '@/store/movies/movies.selector
 import { getMovieMetadata } from '@/services/movies';
 import { MdFavoriteBorder, MdFavorite } from "react-icons/md";
 import { ImEye, ImEyeBlocked } from "react-icons/im";
+import { RxCross2 } from "react-icons/rx";
+import { HiOutlineQueueList } from "react-icons/hi2";
 import LoadingIcon from '../LoadingIcon';
+import { addMovieToList, createCustomList, getLibrarySnapshot, removeMovieFromList, subscribeLibrary } from '@/services/library';
 
 const GENRES_TO_LOAD = 3;
 
@@ -68,6 +71,9 @@ const Metadata = ({movie}: MetadataProps) => {
 
     const favorites = useAppSelector(selectFavorites);
     const watchList = useAppSelector(selectWatchList);
+    const { lists } = useSyncExternalStore(subscribeLibrary, getLibrarySnapshot);
+    const [isNamingList, setIsNamingList] = useState(false);
+    const [newListName, setNewListName] = useState('');
 
     const [tmdbMetadata, setTmdbMetadata] = useState<{ runtime?: number; rating?: number; summary?: string; yt_trailer_code?: string; genres?: string[] | { id: number; name: string }[] } | null>(null);
     const tmdbGenresNormalized = useMemo((): string[] => {
@@ -171,6 +177,15 @@ const Metadata = ({movie}: MetadataProps) => {
     }, [dispatch, slug, favorites, movie]);
     
     
+    const saveToNewList = () => {
+        const name = newListName.trim();
+        if (!name) return;
+        const list = createCustomList(name);
+        addMovieToList(list.id, movie);
+        setNewListName('');
+        setIsNamingList(false);
+    };
+
     const handleWatchList = useCallback((id: string) => {
         const userWatchList = getWatchList();
 
@@ -191,6 +206,14 @@ const Metadata = ({movie}: MetadataProps) => {
         updatedWatchListMap.set(slug, movie);
         dispatch(setWatchList(updatedWatchListMap));
     }, [dispatch, slug, watchList, movie]);
+
+    const movieIsInList = (list: { movies: { id: string | number }[] }) => (
+        list.movies.some((entry) => String(entry.id) === String(movie.id))
+    );
+    const listsWithMovie = lists.filter(movieIsInList);
+    const listButtonTitle = listsWithMovie.length
+        ? 'Change or remove this movie from your lists'
+        : 'Add to list';
 
   return (
     <div className='flex flex-col gap-1.5 text-white w-full'>
@@ -240,33 +263,117 @@ const Metadata = ({movie}: MetadataProps) => {
         {/* <Cast movie={movie} /> */}
         <WatchTrailerButton isDisabled={!ytTrailerCode} onPlay={handlePlayTrailer} ytTrailerCode={ytTrailerCode ?? ''} />
 
-        <div className='w-full flex items-center gap-2'>
+        <div className='w-full flex items-stretch gap-2'>
             <Button
                 onClick={() => handleWatchList(id)}
-                className='w-full gap-2 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group py-0.5'
+                className='min-w-0 flex-1 gap-1.5 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group py-1 px-2'
                 title={watchList?.has(slug) ? 'Remove from watch list' : 'Add to watch list'}
             >
-                <span className='group-hover:text-blue-400 flex text-center items-center gap-2 transition-all duration-100'>
+                <span className='group-hover:text-blue-400 flex min-w-0 items-center justify-center gap-1.5 transition-all duration-100'>
                     {watchList?.has(slug)
-                        ? <><ImEyeBlocked className='text-2xl' /> <span className='text-sm font-light'>Remove from watch list</span></>
-                        : <><ImEye className='text-2xl' /> <span className='text-sm font-light'>Add to watch list</span></>
+                        ? <ImEyeBlocked className='shrink-0 text-lg' />
+                        : <ImEye className='shrink-0 text-lg' />
                     }
+                    <span className='truncate text-xs sm:text-sm font-light'>
+                        {watchList?.has(slug) ? 'In watch list' : 'Watch list'}
+                    </span>
                 </span>
             </Button>
 
             <Button
                 onClick={() => handleFavorites(id)}
-                className='w-full gap-2 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group'
+                className='min-w-0 flex-1 gap-1.5 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 group py-1 px-2'
                 title={favorites?.has(slug) ? 'Remove from favorites' : 'Add to favorites'}
             >
-                <span className='group-hover:text-red-300 transition-all duration-100 flex text-center gap-2 items-center'>
+                <span className='group-hover:text-red-300 transition-all duration-100 flex min-w-0 items-center justify-center gap-1.5'>
                     {favorites?.has(slug)
-                        ? <><MdFavorite className='text-red-500 text-xl' /> <span className='text-sm font-light'>Remove from favorites</span></>
-                        : <><MdFavoriteBorder className='text-red-500 text-xl' /> <span className='text-sm font-light'>Add to favorites</span></>
+                        ? <MdFavorite className='shrink-0 text-red-500 text-lg' />
+                        : <MdFavoriteBorder className='shrink-0 text-red-500 text-lg' />
                     }
+                    <span className='truncate text-xs sm:text-sm font-light'>
+                        {favorites?.has(slug) ? 'Favorited' : 'Favorites'}
+                    </span>
+                </span>
+            </Button>
+
+            <Button
+                type='button'
+                aria-expanded={isNamingList}
+                title={listButtonTitle}
+                onClick={() => setIsNamingList((open) => !open)}
+                className='min-w-0 flex-1 gap-1.5 bg-stone-950 border border-stone-800 hover:border-stone-500 hover:bg-stone-900 py-1 px-2 text-xs sm:text-sm font-light'
+            >
+                <span className='flex min-w-0 items-center justify-center gap-1 truncate whitespace-nowrap'>
+                    {isNamingList
+                        ? (
+                            <>
+                                <RxCross2 className='shrink-0 text-base' />
+                                Close
+                            </>
+                        )
+                        : (
+                            <>
+                                <HiOutlineQueueList className='shrink-0 text-lg' />
+                                {listsWithMovie.length > 0
+                                    ? (
+                                        <>
+                                            <span className='sm:hidden'>Added</span>
+                                            <span className='hidden sm:inline'>Added · <span className='text-blue-400'>Change</span></span>
+                                        </>
+                                    )
+                                    : 'Add to list'}
+                            </>
+                        )}
                 </span>
             </Button>
         </div>
+        {isNamingList && lists.length > 0 && (
+            <div className='flex w-full flex-col gap-1'>
+                {lists.map((list) => (
+                    <Button
+                        key={list.id}
+                        type='button'
+                        onClick={() => {
+                            if (movieIsInList(list)) {
+                                removeMovieFromList(list.id, String(movie.id));
+                                return;
+                            }
+                            addMovieToList(list.id, movie);
+                            setIsNamingList(false);
+                        }}
+                        className='w-full justify-between gap-2 bg-stone-950 border border-stone-800 hover:border-stone-500 text-sm font-light'
+                    >
+                        <span className='min-w-0 truncate'>{list.name}</span>
+                        {movieIsInList(list) && <span className='shrink-0 text-xs text-stone-300'>Remove</span>}
+                    </Button>
+                ))}
+            </div>
+        )}
+        {isNamingList && (
+            <form
+                className='flex w-full items-center gap-2'
+                onSubmit={(ev) => {
+                    ev.preventDefault();
+                    saveToNewList();
+                }}
+            >
+                <input
+                    autoFocus
+                    value={newListName}
+                    onChange={(ev) => setNewListName(ev.target.value)}
+                    placeholder='List name'
+                    aria-label='List name'
+                    className='min-w-0 flex-1 bg-stone-950 border border-stone-700 text-sm text-white px-2 py-1 rounded-sm outline-none'
+                />
+                <Button
+                    type='submit'
+                    disabled={!newListName.trim()}
+                    className='shrink-0 bg-blue-500 hover:bg-blue-400 px-3 text-sm font-semibold text-white disabled:bg-blue-900 disabled:text-white disabled:opacity-100'
+                >
+                    Create
+                </Button>
+            </form>
+        )}
     </div>
   )
 }

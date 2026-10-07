@@ -6,12 +6,12 @@ interface CoverImageProps {
 
 const CoverImage = ({imageSrc = ''}: CoverImageProps) => {
   return (
-    <div className='flex w-full md:relative fixed top-0 md:flex-row flex-col h-[100vh] md:h-full md:min-h-0 md:shrink-0 md:aspect-[2/3] md:w-auto'>
+    <div className='flex w-full md:relative fixed top-0 md:flex-row flex-col h-full max-h-full min-h-0 overflow-hidden md:shrink-0 md:aspect-[2/3] md:w-auto'>
         {imageSrc && (
           <img
               src={imageSrc}
               alt=''
-              className='w-full h-full md:opacity-90 border-r border-stone-700 object-cover object-center'
+              className='h-full max-h-full min-h-0 w-full md:opacity-90 border-r border-stone-700 object-cover object-center'
           />
         )}
 

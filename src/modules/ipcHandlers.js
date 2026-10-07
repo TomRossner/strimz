@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow, app, Notification } from 'electron';
 import store from '../store.js';
 import path from 'path';
 import fs from 'fs';
@@ -156,6 +156,20 @@ export function attachIPCHandlers(isDev, updateState) {
   ipcMain.on('restart-app', () => {
     app.relaunch();
     app.exit();
+  });
+
+  ipcMain.on('set-always-on-top', (event, value) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.setAlwaysOnTop(Boolean(value));
+    store.set('alwaysOnTop', Boolean(value));
+  });
+
+  ipcMain.on('notify', (_event, payload) => {
+    const title = payload?.title || 'Strimz';
+    const body = payload?.body || '';
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show();
+    }
   });
 
   ipcMain.on('install-update-now', () => {

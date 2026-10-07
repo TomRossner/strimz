@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import LoadingIcon from './LoadingIcon';
 import Popcorn from "../assets/popcornBucket.png";
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { closeModal } from '../store/modals/modals.slice';
 import { useNavigate } from 'react-router-dom';
 import BackButton from './BackButton';
 import { pauseDownload } from '@/services/movies';
 import Progress from './Progress';
+import { selectSocket } from '@/store/socket/socket.selectors';
 
 interface LoadingScreenProps {
   hash: string;
@@ -15,6 +16,22 @@ interface LoadingScreenProps {
 const LoadingScreen = ({hash}: LoadingScreenProps) => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const socket = useAppSelector(selectSocket);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTorrentError = (data: { hash?: string; message?: string }) => {
+      if (data.hash?.toLowerCase() !== hash.toLowerCase()) return;
+      setError(data.message || 'No peers responded with this torrent\'s details. Go back and try another source.');
+    };
+
+    socket.on('torrentError', handleTorrentError);
+    return () => {
+      socket.off('torrentError', handleTorrentError);
+    };
+  }, [socket, hash]);
 
   const handleClose = async () => {
     try {
@@ -39,9 +56,15 @@ const LoadingScreen = ({hash}: LoadingScreenProps) => {
         alt=''
       />
 
-      <div className='text-2xl italic font-light text-center absolute bottom-10 text-white flex items-center gap-3'>
-        <LoadingIcon />
-        <Progress hash={hash} className='mt-0' withDownloadSpeed />
+      <div className='text-2xl italic font-light text-center absolute bottom-10 text-white flex items-center gap-3 max-w-xl px-4'>
+        {error ? (
+          <p className='text-amber-300 text-lg not-italic'>{error}</p>
+        ) : (
+          <>
+            <LoadingIcon />
+            <Progress hash={hash} className='mt-0' withDownloadSpeed />
+          </>
+        )}
       </div>
     </section>
   );

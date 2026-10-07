@@ -4,3 +4,5 @@ import { handleNewReport } from "../controllers/report.controller.js";
 const reportRouter = Router();
 
 reportRouter.post('/', handleNewReport);
+
+export default reportRouter;

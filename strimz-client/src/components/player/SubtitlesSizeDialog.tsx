@@ -7,6 +7,7 @@ import { setSubtitlesSize } from '@/store/movies/movies.slice';
 import Button from '../Button';
 import { DEFAULT_SUBTITLES_SIZE } from '@/utils/constants';
 import { selectSubtitlesSize } from '@/store/movies/movies.selectors';
+import { getPlayerPrefs, savePlayerPrefs } from '@/services/playerPrefs';
 
 interface SubtitlesSizeDialogProps {
     isOpen: boolean;
@@ -14,6 +15,9 @@ interface SubtitlesSizeDialogProps {
 
 const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
     const [size, setSize] = useState<number>(DEFAULT_SUBTITLES_SIZE);
+    const [color, setColor] = useState(getPlayerPrefs().subtitleColor);
+    const [background, setBackground] = useState(getPlayerPrefs().subtitleBackground);
+    const [font, setFont] = useState(getPlayerPrefs().subtitleFont);
     const dispatch = useAppDispatch();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -22,8 +26,14 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
         ev.preventDefault();
         dispatch(setSubtitlesSize(size));
+        savePlayerPrefs({
+            subtitleSize: size,
+            subtitleColor: color,
+            subtitleBackground: background,
+            subtitleFont: font,
+        });
         dispatch(closeModal('subtitlesSize'));
-    }, [size, dispatch]);
+    }, [size, color, background, font, dispatch]);
 
     useEffect(() => {
         setSize(subtitlesSize);
@@ -55,6 +65,27 @@ const SubtitlesSizeDialog = ({isOpen}: SubtitlesSizeDialogProps) => {
                         ref={inputRef}
                         className='bg-stone-100 w-fit rounded-sm text-black p-1 text-sm'
                     />
+                    <label className='flex items-center justify-between gap-2 text-sm'>
+                        Color
+                        <input type='color' value={color} onChange={(ev) => setColor(ev.target.value)} />
+                    </label>
+                    <label className='flex items-center justify-between gap-2 text-sm'>
+                        Background
+                        <select value={background} onChange={(ev) => setBackground(ev.target.value)} className='bg-stone-100 text-black rounded-sm p-1'>
+                            <option value='transparent'>None</option>
+                            <option value='rgba(0,0,0,0.65)'>Dark</option>
+                            <option value='rgba(0,0,0,0.9)'>Black</option>
+                        </select>
+                    </label>
+                    <label className='flex items-center justify-between gap-2 text-sm'>
+                        Font
+                        <select value={font} onChange={(ev) => setFont(ev.target.value)} className='bg-stone-100 text-black rounded-sm p-1'>
+                            <option value='Arial, Helvetica, sans-serif'>Arial</option>
+                            <option value='Georgia, serif'>Georgia</option>
+                            <option value='Verdana, sans-serif'>Verdana</option>
+                            <option value='"Courier New", monospace'>Courier</option>
+                        </select>
+                    </label>
                     <div className='w-full flex justify-end gap-1'>
                         <Button
                             type='button'

@@ -159,19 +159,21 @@ export const getCast = async (req: Request, res: Response): Promise<Response | v
             }));
 
         const rawCrew = creditsRes.data?.crew ?? [];
+        const mainDirectorJobs = new Set(["Director", "Co-Director"]);
+        const mainAuthorJobs = new Set(["Writer", "Screenplay", "Story", "Original Story", "Novel", "Book", "Author"]);
         const directors = rawCrew
-            .filter((c) => c.known_for_department === "Directing" || c.job === "Director")
+            .filter((c) => mainDirectorJobs.has(c.job ?? ""))
             .filter((c, i, arr) => arr.findIndex((d) => d.name === c.name) === i)
-            .slice(0, 5)
+            .slice(0, 4)
             .map((c) => ({
                 name: c.name,
                 profile_path: c.profile_path ?? undefined,
             }));
 
         const writers = rawCrew
-            .filter((c) => c.known_for_department === "Writing" || c.job === "Writer" || c.job === "Screenplay" || c.job === "Novel")
+            .filter((c) => mainAuthorJobs.has(c.job ?? ""))
             .filter((c, i, arr) => arr.findIndex((d) => d.name === c.name) === i)
-            .slice(0, 3)
+            .slice(0, 4)
             .map((c) => ({
                 name: c.name,
                 profile_path: c.profile_path ?? undefined,
@@ -185,11 +187,19 @@ export const getCast = async (req: Request, res: Response): Promise<Response | v
     }
 };
 
+const readLanguageCodes = (value: unknown): string[] => {
+    const raw = Array.isArray(value) ? value : value ? [value] : [];
+    return raw
+        .flatMap((entry) => String(entry).split(","))
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean);
+};
+
 export const handleFetchMovies = async (req: Request, res: Response): Promise<void | Response<any, Record<string, any>>> => {
     try {
         const {genre, sortBy, orderBy} = req.query;
 
-        const languages = Array.isArray(req.query.languages) ? req.query.languages : [];
+        const languages = readLanguageCodes(req.query.languages);
 
         const languagesMap = new Map();
 
@@ -218,14 +228,14 @@ export const handleFetchMovies = async (req: Request, res: Response): Promise<vo
         const moviesResponseObject = await getAllMovies(filters, page, limit, query_term as string);
 
         const filteredMovies = moviesResponseObject.data.movies.filter(
-            (m: Record<string, unknown>) => languagesMap.has(m.language)
+            (m: Record<string, unknown>) => !languagesMap.size || languagesMap.has(String(m.language || "").toLowerCase())
         );
 
         res.status(200).send({
             ...moviesResponseObject,
             data: {
                 ...moviesResponseObject.data,
-                movies: filteredMovies.length ? filteredMovies : moviesResponseObject.data.movies
+                movies: filteredMovies
             }
         });
     } catch (error) {
@@ -234,11 +244,18 @@ export const handleFetchMovies = async (req: Request, res: Response): Promise<vo
     }
 }
 
+export const spellcheckQuery = (req: Request, res: Response) => {
+    const query = req.query.q?.toString() || "";
+    const corrected = query.trim() ? getCorrected(query) : "";
+    const suggestion = corrected && corrected !== query.trim().toLowerCase() ? corrected : null;
+    return res.status(200).json({ query, suggestion });
+};
+
 export const searchMovies = async (req: Request, res: Response): Promise<void | Response<any, Record<string, any>>> => {
     try {
         const { genre, sort_by, order_by } = req.query;
 
-        const languages = Array.isArray(req.query.languages) ? req.query.languages : [];
+        const languages = readLanguageCodes(req.query.languages);
 
         const languagesMap = new Map();
         for (const lang of languages) {
@@ -289,7 +306,7 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
         const allMovies = Array.from(movieMap.values());
 
         const filteredMovies = allMovies.filter(
-            (m: Record<string, unknown>) => !languages.length || languagesMap.has(m.language)
+            (m: Record<string, unknown>) => !languagesMap.size || languagesMap.has(String(m.language || "").toLowerCase())
         );
 
         const toNum = (v: unknown): number | undefined => {
@@ -346,11 +363,23 @@ export const searchMovies = async (req: Request, res: Response): Promise<void | 
             }
         }
 
+        const yearFrom = Number(req.query.year_from) || 0;
+        const yearTo = Number(req.query.year_to) || 0;
+        const scopedMovies = normalizedMovies.filter((movie: Record<string, unknown>) => {
+            const year = Number(movie.year) || 0;
+            if (yearFrom && year && year < yearFrom) return false;
+            if (yearTo && year && year > yearTo) return false;
+            return true;
+        });
+
         res.status(200).json({
             ...originalResponse,
+            did_you_mean: correctedQueryTerm && correctedQueryTerm !== originalQueryTerm.trim().toLowerCase()
+                ? correctedQueryTerm
+                : null,
             data: {
                 ...originalResponse.data,
-                movies: normalizedMovies
+                movies: scopedMovies
             }
         });
     } catch (error) {

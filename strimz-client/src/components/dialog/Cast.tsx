@@ -117,11 +117,30 @@ const Cast = ({ movie }: CastProps) => {
 
   return (
     <div className="my-1 overflow-y-auto overflow-x-hidden min-h-0 h-full">
+      {hasCast && (
+        <div className="mb-6">
+          <p className="text-white flex items-center gap-2 mb-3">
+            <GrGroup className="text-2xl" />
+            <span className="text-xl font-medium">Cast</span>
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2">
+            {cast.map((member, index) => (
+              <PersonCard
+                key={`${member?.name}-${index}`}
+                name={member?.name ?? ''}
+                profilePath={member?.profile_path}
+                sublabel={member?.character_name}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {hasDirectors && (
         <div className="mb-6">
           <p className="text-white flex items-center gap-2 mb-3">
             <MdMovieCreation className="text-2xl" />
-            <span className="text-xl font-medium">Directors</span>
+            <span className="text-xl font-medium">Director</span>
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-3">
             {directors.map((member, index) => (
@@ -139,7 +158,7 @@ const Cast = ({ movie }: CastProps) => {
         <div className="mb-6">
           <p className="text-white flex items-center gap-2 mb-3">
             <MdEdit className="text-2xl" />
-            <span className="text-xl font-medium">Writers</span>
+            <span className="text-xl font-medium">Authors</span>
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {writers.map((member, index) => (
@@ -151,25 +170,6 @@ const Cast = ({ movie }: CastProps) => {
             ))}
           </div>
         </div>
-      )}
-
-      {hasCast && (
-        <>
-          <p className="text-white flex items-center gap-2 mb-3">
-            <GrGroup className="text-2xl" />
-            <span className="text-xl font-medium">Cast</span>
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2">
-            {cast.map((member, index) => (
-              <PersonCard
-                key={`${member?.name}-${index}`}
-                name={member?.name ?? ''}
-                profilePath={member?.profile_path}
-                sublabel={member?.character_name}
-              />
-            ))}
-          </div>
-        </>
       )}
     </div>
   );

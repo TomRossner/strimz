@@ -1,8 +1,9 @@
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSocket } from '@/store/socket/socket.selectors';
-import { Cue, DownloadProgressData } from '@/utils/types';
-import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Cue, DownloadProgressData, Torrent } from '@/utils/types';
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import axios from 'axios';
 import Page from '../Page';
 import Container from '../Container';
 import LoadingIcon from '../LoadingIcon';
@@ -11,13 +12,13 @@ import { twMerge } from 'tailwind-merge';
 import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
-import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedTorrent, selectSubtitleDelay, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
+import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSubtitleDelay, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
 import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
-import { setIsSubtitlesEnabled, setVttSubtitlesContent, setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setSubtitleDelay, setSelectedMovie, setSelectedSubtitleFileId, setLanguageFiles, setExternalTorrent } from '@/store/movies/movies.slice';
+import { setIsSubtitlesEnabled, setVttSubtitlesContent, setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setSubtitleDelay, setSelectedMovie, setSelectedSubtitleFileId, setSelectedTorrent, setLanguageFiles, setExternalTorrent, setSubtitlesSize } from '@/store/movies/movies.slice';
 import { selectSettings } from '@/store/settings/settings.selectors';
 import { downloadSubtitleFromApi } from '@/services/subtitles';
 import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
-import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
+import { API_URL, PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import TopOverlay from './TopOverlay';
 import ShortcutActionDisplay from './ShortcutActionDisplay';
 import throttle from 'lodash.throttle';
@@ -27,6 +28,38 @@ import BackButton from '../BackButton';
 import { pauseDownload } from '@/services/movies';
 import { openModal } from '@/store/modals/modals.slice';
 import { updatePlaybackPosition, getPlaybackPosition } from '@/utils/downloadsCache';
+import { getPlayerPrefs, savePlayerPrefs, subscribePlayerPrefs } from '@/services/playerPrefs';
+import { setPipActive } from '@/services/pip';
+import { markWatched, recordWatchProgress } from '@/services/library';
+import { parseVTTToCues } from '@/utils/subtitles';
+import PlayNextOverlay from './PlayNextOverlay';
+import { getMovieSuggestions } from '@/services/suggestions';
+import { Movie } from '../MovieCard';
+import { releaseTitle } from '@/utils/downloadPoster';
+import { selectSubtitlesSize } from '@/store/movies/movies.selectors';
+
+const coverOf = (movie: { large_cover_image?: string; medium_cover_image?: string; small_cover_image?: string }) =>
+    movie.large_cover_image || movie.medium_cover_image || movie.small_cover_image || '';
+
+const sameTitle = (left: string, right: string) =>
+    left.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === right.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const pickTorrent = (torrents: Torrent[]) => {
+    const playable = torrents.filter((torrent) => torrent.hash);
+    const order = ['1080p', '720p', '2160p', '1080p.x265', '480p'];
+    for (const quality of order) {
+        const match = playable.find((torrent) => torrent.quality === quality);
+        if (match) return match;
+    }
+    return playable.sort((a, b) => (b.seeds || 0) - (a.seeds || 0))[0];
+};
+
+const moviesFromResponse = (data: { data?: { movies?: Movie[] }; movies?: Movie[] } | Movie[]) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data?.movies)) return data.data.movies;
+    if (Array.isArray(data?.movies)) return data.movies;
+    return [];
+};
 
 const {
     PLAY_PAUSE,
@@ -43,10 +76,17 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const [searchParams] = useSearchParams();
     const hash = searchParams.get('hash');
     const poster = searchParams.get('poster');
+    const cover = searchParams.get('cover');
     const title = searchParams.get('title');
+    const watchKey = searchParams.get('watchKey');
+    const isEpisode = searchParams.get('kind') === 'episode';
+    const progressKey = (isEpisode && watchKey) ? watchKey : hash?.toLowerCase();
+    const { slug } = useParams();
+    const playerPrefs = useSyncExternalStore(subscribePlayerPrefs, getPlayerPrefs);
     const dispatch = useAppDispatch();
 
     const [isReadyToPlay, setIsReadyToPlay] = useState<boolean>(false);
+    const [playbackError, setPlaybackError] = useState('');
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
     const [parsedSubtitles, setParsedSubtitles] = useState<Cue[]>([]);
@@ -60,7 +100,13 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const [currentTime, setCurrentTime] = useState<number>(0);
     const [duration, setDuration] = useState<number>(0);
     const [playbackWidth, setPlaybackWidth] = useState<number>(0);
-    const [isMuted, setIsMuted] = useState<boolean>(false);
+    const [isMuted, setIsMuted] = useState<boolean>(() => getPlayerPrefs().muted);
+    const [playbackSrc, setPlaybackSrc] = useState(src || '');
+    const [showPlayNext, setShowPlayNext] = useState(false);
+    const [mediaFiles, setMediaFiles] = useState<{ name: string; path: string }[]>([]);
+    const [activeFile, setActiveFile] = useState<string | null>(null);
+    const [suggestionMovies, setSuggestionMovies] = useState<Movie[]>([]);
+    const [finishedMovie, setFinishedMovie] = useState<{ title: string; year?: number; poster?: string } | null>(null);
     const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +117,9 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
     const hasSubtitles = useAppSelector(selectSubtitleFilePath);
     const subtitleDelay = useAppSelector(selectSubtitleDelay);
+    const subtitlesSize = useAppSelector(selectSubtitlesSize);
+    const subtitleLangForPrefs = useAppSelector(selectSubtitleLang);
+    const movie = useAppSelector(selectMovie);
 
     const isInfoPanelOpen = useAppSelector(selectMovieDownloadInfoPanel);
 
@@ -82,8 +131,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     const [downloadInfo, setDownloadInfo] = useState<DownloadProgressData | null>(null);
     const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
-
-    const selectedTorrent = useAppSelector(selectSelectedTorrent);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -144,12 +191,34 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         }, 250);
         
         // Throttled function to save playback position (save every 5 seconds)
-        throttledSavePlaybackPosition.current = throttle((currentTime: number) => {
-            if (hash) {
+        const saveProgress = throttle((currentTime: number) => {
+            if (hash && progressKey) {
                 updatePlaybackPosition(hash, currentTime);
+                const video = videoRef.current;
+                const playingMovie = !isEpisode && movie && (
+                    (slug && movie.slug === slug) || (title && movie.title === title)
+                ) ? movie : null;
+                recordWatchProgress({
+                    key: progressKey,
+                    title: title || playingMovie?.title || 'Untitled',
+                    poster: isEpisode
+                        ? (poster || '')
+                        : (playingMovie?.medium_cover_image || playingMovie?.large_cover_image || playingMovie?.small_cover_image || cover || poster || ''),
+                    year: isEpisode ? undefined : playingMovie?.year,
+                    slug,
+                    hash,
+                    position: currentTime,
+                    duration: video && Number.isFinite(video.duration) ? video.duration : 0,
+                    kind: isEpisode ? 'episode' : 'movie',
+                    movie: playingMovie,
+                });
             }
         }, 5000);
-    }, [renderSubtitles, hash]);
+        throttledSavePlaybackPosition.current = saveProgress;
+        return () => {
+            saveProgress.cancel();
+        };
+    }, [renderSubtitles, hash, title, movie, poster, cover, slug, progressKey, isEpisode]);
 
     // Note: Playback position restoration is handled in onLoadedMetadata handler on the video element
     // This ensures it happens at the right time after the video metadata is loaded
@@ -263,6 +332,13 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         const video = videoRef.current;
 
         if (!video || isSubtitlesSizeModalOpen) return;
+        if (
+            document.pictureInPictureElement &&
+            !location.pathname.startsWith('/stream/') &&
+            !location.pathname.startsWith('/watch-file')
+        ) {
+            return;
+        }
 
         switch (e.key) {
             case PLAY_PAUSE:
@@ -321,6 +397,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         isSubtitlesEnabled,
         dispatch,
         hasSubtitles,
+        location.pathname,
     ]);
 
     useEffect(() => {
@@ -341,8 +418,153 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const selectedSubtitleFileId = useAppSelector(selectSelectedSubtitleFileId);
-    const movie = useAppSelector(selectMovie);
     const settings = useAppSelector(selectSettings);
+
+    useEffect(() => {
+        const stored = getPlayerPrefs();
+        dispatch(setSubtitlesSize(stored.subtitleSize));
+        dispatch(setSubtitleDelay(stored.subtitleDelay));
+        if (!subtitleLangForPrefs && stored.subtitleLang) {
+            dispatch(setSubtitleLang(stored.subtitleLang));
+        }
+    }, [dispatch]);
+
+    const skipPrefsSave = useRef(true);
+    useEffect(() => {
+        if (skipPrefsSave.current) {
+            skipPrefsSave.current = false;
+            return;
+        }
+        savePlayerPrefs({
+            subtitleLang: subtitleLangForPrefs,
+            subtitleSize: subtitlesSize,
+            subtitleDelay,
+            muted: isMuted,
+        });
+    }, [subtitleLangForPrefs, subtitlesSize, subtitleDelay, isMuted]);
+
+    useEffect(() => {
+        const toggle = () => {
+            const video = videoRef.current;
+            if (!video) return;
+            if (video.paused) void video.play();
+            else video.pause();
+        };
+        window.electronAPI.onMediaPlayPause(toggle);
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.setActionHandler('play', () => void videoRef.current?.play());
+            navigator.mediaSession.setActionHandler('pause', () => videoRef.current?.pause());
+        }
+        return () => window.electronAPI.offMediaPlayPause();
+    }, []);
+
+    useEffect(() => {
+        if (!hash) return;
+        window.electronAPI.saveSetting('lastSession', {
+            pathname: location.pathname,
+            search: location.search,
+        });
+    }, [hash, location.pathname, location.search]);
+
+    useEffect(() => {
+        setPlaybackSrc(src || '');
+        setActiveFile(null);
+        setShowPlayNext(false);
+        setIsReadyToPlay(false);
+        setPlaybackError('');
+    }, [src]);
+
+    useEffect(() => {
+        if (!activeFile || !videoRef.current) return;
+        videoRef.current.load();
+        void videoRef.current.play();
+    }, [playbackSrc, activeFile]);
+
+    useEffect(() => {
+        if (!hash) return;
+        axios.get(`${API_URL}/stream/files/${hash}`)
+            .then(({ data }) => setMediaFiles(data.files || []))
+            .catch(() => setMediaFiles([]));
+    }, [hash]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const parsed = releaseTitle(title || '');
+        const displayTitle = parsed.title || title || movie?.title || 'Movie';
+
+        const playingMatches = (candidate: Movie | null | undefined) => {
+            if (!candidate) return false;
+            if (slug && candidate.slug === slug) return true;
+            return sameTitle(candidate.title, displayTitle);
+        };
+
+        const applyFinished = (candidate?: Movie | null) => {
+            if (cancelled) return;
+            setFinishedMovie({
+                title: candidate?.title || displayTitle,
+                year: candidate?.year || parsed.year,
+                poster: (candidate ? coverOf(candidate) : '') || cover || poster || '',
+            });
+        };
+
+        const loadNext = async () => {
+            setSuggestionMovies([]);
+            let playing = playingMatches(movie) ? movie : null;
+
+            if (!playing && displayTitle.length > 1 && !isEpisode) {
+                try {
+                    const response = await axios.get(`${API_URL}/movies`, {
+                        params: {
+                            query_term: displayTitle,
+                            limit: 8,
+                            page: 1,
+                            quality: 'All',
+                            minimum_rating: 0,
+                        },
+                    });
+                    const found = moviesFromResponse(response.data);
+                    const exact = found.filter((entry) => sameTitle(entry.title, displayTitle));
+                    playing = (parsed.year ? exact.find((entry) => Number(entry.year) === parsed.year) : exact[0]) || exact[0] || null;
+                    if (playing && playing.id !== movie?.id) {
+                        dispatch(setSelectedMovie(playing));
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+
+            applyFinished(playing);
+            if (!playing?.id || isEpisode) {
+                setSuggestionMovies([]);
+                return;
+            }
+
+            try {
+                const response = await getMovieSuggestions(String(playing.id));
+                const playingGenres = new Set(playing.genres || []);
+                const suggestions = moviesFromResponse(response.data)
+                    .filter((entry) => String(entry.id) !== String(playing?.id) && !sameTitle(entry.title, playing?.title || ''));
+                const ranked = suggestions
+                    .map((entry) => ({
+                        movie: entry,
+                        torrent: pickTorrent((entry.torrents || []) as Torrent[]),
+                        shared: (entry.genres || []).filter((genre) => playingGenres.has(genre)).length,
+                    }))
+                    .filter((entry) => entry.torrent?.hash)
+                    .sort((a, b) => b.shared - a.shared);
+                if (cancelled) return;
+                setSuggestionMovies(ranked.map((entry) => entry.movie));
+            } catch (error) {
+                console.error(error);
+                if (!cancelled) setSuggestionMovies([]);
+            }
+        };
+
+        void loadNext();
+        return () => {
+            cancelled = true;
+        };
+    }, [movie, slug, title, cover, poster, isEpisode, dispatch]);
     
     // Subs Metadata: { lang, label }
     const subsMetadata = useMemo(() => subtitleLang ? getSubtitleMetadata(subtitleLang as string) : undefined, [subtitleLang]);
@@ -423,6 +645,23 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
             document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
             document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+        };
+    }, [isReadyToPlay]);
+
+    useEffect(() => {
+        if (!isReadyToPlay) return;
+        const video = videoRef.current;
+        if (!video) return;
+
+        const enterPip = () => setPipActive(true);
+        const leavePip = () => setPipActive(false);
+        video.addEventListener('enterpictureinpicture', enterPip);
+        video.addEventListener('leavepictureinpicture', leavePip);
+        if (document.pictureInPictureElement === video) setPipActive(true);
+
+        return () => {
+            video.removeEventListener('enterpictureinpicture', enterPip);
+            video.removeEventListener('leavepictureinpicture', leavePip);
         };
     }, [isReadyToPlay]);
 
@@ -595,15 +834,19 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             onPause={() => setIsPlaying(false)}
                             onEnded={() => {
                                 setIsPlaying(false);
-                                videoRef.current!.currentTime = 0;
-                                // Clear playback position when video ends
-                                if (hash) {
+                                if (hash && progressKey) {
                                     updatePlaybackPosition(hash, 0);
+                                    markWatched(progressKey);
                                 }
+                                setShowPlayNext(true);
                             }}
                             onLoadedMetadata={() => {
-                                // Restore playback position when metadata is loaded
-                                if (hash && videoRef.current) {
+                                const stored = getPlayerPrefs();
+                                if (videoRef.current) {
+                                    videoRef.current.volume = stored.volume / 100;
+                                    videoRef.current.playbackRate = stored.playbackRate || 1;
+                                }
+                                if (hash && videoRef.current && !activeFile) {
                                     const savedPosition = getPlaybackPosition(hash);
                                     if (savedPosition !== null && savedPosition > 0 && videoRef.current.duration) {
                                         if (savedPosition < videoRef.current.duration) {
@@ -626,7 +869,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                 ${controlsVisible ? 'cursor-default' : 'cursor-none'}
                             `)}
                         >
-                            <source src={src || undefined} type='video/mp4' />
+                            <source src={playbackSrc || undefined} type='video/mp4' />
                             {/* {hasSubtitles && isSubtitlesEnabled && vttSubs && (
                                 <track 
                                     default
@@ -651,6 +894,50 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             videoDimensions={videoDimensions}
                         />
 
+                        {showPlayNext && (
+                            <PlayNextOverlay
+                                finished={finishedMovie || {
+                                    title: releaseTitle(title || '').title || title || movie?.title || 'Movie',
+                                    year: releaseTitle(title || '').year || movie?.year,
+                                    poster: cover || poster || '',
+                                }}
+                                nextFile={(() => {
+                                    const currentIndex = mediaFiles.findIndex((file) => file.name === activeFile);
+                                    const index = currentIndex === -1 ? 0 : currentIndex;
+                                    return mediaFiles[index + 1] || null;
+                                })()}
+                                suggestions={suggestionMovies}
+                                onReplay={() => {
+                                    setShowPlayNext(false);
+                                    if (videoRef.current) {
+                                        videoRef.current.currentTime = 0;
+                                        void videoRef.current.play();
+                                    }
+                                }}
+                                onDismiss={() => setShowPlayNext(false)}
+                                onPlayFile={() => {
+                                    const currentIndex = mediaFiles.findIndex((file) => file.name === activeFile);
+                                    const index = currentIndex === -1 ? 0 : currentIndex;
+                                    const nextFile = mediaFiles[index + 1];
+                                    if (!nextFile || !playbackSrc) return;
+                                    const url = new URL(playbackSrc, window.location.origin);
+                                    url.searchParams.set('file', nextFile.name);
+                                    setActiveFile(nextFile.name);
+                                    setPlaybackSrc(`${url.origin}${url.pathname}${url.search}`);
+                                    setShowPlayNext(false);
+                                }}
+                                onPlayMovie={(movieToPlay, playHash) => {
+                                    dispatch(setSelectedMovie(movieToPlay));
+                                    const torrent = ((movieToPlay.torrents || []) as Torrent[]).find((entry) => entry.hash === playHash);
+                                    if (torrent) dispatch(setSelectedTorrent(torrent));
+                                    const nextSlug = movieToPlay.slug || playHash;
+                                    navigate(`/stream/${nextSlug}?hash=${playHash}&title=${encodeURIComponent(movieToPlay.title)}&poster=${encodeURIComponent(movieToPlay.background_image || '')}&cover=${encodeURIComponent(coverOf(movieToPlay))}`, {
+                                        state: { from: '/' },
+                                    });
+                                }}
+                            />
+                        )}
+
                         <Controls
                             ref={videoRef as RefObject<HTMLVideoElement>}
                             isPlaying={isPlaying}
@@ -672,7 +959,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                 ) : (
                     <div className='relative w-full'>
                         <BackButton
-                            className='absolute left-1 top-1 z-10'
+                            className='absolute left-1 top-1 z-20'
                             cb={async () => {
                                 const video = videoRef.current;
                                 if (video) {
@@ -680,8 +967,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     video.src = "";
                                     video.load();
                                 }
-            
-                                // Reset all subtitle states when quitting player
+
                                 dispatch(setAvailableSubtitlesLanguages([]));
                                 dispatch(setLanguageFiles({}));
                                 dispatch(setSubtitleLang(null));
@@ -693,13 +979,15 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                 if (from === '/downloads') {
                                     dispatch(setSelectedMovie(null));
                                 }
-            
-                                // Only pause download if we have a hash (torrent-based download)
-                                // External torrents don't have selectedTorrent, so skip this
-                                if (selectedTorrent?.hash) {
-                                    await pauseDownload(selectedTorrent.hash);
+
+                                if (hash) {
+                                    try {
+                                        await pauseDownload(hash);
+                                    } catch (error) {
+                                        console.error('Error pausing download:', error);
+                                    }
                                 }
-                                
+
                                 if (from === '/') {
                                     navigate('/', {
                                         state: {
@@ -708,7 +996,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     });
                                     dispatch(openModal('movie'));
                                 } else if (from === 'external') {
-                                    // External torrent - navigate to home and clear external torrent
                                     dispatch(setExternalTorrent(null));
                                     navigate('/');
                                 } else {
@@ -718,15 +1005,25 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                         />
                         <div style={{ backgroundImage: `url(${poster})` }} className={`my-auto bg-cover aspect-video bg-center relative w-full flex items-center bg-black justify-center`}>
                             <div className="flex relative items-center justify-center rounded-full aspect-square z-30">
-                                {hash && <Progress progressOnly hash={hash as string} />}
-                                <LoadingIcon size={70} />
+                                {playbackError ? (
+                                    <p className='text-amber-300 text-lg text-center px-6'>{playbackError}</p>
+                                ) : (
+                                    <>
+                                        {hash && <Progress progressOnly hash={hash as string} />}
+                                        <LoadingIcon size={70} />
+                                    </>
+                                )}
                             </div>
 
                             <video
-                                hidden
+                                autoPlay
                                 muted
-                                src={src || undefined} 
+                                playsInline
+                                preload='auto'
+                                src={src || undefined}
                                 onCanPlay={() => setIsReadyToPlay(true)}
+                                onError={() => setPlaybackError('This file could not be played.')}
+                                className='absolute inset-0 h-full w-full opacity-0 pointer-events-none'
                             />
                         </div>
                     </div>

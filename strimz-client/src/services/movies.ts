@@ -190,6 +190,10 @@ export const resumeDownload = async (hash: string) => {
     return await axios.post(`${API_URL}/stream/play/${hash}`);
 }
 
+export const stopSeeding = async (hash: string) => {
+    return await axios.post(`${API_URL}/stream/stop-seed/${hash}`);
+}
+
 export const deleteDownload = async (hash: string, dir: string) => {
     return await axios.delete(`${API_URL}/stream/delete/${hash}`, {
         params: {

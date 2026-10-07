@@ -13,10 +13,13 @@ interface TorrentSelectorProps {
     quality: string;
     handleSelect: (hash: string) => void;
     hash: string;
+    title?: string;
+    idPrefix?: string;
 }
 
-const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelectorProps) => {
+const TorrentSelector = ({torrents, quality, handleSelect, hash, title, idPrefix = ''}: TorrentSelectorProps) => {
     const movie = useAppSelector(selectMovie);
+    const displayTitle = title || movie?.title;
   return (
     <div className='flex flex-col gap-2 w-full'>
         <p className='text-white flex items-center gap-1'>
@@ -32,7 +35,7 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
             </span>
         </p>
 
-        <ol className='flex flex-col gap-2 w-full h-auto max-h-[95px] overflow-y-auto'>
+        <ol className='flex flex-col gap-2 w-full h-auto max-h-[160px] overflow-y-auto'>
             {torrents && Array.isArray(torrents) && torrents.length > 0 && quality ? (
                 <>
                 {(torrents as Torrent[])
@@ -44,18 +47,18 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
                                     <input
                                         hidden
                                         type="radio"
-                                        name="torrents"
-                                        id={t.hash}
+                                        name={`${idPrefix}torrents`}
+                                        id={`${idPrefix}${t.hash}`}
                                         onChange={() => handleSelect(t.hash)}
                                         value={t.hash}
                                     />
 
                                     <label
-                                        htmlFor={t.hash}
+                                        htmlFor={`${idPrefix}${t.hash}`}
                                         className={twMerge(`
                                             cursor-pointer
                                             w-full
-                                            text-center
+                                            text-left
                                             rounded-sm
                                             text-white
                                             p-1
@@ -66,13 +69,16 @@ const TorrentSelector = ({torrents, quality, handleSelect, hash}: TorrentSelecto
                                             ${t.hash === hash ? 'bg-blue-500 hover:bg-blue-400' : 'bg-stone-800 hover:bg-stone-700'}
                                         `)}
                                     >
-                                        <p className='truncate text-sm font-light'>{idx + 1}. {movie?.title} - {t.quality.toLowerCase() === '2160p' ? Qualities['4K'] : t.quality}</p>
-                                        <p className='text-nowrap font-medium'>{t.peers} peers / {t.seeds} seeds</p>
+                                        <span className={twMerge('flex min-w-0 items-center gap-2 text-sm', t.hash === hash ? 'font-bold' : 'font-light')}>
+                                            <span className='truncate'>{idx + 1}. {displayTitle} - {t.quality.toLowerCase() === '2160p' ? Qualities['4K'] : t.quality}</span>
+                                            {t.size && <span className='shrink-0 opacity-80'>{t.size}</span>}
+                                        </span>
+                                        <p className={twMerge('shrink-0 text-nowrap text-sm', t.hash === hash ? 'font-bold' : 'font-medium')}>{t.peers} peers / {t.seeds} seeds</p>
                                     </label>
                                 </TooltipTrigger>
                                 <TooltipContent>
                                     <p className='text-sm font-light'>
-                                        {movie?.title} - {t.quality.toLowerCase() === '2160p' ? Qualities['4K'] : t.quality} - {t.peers} peers / {t.seeds} seeds
+                                        {displayTitle} - {t.quality.toLowerCase() === '2160p' ? Qualities['4K'] : t.quality}{t.size ? ` - ${t.size}` : ''} - {t.peers} peers / {t.seeds} seeds
                                     </p>
                                 </TooltipContent>
                             </Tooltip>

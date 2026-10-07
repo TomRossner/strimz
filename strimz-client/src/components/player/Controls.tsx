@@ -13,7 +13,7 @@ import { closeModal, openModal } from '@/store/modals/modals.slice';
 import SubtitlesSizeDialog from './SubtitlesSizeDialog';
 import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
-import { MdEdit } from 'react-icons/md';
+import { MdEdit, MdSpeed, MdOutlinePictureInPictureAlt } from 'react-icons/md';
 import CloseButton from '../CloseButton';
 import SubtitlesSelector from '@/components/dialog/SubtitlesSelector';
 import { downloadSubtitleFromApi, searchSubtitlesByImdb } from '@/services/subtitles';
@@ -23,6 +23,9 @@ import { searchMovies } from '@/services/movies';
 import { toOpenSubtitlesCode, getSubtitleMetadata, normalizeLanguageCode } from '@/utils/detectLanguage';
 import { getDownloadsCache, CachedDownloadInfo } from '@/utils/downloadsCache';
 import { extractMovieTitleAndYear } from '@/utils/extractMovieTitle';
+import { getPlayerPrefs, savePlayerPrefs } from '@/services/playerPrefs';
+
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 interface ControlsProps {
     ref: RefObject<HTMLVideoElement>;
@@ -90,6 +93,7 @@ const Controls = ({
     const [isDownloadingSubs, setIsDownloadingSubs] = useState<boolean>(false);
 
     const closeTimeout = useRef<NodeJS.Timeout | null>(null);
+    const speedCloseTimeout = useRef<NodeJS.Timeout | null>(null);
     const searchInProgressRef = useRef<boolean>(false);
     const lastSearchedTitleRef = useRef<string | null>(null);
     const processedMovieRef = useRef<string | null>(null);
@@ -105,12 +109,16 @@ const Controls = ({
         setIsMuted(newMuted);
     }
 
-    const [volume, setVolume] = useState<number>(100);
+    const [volume, setVolume] = useState<number>(() => getPlayerPrefs().volume);
+    const [playbackRate, setPlaybackRate] = useState<number>(() => getPlayerPrefs().playbackRate || 1);
+    const [speedPanelVisible, setSpeedPanelVisible] = useState(false);
+    const [audioTracks, setAudioTracks] = useState<{ index: number; label: string }[]>([]);
     const [volumeSliderVisible, setVolumeSliderVisible] = useState<boolean>(false);
 
     const handleVolumeChange = (ev: ChangeEvent<HTMLInputElement>) => {
         setVolume(ev.target.valueAsNumber);
         setIsMuted(ev.target.valueAsNumber === 0);
+        savePlayerPrefs({ volume: ev.target.valueAsNumber, muted: ev.target.valueAsNumber === 0 });
     }
 
     useEffect(() => {
@@ -118,7 +126,67 @@ const Controls = ({
         if (video && Math.round(video.volume * 100) !== volume) {
             video.volume = volume / 100;
         }
-    }, [volume, videoRef]);
+        if (video && video.playbackRate !== playbackRate) {
+            video.playbackRate = playbackRate;
+        }
+    }, [volume, playbackRate, videoRef]);
+
+    useEffect(() => {
+        const video = videoRef.current as (HTMLVideoElement & {
+            audioTracks?: { length: number; [index: number]: { enabled: boolean; label: string; language: string } };
+        }) | null;
+        if (!video) return;
+
+        const readTracks = () => {
+            const list = video.audioTracks;
+            if (!list || list.length < 2) {
+                setAudioTracks([]);
+                return;
+            }
+            const tracks = [];
+            for (let index = 0; index < list.length; index += 1) {
+                const track = list[index];
+                tracks.push({ index, label: track.label || track.language || `Track ${index + 1}` });
+            }
+            setAudioTracks(tracks);
+        };
+
+        video.addEventListener('loadedmetadata', readTracks);
+        readTracks();
+        return () => video.removeEventListener('loadedmetadata', readTracks);
+    }, [videoRef, hash, src]);
+
+    const selectAudioTrack = (index: number) => {
+        const video = videoRef.current as (HTMLVideoElement & {
+            audioTracks?: { length: number; [index: number]: { enabled: boolean } };
+        }) | null;
+        const list = video?.audioTracks;
+        if (!list) return;
+        for (let trackIndex = 0; trackIndex < list.length; trackIndex += 1) {
+            list[trackIndex].enabled = trackIndex === index;
+        }
+    };
+
+    const togglePictureInPicture = async () => {
+        const video = videoRef.current;
+        if (!video) return;
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else {
+                await video.requestPictureInPicture();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const applyPlaybackRate = (rate: number) => {
+        setPlaybackRate(rate);
+        savePlayerPrefs({ playbackRate: rate });
+        if (videoRef.current) videoRef.current.playbackRate = rate;
+        setSpeedPanelVisible(false);
+    };
 
     useEffect(() => {
         const video = videoRef.current;
@@ -744,6 +812,43 @@ const Controls = ({
         />
 
         <div className='relative flex gap-1 items-center text-2xl text-white w-fit'>
+            <Button
+                title={`Playback speed (${playbackRate}x)`}
+                onClick={(e) => {
+                    stop(e);
+                    setSpeedPanelVisible((open) => !open);
+                    setVolumeSliderVisible(false);
+                    if (subtitlesSelectorTabOpen) {
+                        dispatch(closeModal('subtitlesSize'));
+                        dispatch(closeModal('subtitlesSelectorTab'));
+                    }
+                }}
+                className='w-9 h-9 bg-transparent aspect-square justify-center p-0 text-white hover:bg-stone-800'
+            >
+                <MdSpeed className='text-xl' />
+            </Button>
+            {audioTracks.length > 1 && (
+                <select
+                    title='Audio track'
+                    onClick={stop}
+                    onChange={(ev) => selectAudioTrack(Number(ev.target.value))}
+                    className='bg-transparent text-xs max-w-24'
+                >
+                    {audioTracks.map((track) => (
+                        <option key={track.index} value={track.index} className='text-black'>{track.label}</option>
+                    ))}
+                </select>
+            )}
+            <Button
+                title='Picture in picture'
+                onClick={(e) => {
+                    stop(e);
+                    void togglePictureInPicture();
+                }}
+                className='w-9 h-9 bg-transparent aspect-square justify-center p-0 text-white hover:bg-stone-800'
+            >
+                <MdOutlinePictureInPictureAlt className='text-xl' />
+            </Button>
             {/* <Button title='Settings' className='w-9 h-9 bg-transparent hover:bg-stone-800 p-0'>
                 <IoSettingsOutline />
             </Button> */}
@@ -754,6 +859,7 @@ const Controls = ({
                     if (volumeSliderVisible) {
                         setVolumeSliderVisible(false);
                     }
+                    setSpeedPanelVisible(false);
 
                     if (subtitlesSelectorTabOpen) {
                         dispatch(closeModal('subtitlesSize'));
@@ -773,6 +879,7 @@ const Controls = ({
                 onClick={(e) => {
                     stop(e);
                     setVolumeSliderVisible(!volumeSliderVisible);
+                    setSpeedPanelVisible(false);
 
                     if (subtitlesSelectorTabOpen) {
                         dispatch(closeModal('subtitlesSize'));
@@ -807,6 +914,60 @@ const Controls = ({
             >
                 <IoExpandOutline />
             </Button>
+
+            <div
+                onClick={stop}
+                onMouseEnter={() => {
+                    if (speedCloseTimeout.current) {
+                        clearTimeout(speedCloseTimeout.current);
+                        speedCloseTimeout.current = null;
+                    }
+                }}
+                onMouseLeave={() => {
+                    speedCloseTimeout.current = setTimeout(() => {
+                        setSpeedPanelVisible(false);
+                        speedCloseTimeout.current = null;
+                    }, 2500);
+                }}
+                className={twMerge(`
+                    absolute
+                    w-[300px]
+                    flex
+                    flex-col
+                    gap-2
+                    py-2
+                    px-3
+                    z-50
+                    right-0
+                    bottom-[120%]
+                    rounded-sm
+                    bg-stone-800
+                    border
+                    border-stone-600
+                    shadow-2xl
+                    shadow-black
+                    transition-all
+                    duration-150
+                    ${speedPanelVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+                `)}
+            >
+                <p className='text-start text-base text-white'>Playback speed</p>
+                <div className='grid grid-cols-4 gap-1'>
+                    {PLAYBACK_RATES.map((rate) => (
+                        <button
+                            key={rate}
+                            type='button'
+                            onClick={() => applyPlaybackRate(rate)}
+                            className={twMerge(`
+                                cursor-pointer rounded-sm px-2 py-1 text-sm
+                                ${playbackRate === rate ? 'bg-blue-500 text-white' : 'bg-stone-700 text-stone-200 hover:bg-stone-600'}
+                            `)}
+                        >
+                            {rate}x
+                        </button>
+                    ))}
+                </div>
+            </div>
 
             <VolumeSlider
                 isMuted={isMuted}

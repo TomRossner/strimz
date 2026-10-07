@@ -1,9 +1,10 @@
 import { useAppSelector } from '@/store/hooks';
 import { selectSubtitleLang, selectSubtitlesSize, selectIsSubtitlesEnabled, selectVttSubtitlesContent } from '@/store/movies/movies.selectors';
+import { getPlayerPrefs, subscribePlayerPrefs } from '@/services/playerPrefs';
 import { getSubtitleMetadata } from '@/utils/detectLanguage';
 import { isRTL, parseVTTToCues } from '@/utils/subtitles';
 import { Cue } from '@/utils/types';
-import React, {  useEffect, useMemo, useRef, useState } from 'react';
+import React, {  useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { twMerge } from 'tailwind-merge';
 
 interface SubtitlesProps {
@@ -31,6 +32,7 @@ const Subtitles = React.memo(({
     const previousSubtitleRef = useRef<string>('');
 
     const subtitlesSize = useAppSelector(selectSubtitlesSize);
+    const appearance = useSyncExternalStore(subscribePlayerPrefs, getPlayerPrefs);
 
     const vttSubtitlesContent = useAppSelector(selectVttSubtitlesContent);
 
@@ -106,6 +108,9 @@ const Subtitles = React.memo(({
         unicodeBidi: 'embed' as const,
         textShadow: '2px 2px 3px rgba(0, 0, 0, 1)',
         whiteSpace: 'pre-line' as const,
+        color: appearance.subtitleColor,
+        backgroundColor: appearance.subtitleBackground,
+        fontFamily: appearance.subtitleFont,
         fontSize: styleValues.fontSize,
         maxHeight: styleValues.maxHeight,
         overflow: 'hidden' as const,
@@ -121,7 +126,7 @@ const Subtitles = React.memo(({
         bottom: styleValues.bottom,
         textAlign: 'center' as const,
         pointerEvents: 'none' as const,
-    }), [styleValues]);
+    }), [styleValues, appearance.subtitleColor, appearance.subtitleBackground, appearance.subtitleFont]);
 
     // Update subtitle text directly via ref to avoid React re-renders and flickering
     useEffect(() => {
@@ -145,12 +150,12 @@ const Subtitles = React.memo(({
     }, [currentSubtitle]);
 
     return hasSubtitles ? (
-        <div
-            ref={subtitlesContainerRef}
-            dir={isRTL(lang) ? 'rtl' : 'ltr'}
-            className={twMerge(`w-full text-center text-white px-4 z-10`)}
-            style={subtitleStyle}
-        />
+                <div
+                    ref={subtitlesContainerRef}
+                    dir={isRTL(lang) ? 'rtl' : 'ltr'}
+                    className={twMerge(`w-full text-center text-white px-4 z-10`)}
+                    style={subtitleStyle}
+                />
     ) : null
 }, (prevProps, nextProps) => {
     // Custom comparison to prevent unnecessary re-renders

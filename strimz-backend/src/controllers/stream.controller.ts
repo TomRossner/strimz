@@ -15,14 +15,110 @@ export const activeTorrents: Map<string, WebTorrent.Torrent> = new Map();
 export const addingTorrents: Map<string, Promise<WebTorrent.Torrent>> = new Map();
 export const stoppedTorrents = new Set<string>();
 
+let maxConcurrentDownloads = 2;
+let maxDownloadBps = -1;
+let maxUploadBps = -1;
+let maxConnections = 55;
+
+const isUserPaused = (torrent: WebTorrent.Torrent) => Boolean((torrent as WebTorrent.Torrent & { __userPaused?: boolean }).__userPaused);
+const isSeedStopped = (torrent: WebTorrent.Torrent) => Boolean((torrent as WebTorrent.Torrent & { __seedStopped?: boolean }).__seedStopped);
+
+const applyClientLimits = () => {
+    if (!client) return;
+    const webtorrent = client as WebTorrent.Instance & {
+        throttleDownload?: (rate: number) => void;
+        throttleUpload?: (rate: number) => void;
+        maxConns?: number;
+    };
+    webtorrent.throttleDownload?.(maxDownloadBps);
+    webtorrent.throttleUpload?.(maxUploadBps);
+    if (maxConnections > 0) webtorrent.maxConns = maxConnections;
+};
+
 const pauseOtherTorrents = (currentHash: string) => {
-    activeTorrents.forEach((torrent, hash) => {
-        if (hash !== currentHash && !torrent.paused) {
-            torrent.pause();
-            stoppedTorrents.add(hash);
-        }
+    activeTorrents.forEach((torrent) => {
+        const marked = torrent as WebTorrent.Torrent & { __addedAt?: number };
+        if (!marked.__addedAt) marked.__addedAt = Date.now();
     });
-}
+
+    const ranked: string[] = [];
+    const seen = new Set<string>();
+    const current = currentHash ? activeTorrents.get(currentHash) : undefined;
+
+    if (current && !current.done && !isSeedStopped(current)) {
+        ranked.push(currentHash);
+        seen.add(currentHash);
+    }
+
+    const canAutoManage = (hash: string, torrent: WebTorrent.Torrent) => {
+        if (torrent.done || isSeedStopped(torrent) || isUserPaused(torrent)) return false;
+        const queued = Boolean((torrent as WebTorrent.Torrent & { __queued?: boolean }).__queued);
+        if (stoppedTorrents.has(hash) && torrent.paused && !queued) return false;
+        return true;
+    };
+
+    const rest = [...activeTorrents.entries()]
+        .filter(([hash, torrent]) => hash !== currentHash && canAutoManage(hash, torrent))
+        .sort((a, b) => {
+            const aQueued = (a[1] as WebTorrent.Torrent & { __queued?: boolean }).__queued ? 1 : 0;
+            const bQueued = (b[1] as WebTorrent.Torrent & { __queued?: boolean }).__queued ? 1 : 0;
+            if (aQueued !== bQueued) return aQueued - bQueued;
+            const aAdded = (a[1] as WebTorrent.Torrent & { __addedAt?: number }).__addedAt || 0;
+            const bAdded = (b[1] as WebTorrent.Torrent & { __addedAt?: number }).__addedAt || 0;
+            return bAdded - aAdded;
+        });
+
+    for (const [hash] of rest) {
+        if (!seen.has(hash)) {
+            ranked.push(hash);
+            seen.add(hash);
+        }
+    }
+
+    const keep = new Set(ranked.slice(0, Math.max(1, maxConcurrentDownloads)));
+
+    activeTorrents.forEach((torrent, hash) => {
+        if (torrent.done || isSeedStopped(torrent)) return;
+        if (hash !== currentHash && !canAutoManage(hash, torrent) && !keep.has(hash)) return;
+
+        const marked = torrent as WebTorrent.Torrent & { __queued?: boolean };
+        if (keep.has(hash)) {
+            stoppedTorrents.delete(hash);
+            marked.__queued = false;
+            if (torrent.paused) torrent.resume();
+            return;
+        }
+
+        marked.__queued = true;
+        stoppedTorrents.add(hash);
+        if (!torrent.paused) torrent.pause();
+    });
+};
+
+const resumeQueuedTorrents = () => {
+    const activeCount = [...activeTorrents.values()].filter((torrent) => (
+        !torrent.done && !torrent.paused && !isUserPaused(torrent) && !isSeedStopped(torrent)
+    )).length;
+    let room = maxConcurrentDownloads - activeCount;
+    if (room <= 0) return;
+
+    const queued = [...activeTorrents.entries()]
+        .filter(([, torrent]) => (
+            Boolean((torrent as WebTorrent.Torrent & { __queued?: boolean }).__queued)
+            && !torrent.done
+            && !isUserPaused(torrent)
+            && !isSeedStopped(torrent)
+        ))
+        .sort((a, b) => ((a[1] as WebTorrent.Torrent & { __addedAt?: number }).__addedAt || 0) - ((b[1] as WebTorrent.Torrent & { __addedAt?: number }).__addedAt || 0));
+
+    for (const [hash, torrent] of queued) {
+        if (room <= 0) break;
+        stoppedTorrents.delete(hash);
+        (torrent as WebTorrent.Torrent & { __queued?: boolean }).__queued = false;
+        torrent.resume();
+        room -= 1;
+    }
+};
 
 // New flow
 
@@ -88,7 +184,9 @@ export const handleNewTorrent = async (req: Request, res: Response) => {
         );
 
         addingTorrents.set(hash, torrent);
-        torrent.finally(() => addingTorrents.delete(hash));
+        torrent
+            .catch((error) => console.error(error instanceof Error ? error.message : error))
+            .finally(() => addingTorrents.delete(hash));
         
         res.sendStatus(200);
     } catch (error) {
@@ -117,7 +215,30 @@ const addToClient = async (
     }
 
     return new Promise<WebTorrent.Torrent>((resolve, reject) => {
-        client.add(magnetLink, { path: dir }, (torrent) => {
+        let metadataReady = false;
+        let added: WebTorrent.Torrent | undefined;
+        const METADATA_TIMEOUT_MS = 30000;
+        const metadataTimer = setTimeout(() => {
+            if (metadataReady) return;
+            metadataReady = true;
+            added?.destroy();
+            activeTorrents.delete(hash);
+            const targetSocket = ioServer.sockets.sockets.get(sid);
+            targetSocket?.emit('torrentError', {
+                hash,
+                message: 'No peers responded with this torrent\'s details. Go back and try another source.',
+            });
+            reject(new Error('Torrent metadata timed out'));
+        }, METADATA_TIMEOUT_MS);
+
+        added = client.add(magnetLink, { path: dir }, (torrent) => {
+            if (metadataReady) {
+                torrent.destroy();
+                return;
+            }
+            metadataReady = true;
+            clearTimeout(metadataTimer);
+
             torrent.on("error", (torrentErr) => {
                 console.error("Torrent Error:", torrentErr);
                 torrent.destroy();
@@ -127,7 +248,14 @@ const addToClient = async (
             const videoFile = getVideoFile(torrent);
 
             if (!videoFile) {
-                reject('Video file not found');
+                torrent.destroy();
+                const targetSocket = ioServer.sockets.sockets.get(sid);
+                targetSocket?.emit('torrentError', {
+                    hash,
+                    message: 'This torrent has no playable video file. Go back and try another source.',
+                });
+                reject(new Error('Video file not found'));
+                return;
             }
 
             activeTorrents.set(hash, torrent);
@@ -225,7 +353,7 @@ const startStream = (req: Request, res: Response, torrent: WebTorrent.Torrent) =
             return res.status(409).end();
         }
 
-        const videoFile = getVideoFile(torrent);
+        const videoFile = getVideoFile(torrent, typeof req.query.file === "string" ? req.query.file : undefined);
         
         if (!videoFile) {
             console.error("No suitable video file found in torrent. Please try again using a different torrent.");
@@ -293,10 +421,28 @@ export const createClient = () => {
             client!.destroy();
             client = null;
         });
+        applyClientLimits();
 
         console.log('Client created')
     }
 }
+
+export const updateClientLimits = (req: Request, res: Response) => {
+    const body = req.body ?? {};
+    const concurrent = Number(body.maxConcurrentDownloads);
+    const downloadKbps = Number(body.maxDownloadKbps);
+    const uploadKbps = Number(body.maxUploadKbps);
+    const connections = Number(body.maxConnections);
+
+    if (Number.isFinite(concurrent) && concurrent > 0) maxConcurrentDownloads = Math.min(concurrent, 10);
+    maxDownloadBps = Number.isFinite(downloadKbps) && downloadKbps > 0 ? downloadKbps * 1024 : -1;
+    maxUploadBps = Number.isFinite(uploadKbps) && uploadKbps > 0 ? uploadKbps * 1024 : -1;
+    if (Number.isFinite(connections) && connections > 0) maxConnections = connections;
+
+    applyClientLimits();
+    pauseOtherTorrents('');
+    return res.sendStatus(200);
+};
 
 const streamWithRange = (videoFile: WebTorrent.TorrentFile, fileSize: number, range: string, res: Response) => {
     const parts = range.replace(/bytes=/, "").split("-");
@@ -384,6 +530,26 @@ const attachProgressEvents = (
     (torrent as any).__slug = slug;
     (torrent as any).__dir = dir;
 
+    const emitProgress = () => {
+        const isPaused = torrent.paused || stoppedTorrents.has(hash);
+        socket.emit("downloadProgress", {
+            hash: torrent.infoHash.toLowerCase(),
+            slug,
+            progress: torrent.progress,
+            speed: torrent.downloadSpeed,
+            uploadSpeed: torrent.uploadSpeed,
+            uploaded: torrent.uploaded,
+            peers: torrent.numPeers,
+            downloaded: torrent.downloaded,
+            done: torrent.done,
+            fileName: torrent.name,
+            timeRemaining: torrent.timeRemaining,
+            paused: isPaused,
+            queued: Boolean((torrent as WebTorrent.Torrent & { __queued?: boolean }).__queued),
+            url: createStreamUrl(slug, hash, sid, dir),
+        });
+    };
+
     torrent.on("download", () => {
         // If torrent is in stoppedTorrents, ensure it stays paused
         // This prevents auto-resume that might happen in some WebTorrent scenarios
@@ -394,26 +560,21 @@ const attachProgressEvents = (
         
         // Check stoppedTorrents to ensure paused state is accurate
         // If torrent is in stoppedTorrents, it should be paused
-        const isPaused = torrent.paused || stoppedTorrents.has(hash);
-        socket.emit("downloadProgress", {
-            hash: torrent.infoHash.toLowerCase(),
-            slug,
-            progress: torrent.progress,
-            speed: torrent.downloadSpeed,
-            peers: torrent.numPeers,
-            downloaded: torrent.downloaded,
-            done: torrent.done,
-            fileName: torrent.name,
-            timeRemaining: torrent.timeRemaining,
-            paused: isPaused,
-            url: createStreamUrl(slug, hash, sid, dir),
-        });
+        emitProgress();
+    });
+
+    torrent.on("upload", () => {
+        if (torrent.done) emitProgress();
     });
 
     torrent.on("done", () => {
         socket.emit("downloadDone", {
             hash: torrent.infoHash.toLowerCase(),
+            fileName: torrent.name,
+            done: true,
+            progress: 1,
         });
+        resumeQueuedTorrents();
     });
 }
 
@@ -439,6 +600,9 @@ export const resumeTorrent = (req: Request, res: Response) => {
     }
 
     stoppedTorrents.delete(hash);
+    (torrent as WebTorrent.Torrent & { __userPaused?: boolean; __queued?: boolean; __seedStopped?: boolean }).__userPaused = false;
+    (torrent as WebTorrent.Torrent & { __queued?: boolean }).__queued = false;
+    (torrent as WebTorrent.Torrent & { __seedStopped?: boolean }).__seedStopped = false;
 
     const videoFile = getVideoFile(torrent);
     if (!videoFile) {
@@ -574,9 +738,8 @@ export const pauseTorrent = async (req: Request, res: Response) => {
 
         // Add to stoppedTorrents first to prevent auto-resume
         stoppedTorrents.add(hashStr);
-        
-        // Add to stoppedTorrents first to prevent auto-resume
-        stoppedTorrents.add(hashStr);
+        (torrent as WebTorrent.Torrent & { __userPaused?: boolean; __queued?: boolean }).__userPaused = true;
+        (torrent as WebTorrent.Torrent & { __queued?: boolean }).__queued = false;
         
         if (!torrent.paused) {
             torrent.pause();
@@ -601,7 +764,7 @@ export const pauseTorrent = async (req: Request, res: Response) => {
 }
 
 const streamFromDisk = (req: Request, res: Response, downloadDir: string, torrent: WebTorrent.Torrent) => {
-    const videoFile = getVideoFile(torrent);
+    const videoFile = getVideoFile(torrent, typeof req.query.file === "string" ? req.query.file : undefined);
     
     if (!videoFile) {
         res.sendStatus(404).end();
@@ -725,8 +888,20 @@ export const getTorrentData = async (req: Request, res: Response) => {
         }
 
         const tempClient = new WebTorrent(); // Just to get hash and title;
+        const METADATA_TIMEOUT_MS = 30000;
+        const metadataTimer = setTimeout(() => {
+            tempClient.destroy();
+            if (!res.headersSent) {
+                res.status(408).json({ error: "No peers responded with this torrent's details." });
+            }
+        }, METADATA_TIMEOUT_MS);
 
         tempClient.add(torrentFilePath as string, { path: requestedDir }, async (torrent) => {
+            clearTimeout(metadataTimer);
+            if (res.headersSent) {
+                torrent.destroy();
+                return;
+            }
             torrent.on("error", (torrentErr) => {
                 console.error("Torrent Error:", torrentErr);
                 torrent.destroy();
@@ -1255,11 +1430,61 @@ export const getDownloadedFiles = async (req: Request, res: Response) => {
     }
 }
 
-const getVideoFile = (torrent: WebTorrent.Torrent) => {
-    return  torrent.files.find(
-        (file) => file.name.endsWith(VideoExtensions.MP4) || file.name.endsWith(VideoExtensions.MKV)
-    );
-}
+const isPlayableVideo = (name: string) => {
+    const lower = name.toLowerCase();
+    return lower.endsWith(VideoExtensions.MP4) || lower.endsWith(VideoExtensions.MKV);
+};
+
+const getVideoFile = (torrent: WebTorrent.Torrent, preferredName?: string) => {
+    const videos = torrent.files.filter((file) => isPlayableVideo(file.name));
+    if (preferredName) {
+        const match = videos.find((file) => file.name === preferredName || file.path.endsWith(preferredName));
+        if (match) return match;
+    }
+    return videos[0];
+};
+
+export const getTorrentMedia = (req: Request, res: Response) => {
+    const hash = req.params.hash?.toString().toLowerCase();
+    if (!hash) return res.status(400).json({ error: "hash is required" });
+
+    const torrent = activeTorrents.get(hash)
+        || client?.torrents.find((entry) => entry.infoHash.toLowerCase() === hash);
+
+    if (!torrent) return res.status(404).json({ error: "Torrent is not active" });
+
+    const files = torrent.files
+        .filter((file) => isPlayableVideo(file.name))
+        .map((file) => ({
+            name: file.name,
+            path: path.join(torrent.path, file.path),
+            length: file.length,
+        }));
+
+    const current = getVideoFile(torrent, typeof req.query.file === "string" ? req.query.file : undefined);
+
+    return res.status(200).json({
+        path: current ? path.join(torrent.path, current.path) : null,
+        files,
+    });
+};
+
+export const stopSeeding = (req: Request, res: Response) => {
+    const hash = req.params.hash?.toString().toLowerCase();
+    if (!hash) return res.status(400).json({ error: "hash is required" });
+
+    const torrent = activeTorrents.get(hash)
+        || client?.torrents.find((entry) => entry.infoHash.toLowerCase() === hash);
+
+    if (!torrent) return res.status(404).json({ error: "Torrent not found" });
+
+    stoppedTorrents.add(hash);
+    const marked = torrent as WebTorrent.Torrent & { __seedStopped?: boolean; __queued?: boolean };
+    marked.__seedStopped = true;
+    marked.__queued = false;
+    torrent.pause();
+    return res.sendStatus(200);
+};
 
 const createStreamUrl = (slug: string, hash: string, sid: string, dir: string) => {
     return `/stream/${slug}?hash=${hash}&sid=${sid}&dir=${dir}`;

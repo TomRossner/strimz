@@ -20,6 +20,8 @@ import { twMerge } from 'tailwind-merge';
 import Footer from '@/components/Footer';
 import { IoWarningOutline } from 'react-icons/io5';
 import { DiskSpaceInfo } from '@/utils/types';
+import axios from 'axios';
+import { API_URL } from '@/utils/constants';
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -43,6 +45,12 @@ const SettingsPage = () => {
         ev.preventDefault();
 
         dispatch(setSettings(formValues));
+        axios.post(`${API_URL}/client/limits`, {
+            maxConcurrentDownloads: formValues.maxConcurrentDownloads,
+            maxDownloadKbps: formValues.maxDownloadKbps,
+            maxUploadKbps: formValues.maxUploadKbps,
+            maxConnections: formValues.maxConnections,
+        }).catch((error) => console.error(error));
 
         Object.entries(formValues).forEach(entry => {
             const [key, value] = entry;    
@@ -86,10 +94,11 @@ const SettingsPage = () => {
     }
 
     useEffect(() => {
-        if (!formValues.downloadsFolderPath) {
-            setFormValues(settings);
-        }
-    }, [settings, formValues]);
+        setFormValues({
+            ...DEFAULT_SETTINGS,
+            ...settings,
+        });
+    }, [settings]);
 
     useEffect(() => {
         dispatch(fetchUserSettings());
@@ -274,6 +283,152 @@ const SettingsPage = () => {
                         </div>
 
                         <OptionDescription>Automatically install new updates when quitting the app.</OptionDescription>
+                    </div>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <label className='flex gap-2 items-center justify-between'>
+                            <span>Theme</span>
+                            <select
+                                value={formValues.theme}
+                                onChange={(ev) => setFormValues((values) => ({
+                                    ...values,
+                                    theme: ev.target.value as Settings['theme'],
+                                }))}
+                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
+                            >
+                                <option value='dark'>Dark</option>
+                                <option value='light'>Light</option>
+                                <option value='system'>Match system</option>
+                            </select>
+                        </label>
+                        <OptionDescription>Switch between a dark library, a light library, or your system theme. The player stays dark.</OptionDescription>
+                    </div>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <label className='flex gap-2 items-center justify-between'>
+                            <span>Active downloads</span>
+                            <input
+                                type='number'
+                                min={1}
+                                max={10}
+                                value={formValues.maxConcurrentDownloads}
+                                onChange={(ev) => setFormValues((values) => ({
+                                    ...values,
+                                    maxConcurrentDownloads: Number(ev.target.value) || 1,
+                                }))}
+                                className='bg-stone-800 text-white w-24 px-2 py-1 rounded-sm'
+                            />
+                        </label>
+                        <OptionDescription>How many torrents can download at once. Extra ones wait in a queue.</OptionDescription>
+                    </div>
+
+                    <div className='flex w-full gap-3 flex-col md:flex-row'>
+                        <label className='flex flex-col gap-1 grow'>
+                            <span>Max download (KB/s)</span>
+                            <input
+                                type='number'
+                                min={0}
+                                value={formValues.maxDownloadKbps}
+                                onChange={(ev) => setFormValues((values) => ({
+                                    ...values,
+                                    maxDownloadKbps: Number(ev.target.value) || 0,
+                                }))}
+                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
+                            />
+                        </label>
+                        <label className='flex flex-col gap-1 grow'>
+                            <span>Max upload (KB/s)</span>
+                            <input
+                                type='number'
+                                min={0}
+                                value={formValues.maxUploadKbps}
+                                onChange={(ev) => setFormValues((values) => ({
+                                    ...values,
+                                    maxUploadKbps: Number(ev.target.value) || 0,
+                                }))}
+                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
+                            />
+                        </label>
+                        <label className='flex flex-col gap-1 grow'>
+                            <span>Max connections</span>
+                            <input
+                                type='number'
+                                min={1}
+                                value={formValues.maxConnections}
+                                onChange={(ev) => setFormValues((values) => ({
+                                    ...values,
+                                    maxConnections: Number(ev.target.value) || 1,
+                                }))}
+                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
+                            />
+                        </label>
+                    </div>
+                    <OptionDescription>Use 0 for unlimited download or upload speed.</OptionDescription>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
+                            <span>Hardware acceleration</span>
+                            <div className='flex items-center gap-2'>
+                                <span>{formValues.hardwareAcceleration ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input
+                                        id="hardwareAcceleration"
+                                        type="checkbox"
+                                        checked={formValues.hardwareAcceleration}
+                                        onChange={() => setFormValues((values) => ({
+                                            ...values,
+                                            hardwareAcceleration: !values.hardwareAcceleration,
+                                        }))}
+                                        className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer"
+                                    />
+                                    <label htmlFor="hardwareAcceleration" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 transition-transform duration-300 peer-checked:translate-x-6 cursor-pointer" />
+                                </div>
+                            </div>
+                        </div>
+                        <OptionDescription>Turn this off if video stutters. Restart Strimz after saving for it to take effect.</OptionDescription>
+                        <Button type='button' onClick={() => window.electronAPI.restartApp()} className='w-fit bg-stone-800 text-sm'>Restart now</Button>
+                    </div>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
+                            <span>Start minimized</span>
+                            <div className='flex items-center gap-2'>
+                                <span>{formValues.startMinimized ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input id="startMinimized" type="checkbox" checked={formValues.startMinimized} onChange={() => setFormValues((values) => ({ ...values, startMinimized: !values.startMinimized }))} className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer" />
+                                    <label htmlFor="startMinimized" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 transition-transform duration-300 peer-checked:translate-x-6 cursor-pointer" />
+                                </div>
+                            </div>
+                        </div>
+                        <OptionDescription>Open in the tray instead of showing the window on launch.</OptionDescription>
+                    </div>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
+                            <span>Close to tray</span>
+                            <div className='flex items-center gap-2'>
+                                <span>{formValues.closeToTray ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input id="closeToTray" type="checkbox" checked={formValues.closeToTray} onChange={() => setFormValues((values) => ({ ...values, closeToTray: !values.closeToTray }))} className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer" />
+                                    <label htmlFor="closeToTray" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 transition-transform duration-300 peer-checked:translate-x-6 cursor-pointer" />
+                                </div>
+                            </div>
+                        </div>
+                        <OptionDescription>Closing the window keeps Strimz running. Quit from the tray menu to exit.</OptionDescription>
+                    </div>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <div className='w-full flex gap-4 items-center justify-between'>
+                            <span>Reopen last title</span>
+                            <div className='flex items-center gap-2'>
+                                <span>{formValues.reopenLastTitle ? 'On' : 'Off'}</span>
+                                <div className="relative inline-block w-11 h-5">
+                                    <input id="reopenLastTitle" type="checkbox" checked={formValues.reopenLastTitle} onChange={() => setFormValues((values) => ({ ...values, reopenLastTitle: !values.reopenLastTitle }))} className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer" />
+                                    <label htmlFor="reopenLastTitle" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 transition-transform duration-300 peer-checked:translate-x-6 cursor-pointer" />
+                                </div>
+                            </div>
+                        </div>
+                        <OptionDescription>Jump back to the title you were watching the next time Strimz starts.</OptionDescription>
                     </div>
 
                     <div className='grow' />

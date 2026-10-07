@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateAutoInstallSetting: (value) => ipcRenderer.send(CHANNELS.UPDATE_AUTO_INSTALL_SETTING, value),
   updateClearOnExitSetting: (value) => ipcRenderer.send(CHANNELS.UPDATE_CLEAR_ON_EXIT_SETTING, value),
   saveSetting: (key, value) => ipcRenderer.send(CHANNELS.SAVE_SETTING, key, value),
-  
+  setAlwaysOnTop: (value) => ipcRenderer.send('set-always-on-top', value),
+  notify: (title, body) => ipcRenderer.send('notify', { title, body }),
+
   openDirectoryDialog: async () => await ipcRenderer.invoke('open-directory-dialog'),
   openSubtitleFileDialog: async () => await ipcRenderer.invoke('open-subtitle-file-dialog'),
   getDefaultDownloadsPath: async () => await ipcRenderer.invoke('get-default-downloads-path'),
@@ -43,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateCheckSkipped: (cb) => ipcRenderer.on('update-check-skipped', (_, msg) => cb(msg)),
   onUpdateCheckFailed: (cb) => ipcRenderer.on('update-check-failed', (_, msg) => cb(msg)),
   onExternalTorrent: (cb) => ipcRenderer.on(CHANNELS.EXTERNAL_TORRENT, (_, filePath) => cb(filePath)),
+  onClipboardMagnet: (cb) => ipcRenderer.on('clipboard-magnet', (_, magnet) => cb(magnet)),
+  onMediaPlayPause: (cb) => ipcRenderer.on('media-play-pause', cb),
 
   offCheckingForUpdate: (cb) => ipcRenderer.removeListener('checking-for-update', cb),
   offUpdateAvailable: (cb) => ipcRenderer.removeListener('update-available', cb),
@@ -52,6 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offUpdateCheckFailed: (cb) => ipcRenderer.removeListener('update-check-failed', cb),
   offDownloadProgress: (cb) => ipcRenderer.removeListener('update-download-progress', cb),
   offExternalTorrent: (cb) => ipcRenderer.removeListener(CHANNELS.EXTERNAL_TORRENT, cb),
+  offClipboardMagnet: () => ipcRenderer.removeAllListeners('clipboard-magnet'),
+  offMediaPlayPause: () => ipcRenderer.removeAllListeners('media-play-pause'),
 
   ipcRenderer: {
       send: (channel, data) => {

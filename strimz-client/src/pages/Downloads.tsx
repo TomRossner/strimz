@@ -1,15 +1,18 @@
 import BackButton from '@/components/BackButton';
+import BackToTop from '@/components/BackToTop';
 import Button from '@/components/Button';
 import Container from '@/components/Container';
 import LoadingIcon from '@/components/LoadingIcon';
 import Page from '@/components/Page';
 import PageDescription from '@/components/PageDescription';
 import PageTitle from '@/components/PageTitle';
-import { deleteDownload, pauseDownload, playTorrent, resumeDownload } from '@/services/movies';
+import { deleteDownload, pauseDownload, playTorrent, resumeDownload, stopSeeding } from '@/services/movies';
 import { updateDownloadCompletion, removeDownloadInfo, updateDownloadProgress, validateDownloadsCache } from '@/utils/downloadsCache';
 import { selectCompleted, selectDownloads, selectDownloadedFiles } from '@/store/downloads/downloads.selectors';
 import { setCompleted, fetchDownloadedFilesAsync, removeDownload, removeDownloadedFile, fetchAllDownloadsAsync } from '@/store/downloads/downloads.slice';
-import { getDownloadsCache, CachedDownloadInfo } from '@/utils/downloadsCache';
+import { getDownloadsCache, getSavedPosters, saveDownloadPoster, updateCachedPoster, CachedDownloadInfo } from '@/utils/downloadsCache';
+import { findPosterForRelease } from '@/utils/downloadPoster';
+import { removeHistoryForDownload } from '@/services/library';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectSettings } from '@/store/settings/settings.selectors';
 import { selectSocket } from '@/store/socket/socket.selectors';
@@ -27,6 +30,15 @@ import { twMerge } from 'tailwind-merge';
 
 // Module-level flag to track if initial restore has been attempted (persists across component mounts)
 let hasCompletedInitialRestore = false;
+const posterLookupAttempted = new Set<string>();
+const posterLookupInFlight = new Set<string>();
+
+const posterForDownload = (name: string, hash: string | undefined, cachedPoster: string | undefined, savedPosters: Record<string, string>) => {
+    return cachedPoster
+        || (hash ? savedPosters[hash.toLowerCase()] : undefined)
+        || savedPosters[name.toLowerCase()]
+        || undefined;
+};
 
 type CombinedDownload = {
     hash?: string;
@@ -49,11 +61,21 @@ const DownloadsPage = () => {
     const [downloadsStatus, setDownloadsStatus] = useState<DownloadProgressData[]>([]);
     const [cacheValidationVersion, setCacheValidationVersion] = useState(0); // Track cache updates to trigger re-renders
     const [searchQuery, setSearchQuery] = useState<string>(''); // Search query for filtering downloads
+    const [isBackToTopBtnVisible, setIsBackToTopBtnVisible] = useState(false);
     const completedFetchedRef = useRef<Set<string>>(new Set()); // Track which completed downloads we've already fetched for
     const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Track pending fetch timeout
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const settings = useAppSelector(selectSettings);
+
+    useEffect(() => {
+        const handleBackToTopButton = () => {
+            setIsBackToTopBtnVisible(window.scrollY > (window.screenY + 800));
+        };
+
+        window.addEventListener('scroll', handleBackToTopButton);
+        return () => window.removeEventListener('scroll', handleBackToTopButton);
+    }, []);
 
     const bufferWidth = useCallback((hash: string) => {
         const dl = downloadsStatus.find(d => d.hash === hash);
@@ -256,6 +278,7 @@ const DownloadsPage = () => {
     // Priority: Backend data (source of truth) → Cache entries (pending verification) → File-only downloads
     const { uncompletedDownloads, completedDownloads } = useMemo(() => {
         const cache = getDownloadsCache();
+        const savedPosters = getSavedPosters();
         const uncompleted: CombinedDownload[] = [];
         const completedList: CombinedDownload[] = [];
         const addedHashes = new Set<string>(); // Track which hashes we've already added
@@ -322,7 +345,7 @@ const DownloadsPage = () => {
                 filePath: filePath,
                 fileSize: fileSize,
                 isPendingVerification: false, // Backend data is verified
-                poster: cachedInfo?.poster,
+                poster: posterForDownload(download.name, download.hash, cachedInfo?.poster, savedPosters),
             };
 
             // Remove any existing entry from either list (prevents duplicates)
@@ -402,7 +425,7 @@ const DownloadsPage = () => {
                 filePath: filePath,
                 fileSize: fileSize,
                 isPendingVerification: isPendingVerification,
-                poster: cachedInfo.poster,
+                poster: posterForDownload(matchingFolder || cachedInfo.title, cachedInfo.hash, cachedInfo.poster, savedPosters),
             };
 
             addedHashes.add(hashLower);
@@ -486,7 +509,7 @@ const DownloadsPage = () => {
                 filePath: mainFile.path,
                 fileSize: mainFile.size,
                 isPendingVerification: false, // File-only downloads don't need verification
-                poster: cachedInfo?.poster,
+                poster: posterForDownload(folderName, cachedInfo?.hash, cachedInfo?.poster, savedPosters),
             };
             
             if (isCompleted) {
@@ -534,6 +557,46 @@ const DownloadsPage = () => {
             return displayTitle.includes(query) || name.includes(query);
         });
     }, [completedDownloads, searchQuery]);
+
+    useEffect(() => {
+        const missing = [...completedDownloads, ...uncompletedDownloads].filter((item) => !item.poster && item.name);
+        const pending = [...new Set(missing.map((item) => item.name))].filter((name) => {
+            const key = name.toLowerCase();
+            return !posterLookupAttempted.has(key) && !posterLookupInFlight.has(key);
+        });
+        if (!pending.length) return;
+
+        let cancelled = false;
+        pending.forEach((name) => posterLookupInFlight.add(name.toLowerCase()));
+
+        (async () => {
+            let found = false;
+            for (const name of pending) {
+                const key = name.toLowerCase();
+                try {
+                    if (cancelled) return;
+                    const poster = await findPosterForRelease(name);
+                    posterLookupAttempted.add(key);
+                    if (!poster) continue;
+                    saveDownloadPoster(name, poster);
+                    const hashed = missing.find((item) => item.name === name && item.hash);
+                    if (hashed?.hash) updateCachedPoster(hashed.hash, poster);
+                    found = true;
+                } finally {
+                    posterLookupInFlight.delete(key);
+                }
+            }
+            if (found && !cancelled) setCacheValidationVersion((version) => version + 1);
+        })();
+
+        return () => {
+            cancelled = true;
+            pending.forEach((name) => {
+                const key = name.toLowerCase();
+                if (!posterLookupAttempted.has(key)) posterLookupInFlight.delete(key);
+            });
+        };
+    }, [completedDownloads, uncompletedDownloads]);
 
     const throttledSetDownloadInfo = useRef(
         throttle((data: DownloadProgressData) => {
@@ -591,8 +654,9 @@ const DownloadsPage = () => {
                 // But ensure it's also removed from completed array
                 dispatch(setCompleted(completed.filter(c => c !== hash.toLowerCase())));
                 
-                // Remove from cache
+                // Remove from cache and from Continue watching
                 removeDownloadInfo(hash);
+                removeHistoryForDownload({ hash });
                 
                 // Wait a bit to ensure file system operations complete before refreshing
                 // This prevents the deleted file from reappearing in the list
@@ -660,7 +724,7 @@ const DownloadsPage = () => {
         });
     }
 
-    const handleDeleteFileOnly = async (folderName: string) => {
+    const handleDeleteFileOnly = async (folderName: string, title?: string) => {
         try {
             // Delete the directory from disk via backend FIRST
             // Only update state if deletion succeeds
@@ -688,10 +752,17 @@ const DownloadsPage = () => {
                 
                 // Check cache for any matching download info
                 const cache = getDownloadsCache();
+                const matchedHashes: string[] = [];
                 for (const [hash, info] of Object.entries(cache)) {
-                    if (info.title === folderName) {
+                    if (info.title === folderName || (title && info.title === title)) {
+                        matchedHashes.push(hash);
                         removeDownloadInfo(hash);
                     }
+                }
+                if (matchedHashes.length > 0) {
+                    matchedHashes.forEach((hash) => removeHistoryForDownload({ hash }));
+                } else {
+                    removeHistoryForDownload({ titles: [folderName, title || ''] });
                 }
                 
                 // Wait a bit to ensure file system operations complete before refreshing
@@ -806,6 +877,8 @@ const DownloadsPage = () => {
 
             <PageDescription>All your active and completed downloads in one place. Track progress, and start streaming when ready.</PageDescription>
 
+            <BackToTop isVisible={isBackToTopBtnVisible} />
+
             {/* Search Bar */}
             <form
                 onSubmit={(ev: FormEvent<HTMLFormElement>) => {
@@ -892,13 +965,10 @@ const DownloadsPage = () => {
                                             let progress = hasHash ? bufferWidth(download.hash!) : fileProgress;
                                             // Use cache progress if available (especially for completed downloads)
                                             // This handles cases where download completes and is removed from active downloads
-                                            if (hasHash) {
-                                                if (progress === 0 && cachedInfo?.progress !== undefined) {
-                                                    progress = cachedInfo.progress * 100;
-                                                } else if (isCompleted && cachedInfo?.isCompleted && cachedInfo.progress !== undefined) {
-                                                    // If marked as completed in cache, ensure progress shows 100%
-                                                    progress = Math.max(progress, cachedInfo.progress * 100);
-                                                }
+                                            if (isCompleted) {
+                                                progress = 100;
+                                            } else if (hasHash && progress === 0 && cachedInfo?.progress !== undefined) {
+                                                progress = cachedInfo.progress * 100;
                                             }
                                             
                                             const downloading = hasHash ? isDownloading(download.hash!) : false;
@@ -918,6 +988,9 @@ const DownloadsPage = () => {
                                             const liveStatusForInfo = hasHash ? downloadsStatus.find(s => s.hash === download.hash) : null;
                                             const peers = liveStatusForInfo?.peers ?? cachedInfo?.peers ?? null;
                                             const timeRemaining = liveStatusForInfo?.timeRemaining ?? cachedInfo?.timeRemaining ?? null;
+                                            const uploadSpeed = liveStatusForInfo?.uploadSpeed ?? 0;
+                                            const isQueued = Boolean(liveStatusForInfo?.queued);
+                                            const isSeeding = Boolean(isCompleted && hasHash && liveStatusForInfo && !paused);
 
                                             const isPendingVerification = download.isPendingVerification === true;
                                             const posterUrl = cachedInfo?.poster || download.poster;
@@ -990,7 +1063,7 @@ const DownloadsPage = () => {
                                                                     if (hasHash && download.hash) {
                                                                         clearTorrentHandler(download.hash, `${settings.downloadsFolderPath}/${download.name}`);
                                                                     } else {
-                                                                        handleDeleteFileOnly(download.name);
+                                                                        handleDeleteFileOnly(download.name, displayTitle);
                                                                     }
                                                                 }}
                                                                 disabled={isPendingVerification}
@@ -1027,7 +1100,8 @@ const DownloadsPage = () => {
                                                                         : 'Completed'
                                                                     }
                                                                 </span>
-                                                                {downloading && speed ? <span>{speed}</span> : !isCompleted && paused && <span>Paused</span>}
+                                                                {downloading && speed ? <span>{speed}</span> : !isCompleted && paused && <span>{isQueued ? 'Queued' : 'Paused'}</span>}
+                                                                {isSeeding && <span>Seeding {uploadSpeed ? formatBytesPerSecond(uploadSpeed) : ''}</span>}
                                                             </p>
                                                             {/* Show peers and time remaining when downloading (not paused) */}
                                                             {!isCompleted && downloading && !paused && hasHash && (
@@ -1039,6 +1113,21 @@ const DownloadsPage = () => {
                                                                         <p>Time remaining: {msToReadableTime(timeRemaining)}</p>
                                                                     )}
                                                                 </div>
+                                                            )}
+                                                            {isSeeding && hasHash && (
+                                                                <Button
+                                                                    onClick={() => {
+                                                                        if (!download.hash) return;
+                                                                        const hash = download.hash;
+                                                                        stopSeeding(hash);
+                                                                        setDownloadsStatus((prev) => prev.map((status) => (
+                                                                            status.hash === hash ? { ...status, paused: true, uploadSpeed: 0 } : status
+                                                                        )));
+                                                                    }}
+                                                                    className='w-fit text-xs bg-stone-700 mt-1'
+                                                                >
+                                                                    Stop seeding
+                                                                </Button>
                                                             )}
                                                         </div>
                                                     )}
@@ -1133,13 +1222,10 @@ const DownloadsPage = () => {
                                             let progress = hasHash ? bufferWidth(download.hash!) : fileProgress;
                                             // Use cache progress if available (especially for completed downloads)
                                             // This handles cases where download completes and is removed from active downloads
-                                            if (hasHash) {
-                                                if (progress === 0 && cachedInfo?.progress !== undefined) {
-                                                    progress = cachedInfo.progress * 100;
-                                                } else if (isCompleted && cachedInfo?.isCompleted && cachedInfo.progress !== undefined) {
-                                                    // If marked as completed in cache, ensure progress shows 100%
-                                                    progress = Math.max(progress, cachedInfo.progress * 100);
-                                                }
+                                            if (isCompleted) {
+                                                progress = 100;
+                                            } else if (hasHash && progress === 0 && cachedInfo?.progress !== undefined) {
+                                                progress = cachedInfo.progress * 100;
                                             }
                                             
                                             const downloading = hasHash ? isDownloading(download.hash!) : false;
@@ -1159,6 +1245,9 @@ const DownloadsPage = () => {
                                             const liveStatusForInfo = hasHash ? downloadsStatus.find(s => s.hash === download.hash) : null;
                                             const peers = liveStatusForInfo?.peers ?? cachedInfo?.peers ?? null;
                                             const timeRemaining = liveStatusForInfo?.timeRemaining ?? cachedInfo?.timeRemaining ?? null;
+                                            const uploadSpeed = liveStatusForInfo?.uploadSpeed ?? 0;
+                                            const isQueued = Boolean(liveStatusForInfo?.queued);
+                                            const isSeeding = Boolean(isCompleted && hasHash && liveStatusForInfo && !paused);
 
                                             const isPendingVerification = download.isPendingVerification === true;
                                             const posterUrl = cachedInfo?.poster || download.poster;
@@ -1231,7 +1320,7 @@ const DownloadsPage = () => {
                                                                     if (hasHash && download.hash) {
                                                                         clearTorrentHandler(download.hash, `${settings.downloadsFolderPath}/${download.name}`);
                                                                     } else {
-                                                                        handleDeleteFileOnly(download.name);
+                                                                        handleDeleteFileOnly(download.name, displayTitle);
                                                                     }
                                                                 }}
                                                                 disabled={isPendingVerification}
@@ -1268,7 +1357,8 @@ const DownloadsPage = () => {
                                                                         : 'Completed'
                                                                     }
                                                                 </span>
-                                                                {downloading && speed ? <span>{speed}</span> : !isCompleted && paused && <span>Paused</span>}
+                                                                {downloading && speed ? <span>{speed}</span> : !isCompleted && paused && <span>{isQueued ? 'Queued' : 'Paused'}</span>}
+                                                                {isSeeding && <span>Seeding {uploadSpeed ? formatBytesPerSecond(uploadSpeed) : ''}</span>}
                                                             </p>
                                                             {/* Show peers and time remaining when downloading (not paused) */}
                                                             {!isCompleted && downloading && !paused && hasHash && (
@@ -1280,6 +1370,21 @@ const DownloadsPage = () => {
                                                                         <p>Time remaining: {msToReadableTime(timeRemaining)}</p>
                                                                     )}
                                                                 </div>
+                                                            )}
+                                                            {isSeeding && hasHash && (
+                                                                <Button
+                                                                    onClick={() => {
+                                                                        if (!download.hash) return;
+                                                                        const hash = download.hash;
+                                                                        stopSeeding(hash);
+                                                                        setDownloadsStatus((prev) => prev.map((status) => (
+                                                                            status.hash === hash ? { ...status, paused: true, uploadSpeed: 0 } : status
+                                                                        )));
+                                                                    }}
+                                                                    className='w-fit text-xs bg-stone-700 mt-1'
+                                                                >
+                                                                    Stop seeding
+                                                                </Button>
                                                             )}
                                                         </div>
                                                     )}

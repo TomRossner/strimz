@@ -25,6 +25,38 @@ export interface CachedDownloadInfo {
 }
 
 const DOWNLOADS_CACHE_KEY = 'downloadsCache';
+const DOWNLOAD_POSTERS_KEY = 'downloadPosters';
+
+export const getSavedPosters = (): Record<string, string> => {
+    const raw = localStorage.getItem(DOWNLOAD_POSTERS_KEY);
+    if (!raw) return {};
+    try {
+        const parsed = JSON.parse(raw) as Record<string, string>;
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+export const saveDownloadPoster = (key: string, poster: string) => {
+    const normalized = key.trim().toLowerCase();
+    if (!normalized || !poster) return;
+    const posters = getSavedPosters();
+    if (posters[normalized] === poster) return;
+    posters[normalized] = poster;
+    localStorage.setItem(DOWNLOAD_POSTERS_KEY, JSON.stringify(posters));
+};
+
+export const updateCachedPoster = (hash: string, poster: string) => {
+    if (!hash || !poster) return;
+    saveDownloadPoster(hash, poster);
+    const cache = getDownloadsCache();
+    const info = cache[hash.toLowerCase()];
+    if (!info || info.poster === poster) return;
+    info.poster = poster;
+    info.timestamp = Date.now();
+    localStorage.setItem(DOWNLOADS_CACHE_KEY, JSON.stringify(cache));
+};
 
 export const getDownloadsCache = (): Record<string, CachedDownloadInfo> => {
     const raw = localStorage.getItem(DOWNLOADS_CACHE_KEY);

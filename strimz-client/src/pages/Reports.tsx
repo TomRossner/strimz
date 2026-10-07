@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { LuUpload } from "react-icons/lu";
 import { BiTrash } from 'react-icons/bi';
 import OptionDescription from '@/components/OptionDescription';
+import axios from 'axios';
+import { API_URL } from '@/utils/constants';
 
 type ReportFormValues = {
   description: string;
@@ -24,11 +26,20 @@ const DEFAULT_FORM_VALUES = {
 const ReportsPage = () => {
   const navigate = useNavigate();
   const [formValues, setFormValues] = useState<ReportFormValues>(DEFAULT_FORM_VALUES);
+  const [status, setStatus] = useState('');
 
-  const handleSubmit = (ev: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (ev: FormEvent<HTMLFormElement>) => {
     ev.preventDefault();
+    setStatus('Sending...');
 
-    console.log(formValues);
+    try {
+      await axios.post(`${API_URL}/reports`, formValues);
+      setFormValues(DEFAULT_FORM_VALUES);
+      setStatus('Report saved on this computer.');
+    } catch (error) {
+      console.error(error);
+      setStatus('The report could not be sent.');
+    }
   }
 
   const handleUpload = (files: FileList) => {
@@ -185,6 +196,7 @@ const ReportsPage = () => {
           </div>
 
           <div className='grow' />
+          {status && <p className='text-sm text-stone-300'>{status}</p>}
 
           <div className="p-4 w-full bg-stone-800 flex gap-2 items-center justify-center flex-wrap md:flex-nowrap">
             <Button

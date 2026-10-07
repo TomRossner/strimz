@@ -7,10 +7,11 @@ import { getServerUrl } from './staticServer.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export function createMainWindow(isDev) {
+export function createMainWindow(isDev, { startHidden = false } = {}) {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    show: false,
     icon: path.join(__dirname, "..", "assets", "strimzicon.ico"),
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
@@ -36,7 +37,9 @@ export function createMainWindow(isDev) {
 
   mainWindow.loadURL(url);
 
-  mainWindow.on("ready-to-show", () => mainWindow.show());
+  mainWindow.on("ready-to-show", () => {
+    if (!startHidden) mainWindow.show();
+  });
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error(`Failed to load: ${errorDescription}`);

@@ -1,8 +1,9 @@
 import express from 'express';
-import { getCast, getMovieMetadata, getMovies, getMoviesInTheatres, searchMovies } from "../controllers/movies.controller.js";
+import { getCast, getMovieMetadata, getMovies, getMoviesInTheatres, searchMovies, spellcheckQuery } from "../controllers/movies.controller.js";
 
 const moviesRouter = express.Router();
 
+moviesRouter.get('/spell', spellcheckQuery);
 moviesRouter.get('/', searchMovies);
 moviesRouter.get('/in-theatres', getMoviesInTheatres);
 moviesRouter.post('/', getMovies);

@@ -6,6 +6,15 @@ export interface Settings {
     loadOnScroll: boolean;
     updateOnQuit: boolean;
     clearOnExit: boolean;
+    maxConcurrentDownloads: number;
+    maxDownloadKbps: number;
+    maxUploadKbps: number;
+    maxConnections: number;
+    hardwareAcceleration: boolean;
+    startMinimized: boolean;
+    reopenLastTitle: boolean;
+    closeToTray: boolean;
+    alwaysOnTop: boolean;
 }
 
 interface SettingsState {
@@ -18,6 +27,15 @@ export const DEFAULT_SETTINGS: Settings = {
     loadOnScroll: false,
     updateOnQuit: false,
     clearOnExit: false,
+    maxConcurrentDownloads: 2,
+    maxDownloadKbps: 0,
+    maxUploadKbps: 0,
+    maxConnections: 55,
+    hardwareAcceleration: true,
+    startMinimized: false,
+    reopenLastTitle: false,
+    closeToTray: false,
+    alwaysOnTop: false,
 }
 
 const initialState: SettingsState = {
@@ -34,7 +52,11 @@ export const fetchUserSettings = createAsyncThunk('settings/fetchUserSettings', 
     }
   }
 
-  return settings;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    downloadsFolderPath: settings.downloadsFolderPath || await window.electronAPI.getDefaultDownloadsPath(),
+  };
 });
 
 const settingsSlice = createSlice({

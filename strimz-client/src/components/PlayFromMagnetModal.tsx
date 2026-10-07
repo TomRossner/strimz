@@ -8,7 +8,8 @@ import Button from './Button';
 import PageDescription from './PageDescription';
 import { selectSettings } from '@/store/settings/settings.selectors';
 import { getTorrentData } from '@/services/movies';
-import { setError, setExternalTorrent } from '@/store/movies/movies.slice';
+import { setError, setExternalTorrent, setPendingMagnet } from '@/store/movies/movies.slice';
+import { selectPendingMagnet } from '@/store/movies/movies.selectors';
 import LoadingIcon from './LoadingIcon';
 import { IoWarningOutline, IoCloseCircle } from 'react-icons/io5';
 import { MAGNET_REGEX } from '@/utils/constants';
@@ -23,9 +24,17 @@ const PlayFromMagnetModal = () => {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const pendingMagnet = useAppSelector(selectPendingMagnet);
     const [magnetLink, setMagnetLink] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [errorMessage, setErrorMessage] = useState<string>('');
+
+    useEffect(() => {
+        if (isOpen && pendingMagnet) {
+            setMagnetLink(pendingMagnet);
+            dispatch(setPendingMagnet(''));
+        }
+    }, [isOpen, pendingMagnet, dispatch]);
 
     const handleChange = (ev: ChangeEvent<HTMLInputElement>) => {
         setMagnetLink(ev.target.value);

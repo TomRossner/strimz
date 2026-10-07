@@ -13,6 +13,8 @@ import { Link } from 'react-router-dom';
 import { GoHomeFill } from 'react-icons/go';
 import Button from './Button';
 import { BiSolidDownload } from 'react-icons/bi';
+import { MdBugReport, MdHistory } from 'react-icons/md';
+import { HiOutlineQueueList } from 'react-icons/hi2';
 
 
 const Menu = () => {
@@ -41,13 +43,21 @@ const Menu = () => {
             icon: <BiSolidDownload />
         },
         {
+            text: "History",
+            icon: <MdHistory />
+        },
+        {
+            text: "Lists",
+            icon: <HiOutlineQueueList />
+        },
+        {
             text: "Settings",
             icon: <IoSettingsSharp />
         },
-        // {
-        //     text: "Report a bug",
-        //     icon: <MdBugReport />
-        // },
+        {
+            text: "Report a bug",
+            icon: <MdBugReport />
+        },
     ]
     
     const isMenuOpen = useAppSelector(selectMenu);

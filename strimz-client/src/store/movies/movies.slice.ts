@@ -1,7 +1,8 @@
 import { getMoviesByIds } from '@/services/movies';
 import { getFavoriteMovies, getWatchListMovies } from '@/services/localStorage';
 import { Movie } from '../../components/MovieCard';
-import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_LANGUAGES, DEFAULT_SUBTITLES_SIZE } from '../../utils/constants';
+import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_SUBTITLES_SIZE } from '../../utils/constants';
+import { movieMatchesLanguages, parseLanguageCodes } from '../../utils/filterByLanguage';
 import { fetchMovies } from '../../utils/fetchMovies';
 import { Filters, Torrent } from '../../utils/types';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
@@ -30,6 +31,7 @@ interface MoviesState {
   selectedSubtitleFileId: string | null;
   isSubtitlesEnabled: boolean;
   externalTorrent: {hash: string, title: string, imdbCode?: string} | null;
+  pendingMagnet: string;
   subtitlesSize: number;
   subtitleDelay: number;
   selectedTorrent: Torrent | null;
@@ -59,6 +61,7 @@ const initialState: MoviesState = {
   selectedSubtitleFileId: null,
   isSubtitlesEnabled: false,
   externalTorrent: null,
+  pendingMagnet: '',
   subtitlesSize: DEFAULT_SUBTITLES_SIZE,
   subtitleDelay: 0,
   selectedTorrent: null,
@@ -126,9 +129,10 @@ export const fetchMoviesAsync = createAsyncThunk(
 
       const rawMovies = (movies ?? []) as Record<string, unknown>[];
       const isSearch = !!String(filters.query_term ?? "").trim();
+      const selectedLanguages = parseLanguageCodes(filters.languages);
       const filteredByLang = rawMovies.filter((movie) => {
         if (isSearch && movie.in_theatres) return true;
-        return DEFAULT_LANGUAGES.includes(String(movie.language ?? ""));
+        return movieMatchesLanguages(movie.language, selectedLanguages);
       });
       const filteredMovies: Movie[] = filteredByLang.map((movie) => ({
         id: movie.id,
@@ -318,6 +322,9 @@ const moviesSlice = createSlice({
     setExternalTorrent(state, action: PayloadAction<{hash: string, title: string, imdbCode?: string} | null>) {
       state.externalTorrent = action.payload;
     },
+    setPendingMagnet(state, action: PayloadAction<string>) {
+      state.pendingMagnet = action.payload;
+    },
     setSubtitlesSize(state, action: PayloadAction<number>) {
       state.subtitlesSize = action.payload;
     },
@@ -430,6 +437,7 @@ export const {
   setSelectedSubtitleFileId,
   setIsSubtitlesEnabled,
   setExternalTorrent,
+  setPendingMagnet,
   setSubtitlesSize,
   setSubtitleDelay,
   setSelectedTorrent,

@@ -17,6 +17,7 @@ export const selectSubtitleFilePath = (state: RootState) => state.movies.subtitl
 export const selectSubtitleLang = (state: RootState) => state.movies.subtitleLang;
 export const selectIsSubtitlesEnabled = (state: RootState) => state.movies.isSubtitlesEnabled;
 export const selectExternalTorrent = (state: RootState) => state.movies.externalTorrent;
+export const selectPendingMagnet = (state: RootState) => state.movies.pendingMagnet;
 export const selectSubtitlesSize = (state: RootState) => state.movies.subtitlesSize;
 export const selectSubtitleDelay = (state: RootState) => state.movies.subtitleDelay;
 export const selectSelectedTorrent = (state: RootState) => state.movies.selectedTorrent;

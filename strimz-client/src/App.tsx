@@ -3,20 +3,21 @@ import SplashScreen from './components/SplashScreen';
 import { ping } from './utils/ping';
 import Home from './components/Home';
 import { useAppDispatch, useAppSelector } from './store/hooks';
-import { fetchFavoritesAsync, fetchWatchListAsync, setError, setFilters } from './store/movies/movies.slice';
-import { isAxiosError } from 'axios';
+import { fetchFavoritesAsync, fetchWatchListAsync, setError, setFilters, setPendingMagnet } from './store/movies/movies.slice';
+import axios, { isAxiosError } from 'axios';
 import { selectError, selectFilters, selectMoviesMap } from './store/movies/movies.selectors';
 import ErrorDialog from './components/ErrorDialog';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { API_URL, DEFAULT_PARAMS } from './utils/constants';
 import { getFavorites, getWatchList } from './services/localStorage';
-import { DEFAULT_PARAMS } from './utils/constants';
 import Overlay from './components/Overlay';
 import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayFromMagnetModal, selectPlayTorrentPrompt, selectVpnModal } from './store/modals/modals.selectors';
 import Nav from './components/Nav';
 import Menu from './components/Menu';
 import VpnReminderDialog from './components/VpnReminderDialog';
 import { selectIsVpnActive } from './store/vpn/vpn.selectors';
-import { fetchUserSettings } from './store/settings/settings.slice';
+import { fetchUserSettings, Settings } from './store/settings/settings.slice';
+import { openModal } from './store/modals/modals.slice';
 import DownloadsPage from './pages/Downloads';
 import { fetchAllDownloadsAsync, fetchDownloadedFilesAsync, setCompleted } from './store/downloads/downloads.slice';
 import { createNewStreamClient } from './utils/createStreamClient';
@@ -25,14 +26,16 @@ import { validateDownloadsCache, updateDownloadCompletion } from './utils/downlo
 import { selectDownloads, selectDownloadedFiles, selectCompleted } from './store/downloads/downloads.selectors';
 import { selectSocket } from './store/socket/socket.selectors';
 import { DownloadProgressData } from './utils/types';
+import PersistedWatch from './components/PersistedWatch';
 
 // Lazy load pages
-const WatchMoviePage = lazy(() => import('./pages/Watch'));
-const WatchFilePage = lazy(() => import('./pages/WatchFile'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const FavoritesPage = lazy(() => import('./pages/Favorites'));
 // const ReportsPage = lazy(() => import('./pages/Reports'));
 const WatchListPage = lazy(() => import('./pages/WatchList'));
+const HistoryPage = lazy(() => import('./pages/History'));
+const ListsPage = lazy(() => import('./pages/Lists'));
+const ReportsPage = lazy(() => import('./pages/Reports'));
 
 // Lazy load heavy dialog components
 const MovieDialog = lazy(() => import('./components/dialog/MovieDialog'));
@@ -50,6 +53,8 @@ const MoviesPage = () => {
   const filters = useAppSelector(selectFilters);
 
   const {pathname} = useLocation();
+  const navigate = useNavigate();
+  const reopenedSession = useRef(false);
 
   const isFiltersDialogOpen = useAppSelector(selectFiltersModal);
   const isMovieDialogOpen = useAppSelector(selectMovieModal);
@@ -120,6 +125,8 @@ const MoviesPage = () => {
         
         // Fetch updated downloads list to sync with backend
         dispatch(fetchAllDownloadsAsync());
+        const label = data.fileName || 'Download complete';
+        window.electronAPI.notify('Download complete', label);
       }
     };
 
@@ -160,6 +167,60 @@ const MoviesPage = () => {
     }
   }, [settings.downloadsFolderPath, dispatch]);
 
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    const applyTheme = () => {
+      const theme = settings.theme || 'dark';
+      const resolved = theme === 'system'
+        ? (media.matches ? 'light' : 'dark')
+        : theme;
+      document.documentElement.dataset.theme = resolved;
+    };
+
+    applyTheme();
+    media.addEventListener('change', applyTheme);
+    return () => media.removeEventListener('change', applyTheme);
+  }, [settings.theme]);
+
+  useEffect(() => {
+    window.electronAPI.setAlwaysOnTop(false);
+  }, []);
+
+  useEffect(() => {
+    axios.post(`${API_URL}/client/limits`, {
+      maxConcurrentDownloads: settings.maxConcurrentDownloads,
+      maxDownloadKbps: settings.maxDownloadKbps,
+      maxUploadKbps: settings.maxUploadKbps,
+      maxConnections: settings.maxConnections,
+    }).catch((error) => console.error(error));
+  }, [
+    settings.maxConcurrentDownloads,
+    settings.maxDownloadKbps,
+    settings.maxUploadKbps,
+    settings.maxConnections,
+  ]);
+
+  useEffect(() => {
+    const handleClipboardMagnet = (magnet: string) => {
+      dispatch(setPendingMagnet(magnet));
+      dispatch(openModal('playFromMagnet'));
+    };
+
+    window.electronAPI.onClipboardMagnet(handleClipboardMagnet);
+    return () => window.electronAPI.offClipboardMagnet();
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!settings.reopenLastTitle || reopenedSession.current || isLoading) return;
+
+    window.electronAPI.getSettings().then((stored) => {
+      const lastSession = (stored as Settings & { lastSession?: { pathname?: string; search?: string } }).lastSession;
+      if (!lastSession?.pathname || lastSession.pathname === '/' || lastSession.pathname === pathname) return;
+      reopenedSession.current = true;
+      navigate(`${lastSession.pathname}${lastSession.search || ''}`);
+    }).catch((error) => console.error(error));
+  }, [settings.reopenLastTitle, isLoading, navigate, pathname]);
+
   // Validate and update downloads cache after backend data is fetched
   useEffect(() => {
     if (downloads.length > 0 || downloadedFiles.length > 0) {
@@ -197,14 +258,15 @@ const MoviesPage = () => {
       <Nav withSearchBar={pathname === '/'} />
 
       <Suspense fallback={<SplashScreen />}>
+        <PersistedWatch />
         <Routes>
           <Route path='/' element={<Home />} />
-          <Route path='/stream/:slug' element={<WatchMoviePage />} />
-          <Route path='/watch-file' element={<WatchFilePage />} />
           <Route path='/settings' element={<SettingsPage />} />
           <Route path='/favorites' element={<FavoritesPage />} />
-          {/* <Route path='/reports' element={<ReportsPage />} /> */}
+          <Route path='/reports' element={<ReportsPage />} />
           <Route path='/watch-list' element={<WatchListPage />} />
+          <Route path='/history' element={<HistoryPage />} />
+          <Route path='/lists' element={<ListsPage />} />
           <Route path='/downloads' element={<DownloadsPage />} />
         </Routes>
       </Suspense>

@@ -8,6 +8,15 @@ const store = new ElectronStore({
         clearOnExit: false,
         loadOnScroll: false,
         theme: 'dark',
+        maxConcurrentDownloads: 2,
+        maxDownloadKbps: 0,
+        maxUploadKbps: 0,
+        maxConnections: 55,
+        hardwareAcceleration: true,
+        startMinimized: false,
+        reopenLastTitle: false,
+        closeToTray: false,
+        alwaysOnTop: false,
     },
 });
 

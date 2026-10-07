@@ -27,6 +27,7 @@ import downloadsRouter from './routes/downloads.routes.js';
 import clientRouter from './routes/client.routes.js';
 import torrentsRouter from './routes/torrents.routes.js';
 import suggestionsRouter from './routes/suggestions.routes.js';
+import reportRouter from './routes/report.routes.js';
 
 const app = express();
 const PORT: number = parseInt(process.env.PORT as string) || 3003;
@@ -38,7 +39,7 @@ const ioServer = new Server(httpServer, {
     }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 app.use(cors({
     origin: '*',
 }));
@@ -60,6 +61,7 @@ app.use('/api/downloads', downloadsRouter);
 app.use('/api/client', clientRouter);
 app.use('/api/torrents', torrentsRouter);
 app.use('/api/suggestions', suggestionsRouter);
+app.use('/api/reports', reportRouter);
 
 const validateEnvVars = (): void => {
     console.log(`Loading environment from: ${envPath}`);

@@ -1,9 +1,9 @@
 export const formatBytes = (bytes: number): string => {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  
-  if (bytes === 0) return '0 Bytes';
-  
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 Bytes';
+
+  const i = Math.min(sizes.length - 1, Math.max(0, Math.floor(Math.log(bytes) / Math.log(1024))));
   return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`;
 }
 
@@ -18,11 +18,11 @@ export const parseSize = (sizeStr: string): number => {
 }
 
 export const formatBytesPerSecond = (bytesPerSecond: number) => {
-  if (bytesPerSecond === 0) return '0 B/s';
+  if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return '0 B/s';
 
   const k = 1024;
   const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
-  const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
+  const i = Math.min(sizes.length - 1, Math.max(0, Math.floor(Math.log(bytesPerSecond) / Math.log(k))));
 
   const formatted = parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2));
   return `${formatted} ${sizes[i]}`;

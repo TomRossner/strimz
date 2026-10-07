@@ -13,7 +13,9 @@ declare global {
             updateAutoInstallSetting: (bool: boolean) => void;
             updateClearOnExitSetting: (bool: boolean) => void;
             saveSetting: (key: string, value: unknown) => void;
-            
+            setAlwaysOnTop: (value: boolean) => void;
+            notify: (title: string, body: string) => void;
+
             openDirectoryDialog: () => Promise<string | null>;
             openSubtitleFileDialog: () => Promise<string | null>;
             getDefaultDownloadsPath: () => Promise<string>;
@@ -34,6 +36,8 @@ declare global {
             onUpdateCheckSkipped: (cb) => void;
             onUpdateCheckFailed: (cb) => void;
             onExternalTorrent: (cb) => void;
+            onClipboardMagnet: (cb: (magnet: string) => void) => void;
+            onMediaPlayPause: (cb: () => void) => void;
 
             offCheckingForUpdate: (cb) => void,
             offUpdateAvailable: (cb) => void,
@@ -43,6 +47,8 @@ declare global {
             offUpdateCheckFailed: (cb) => void,
             offDownloadProgress: (cb) => void,
             offExternalTorrent: (cb) => void,
+            offClipboardMagnet: () => void,
+            offMediaPlayPause: () => void,
 
             ipcRenderer: {
                 send: (channel, data?) => void,

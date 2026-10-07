@@ -28,9 +28,10 @@ interface QualitySelectorProps {
     torrents: object[];
     handleSelect: (quality: string) => void;
     selected: string;
+    idPrefix?: string;
 }
 
-const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProps) => {
+const QualitySelector = ({torrents, handleSelect, selected, idPrefix = ''}: QualitySelectorProps) => {
   return (
     <div className='flex flex-col gap-2 w-full'>
         <p className='text-white flex items-center gap-1'>
@@ -56,14 +57,14 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
                             <input
                                 hidden
                                 type="radio"
-                                name="qualities"
-                                id={q}
+                                name={`${idPrefix}qualities`}
+                                id={`${idPrefix}${q}`}
                                 onChange={(ev) => isAvailable ? handleSelect(ev.target.value) : undefined}
                                 value={q}
                             />
 
                             <label
-                                htmlFor={q}
+                                htmlFor={`${idPrefix}${q}`}
                                 className={twMerge(`
                                     cursor-pointer
                                     w-full
@@ -82,7 +83,7 @@ const QualitySelector = ({torrents, handleSelect, selected}: QualitySelectorProp
                                     opacity: isAvailable ? '1' : '0.5',
                                 }}
                             >
-                                <p className='truncate text-sm font-light'>{q.toLowerCase() === '2160p' ? Qualities['4K'] : q}</p>
+                                <p className={twMerge('truncate text-sm', q === selected ? 'font-bold' : 'font-light')}>{q.toLowerCase() === '2160p' ? Qualities['4K'] : q}</p>
                             </label>
                         </div>
                     )

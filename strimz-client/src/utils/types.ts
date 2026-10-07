@@ -26,6 +26,9 @@ export type Filters = {
   quality: string;
   limit: TLimit;
   page?: TPage;
+  year_from?: string;
+  year_to?: string;
+  languages?: string;
 }
 
 export type DownloadProgressData = {
@@ -40,6 +43,9 @@ export type DownloadProgressData = {
   fileName: string;
   paused: boolean;
   url: string;
+  uploadSpeed?: number;
+  uploaded?: number;
+  queued?: boolean;
 }
 
 export type Cue = {

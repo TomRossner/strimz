@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, globalShortcut } from 'electron';
 import { createMainWindow } from './modules/mainWindow.js';
 import { startBackend, waitForBackendReady } from './modules/backend.js';
 import { attachIPCHandlers } from './modules/ipcHandlers.js';
@@ -7,6 +7,7 @@ import { clearDownloadFolderAsync, ensureDefaultDownloadPath } from './modules/u
 import { startStaticServer, stopStaticServer } from './modules/staticServer.js';
 import log from 'electron-log';
 import store from './store.js';
+import { attachCloseToTray, createTray } from './modules/tray.js';
 import electronUpdater from "electron-updater";
 
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
@@ -16,13 +17,32 @@ app.commandLine.appendSwitch('ignore-gpu-blacklist');
 // overlay plane presents separately and tears when caption text updates.
 app.commandLine.appendSwitch('disable-direct-composition-video-overlays');
 
+if (store.get('hardwareAcceleration') === false) {
+  app.disableHardwareAcceleration();
+}
+
 const { autoUpdater } = electronUpdater;
 const isDev = !app.isPackaged;
 
 let mainWindow;
 let backendProcess;
+let isQuitting = false;
 
 let updateState = { downloaded: false };
+
+const registerMediaShortcuts = (win) => {
+  const send = () => {
+    if (!win.isDestroyed()) win.webContents.send('media-play-pause');
+  };
+
+  for (const accelerator of ['MediaPlayPause', 'CommandOrControl+Alt+Space']) {
+    try {
+      globalShortcut.register(accelerator, send);
+    } catch (error) {
+      log.warn(`Could not register ${accelerator}`, error);
+    }
+  }
+};
 
 app.whenReady().then(async () => {
   ensureDefaultDownloadPath();
@@ -45,7 +65,15 @@ app.whenReady().then(async () => {
         }
       }
       
-      mainWindow = createMainWindow(isDev);
+      const startMinimized = store.get('startMinimized') === true;
+      mainWindow = createMainWindow(isDev, { startHidden: startMinimized });
+      createTray(() => mainWindow);
+      attachCloseToTray(
+        mainWindow,
+        () => store.get('closeToTray') === true,
+        () => isQuitting,
+      );
+      registerMediaShortcuts(mainWindow);
 
       const torrentArg = process.argv.find(arg => arg.endsWith(".torrent") || arg.startsWith("magnet:"));
 
@@ -57,6 +85,17 @@ app.whenReady().then(async () => {
             win.webContents.send('external-torrent', torrentArg);
             clearTimeout(timeout);
           }, 2000);
+        });
+      } else {
+        mainWindow.webContents.once('dom-ready', () => {
+          const text = clipboard.readText().trim();
+          if (text.startsWith('magnet:?')) {
+            setTimeout(() => {
+              if (!mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('clipboard-magnet', text);
+              }
+            }, 2000);
+          }
         });
       }
 
@@ -90,6 +129,8 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', async () => {
+  isQuitting = true;
+  globalShortcut.unregisterAll();
   if (backendProcess) {
     log.info("Killing backend process...");
     backendProcess.kill();
