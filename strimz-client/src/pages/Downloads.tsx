@@ -6,7 +6,7 @@ import LoadingIcon from '@/components/LoadingIcon';
 import Page from '@/components/Page';
 import PageDescription from '@/components/PageDescription';
 import PageTitle from '@/components/PageTitle';
-import { deleteDownload, pauseDownload, playTorrent, resumeDownload, stopSeeding } from '@/services/movies';
+import { deleteDownload, pauseDownload, playTorrent, restoreTorrent, resumeDownload, stopSeeding } from '@/services/movies';
 import { updateDownloadCompletion, removeDownloadInfo, updateDownloadProgress, validateDownloadsCache } from '@/utils/downloadsCache';
 import { selectCompleted, selectDownloads, selectDownloadedFiles } from '@/store/downloads/downloads.selectors';
 import { setCompleted, fetchDownloadedFilesAsync, removeDownload, removeDownloadedFile, fetchAllDownloadsAsync } from '@/store/downloads/downloads.slice';
@@ -128,7 +128,6 @@ const DownloadsPage = () => {
         const restoreInProgressDownloads = async () => {
             try {
                 const cache = getDownloadsCache();
-                const { restoreTorrent } = await import('@/services/movies');
 
                 // Find all in-progress downloads (not completed)
                 // IMPORTANT: Only restore downloads that are NOT completed

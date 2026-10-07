@@ -7,7 +7,7 @@ import { setSubtitleFilePath, setSubtitleLang, setVttSubtitlesContent } from '@/
 import { twMerge } from 'tailwind-merge';
 import { RxCross2 } from 'react-icons/rx';
 import { detectLanguageFromSubtitle, extractTextFromSubtitle, getFlagEmoji, getSubtitleMetadata, resolveCountryCode } from '@/utils/detectLanguage';
-import Flag from "react-world-flags";
+import Flag from "../Flag";
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { BsInfoCircle } from 'react-icons/bs';
 import SubtitleDropdown from './SubtitlesDropdown';

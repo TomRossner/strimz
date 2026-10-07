@@ -1,6 +1,6 @@
 import { normalizeLanguageCode, resolveCountryCode, getSubtitleMetadata } from '@/utils/detectLanguage';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import Flag from 'react-world-flags';
+import Flag from '../Flag';
 import Button from '../Button';
 import { BsChevronUp, BsCheck } from 'react-icons/bs';
 import { twMerge } from 'tailwind-merge';

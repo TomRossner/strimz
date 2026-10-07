@@ -16,7 +16,7 @@ import { OrderBy, SortBy, TOrderBy, TSortBy } from '@/services/movies';
 import { selectFilters, selectQuery } from '@/store/movies/movies.selectors';
 import PageDescription from './PageDescription';
 import { parseLanguageCodes } from '@/utils/filterByLanguage';
-import Flag from 'react-world-flags';
+import Flag from './Flag';
 import { langToCountry } from '@/utils/detectLanguage';
 
 type DropdownType = keyof Omit<Filters, "page" | "limit" | "query_term" | "sort_by" | "year_from" | "year_to" | "languages">;
