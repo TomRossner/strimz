@@ -168,21 +168,6 @@ const MoviesPage = () => {
   }, [settings.downloadsFolderPath, dispatch]);
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: light)');
-    const applyTheme = () => {
-      const theme = settings.theme || 'dark';
-      const resolved = theme === 'system'
-        ? (media.matches ? 'light' : 'dark')
-        : theme;
-      document.documentElement.dataset.theme = resolved;
-    };
-
-    applyTheme();
-    media.addEventListener('change', applyTheme);
-    return () => media.removeEventListener('change', applyTheme);
-  }, [settings.theme]);
-
-  useEffect(() => {
     window.electronAPI.setAlwaysOnTop(false);
   }, []);
 

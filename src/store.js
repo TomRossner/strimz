@@ -7,7 +7,6 @@ const store = new ElectronStore({
         autoInstallOnQuit: false,
         clearOnExit: false,
         loadOnScroll: false,
-        theme: 'dark',
         maxConcurrentDownloads: 2,
         maxDownloadKbps: 0,
         maxUploadKbps: 0,

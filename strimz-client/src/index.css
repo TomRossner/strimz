@@ -221,30 +221,3 @@ button:focus-visible {
   }
 }
 
-html[data-theme="light"] body {
-  background-color: #f5f5f4;
-  color: #1c1917;
-}
-
-html[data-theme="light"] .bg-stone-950 { background-color: #fafaf9; }
-html[data-theme="light"] .bg-stone-900 { background-color: #f5f5f4; }
-html[data-theme="light"] .bg-stone-800 { background-color: #e7e5e4; }
-html[data-theme="light"] .bg-stone-700 { background-color: #d6d3d1; }
-html[data-theme="light"] .text-white { color: #1c1917; }
-html[data-theme="light"] .text-stone-100,
-html[data-theme="light"] .text-stone-200,
-html[data-theme="light"] .text-stone-300 { color: #44403c; }
-html[data-theme="light"] .text-stone-400 { color: #57534e; }
-html[data-theme="light"] .border-stone-700,
-html[data-theme="light"] .border-stone-800 { border-color: #d6d3d1; }
-
-html[data-theme="light"] #watchMovie,
-html[data-theme="light"] #watchMovie .text-white {
-  color: #fff;
-}
-html[data-theme="light"] #watchMovie .bg-stone-950 { background-color: #0c0a09; }
-html[data-theme="light"] #watchMovie .bg-stone-900 { background-color: #1c1917; }
-html[data-theme="light"] #watchMovie .bg-stone-800 { background-color: #292524; }
-html[data-theme="light"] #watchMovie .bg-stone-700 { background-color: #44403c; }
-html[data-theme="light"] #watchMovie .text-stone-300,
-html[data-theme="light"] #watchMovie .text-stone-400 { color: #d6d3d1; }

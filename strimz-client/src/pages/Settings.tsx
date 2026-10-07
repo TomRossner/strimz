@@ -287,25 +287,6 @@ const SettingsPage = () => {
 
                     <div className='flex w-full gap-2 flex-col'>
                         <label className='flex gap-2 items-center justify-between'>
-                            <span>Theme</span>
-                            <select
-                                value={formValues.theme}
-                                onChange={(ev) => setFormValues((values) => ({
-                                    ...values,
-                                    theme: ev.target.value as Settings['theme'],
-                                }))}
-                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
-                            >
-                                <option value='dark'>Dark</option>
-                                <option value='light'>Light</option>
-                                <option value='system'>Match system</option>
-                            </select>
-                        </label>
-                        <OptionDescription>Switch between a dark library, a light library, or your system theme. The player stays dark.</OptionDescription>
-                    </div>
-
-                    <div className='flex w-full gap-2 flex-col'>
-                        <label className='flex gap-2 items-center justify-between'>
                             <span>Active downloads</span>
                             <input
                                 type='number'

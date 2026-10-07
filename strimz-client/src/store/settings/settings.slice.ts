@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface Settings {
     downloadsFolderPath: string;
-    theme: "light" | "dark" | "system";
     loadOnScroll: boolean;
     updateOnQuit: boolean;
     clearOnExit: boolean;
@@ -23,7 +22,6 @@ interface SettingsState {
 
 export const DEFAULT_SETTINGS: Settings = {
     downloadsFolderPath: "",
-    theme: "dark",
     loadOnScroll: false,
     updateOnQuit: false,
     clearOnExit: false,
@@ -43,7 +41,7 @@ const initialState: SettingsState = {
 }
 
 export const fetchUserSettings = createAsyncThunk('settings/fetchUserSettings', async (): Promise<Settings> => {
-  const settings = await window.electronAPI.getSettings();
+  const settings = await window.electronAPI.getSettings() as (Partial<Settings> & { theme?: unknown }) | null;
 
   if (!settings) {
     return {
@@ -52,9 +50,12 @@ export const fetchUserSettings = createAsyncThunk('settings/fetchUserSettings', 
     }
   }
 
+  const stored = { ...settings };
+  delete stored.theme;
+
   return {
     ...DEFAULT_SETTINGS,
-    ...settings,
+    ...stored,
     downloadsFolderPath: settings.downloadsFolderPath || await window.electronAPI.getDefaultDownloadsPath(),
   };
 });
