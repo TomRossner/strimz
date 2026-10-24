@@ -27,6 +27,7 @@ import { selectDownloads, selectDownloadedFiles, selectCompleted } from './store
 import { selectSocket } from './store/socket/socket.selectors';
 import { DownloadProgressData } from './utils/types';
 import PersistedWatch from './components/PersistedWatch';
+import PageScroll from './components/PageScroll';
 
 // Lazy load pages
 const SettingsPage = lazy(() => import('./pages/Settings'));
@@ -241,6 +242,7 @@ const MoviesPage = () => {
 
       <Menu />
       <Nav withSearchBar={pathname === '/'} />
+      <PageScroll />
 
       <Suspense fallback={<SplashScreen />}>
         <PersistedWatch />

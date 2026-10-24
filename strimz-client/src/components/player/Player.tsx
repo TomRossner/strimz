@@ -30,7 +30,7 @@ import { openModal } from '@/store/modals/modals.slice';
 import { updatePlaybackPosition, getPlaybackPosition } from '@/utils/downloadsCache';
 import { getPlayerPrefs, savePlayerPrefs, subscribePlayerPrefs } from '@/services/playerPrefs';
 import { setPipActive } from '@/services/pip';
-import { markWatched, recordWatchProgress } from '@/services/library';
+import { isMostlyWatched, markWatched, recordWatchProgress } from '@/services/library';
 import { parseVTTToCues } from '@/utils/subtitles';
 import PlayNextOverlay from './PlayNextOverlay';
 import { getMovieSuggestions } from '@/services/suggestions';
@@ -195,6 +195,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             if (hash && progressKey) {
                 updatePlaybackPosition(hash, currentTime);
                 const video = videoRef.current;
+                const duration = video && Number.isFinite(video.duration) ? video.duration : 0;
                 const playingMovie = !isEpisode && movie && (
                     (slug && movie.slug === slug) || (title && movie.title === title)
                 ) ? movie : null;
@@ -208,7 +209,8 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                     slug,
                     hash,
                     position: currentTime,
-                    duration: video && Number.isFinite(video.duration) ? video.duration : 0,
+                    duration,
+                    watched: isMostlyWatched({ position: currentTime, duration }),
                     kind: isEpisode ? 'episode' : 'movie',
                     movie: playingMovie,
                 });

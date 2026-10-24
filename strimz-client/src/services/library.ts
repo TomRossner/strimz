@@ -73,6 +73,13 @@ export const subscribeLibrary = (listener: () => void) => {
 
 export const getLibrarySnapshot = () => snapshot;
 
+export const isMostlyWatched = (item: { position: number; duration: number; watched?: boolean }) => {
+    if (item.watched) return true;
+    if (!Number.isFinite(item.duration) || item.duration < 60 || item.position <= 0) return false;
+    const remaining = item.duration - item.position;
+    return item.position / item.duration >= 0.9 || remaining <= 180;
+};
+
 export const recordWatchProgress = (item: Omit<WatchHistoryItem, 'updatedAt' | 'watched'> & { watched?: boolean }) => {
     const next: WatchHistoryItem = {
         ...item,

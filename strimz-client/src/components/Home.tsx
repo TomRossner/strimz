@@ -18,7 +18,7 @@ import Container from './Container';
 import PageTitle from './PageTitle';
 import PageDescription from './PageDescription';
 import InTheatresCarousel from './InTheatresCarousel';
-import HomeRails, { ContinueWatching } from './HomeRails';
+import HomeRails, { BecauseYouWatched, ContinueWatching, LastWatched } from './HomeRails';
 
 const Home = () => {
     const dispatch = useAppDispatch();
@@ -132,6 +132,8 @@ const Home = () => {
         <PageDescription>All your movies, one place. Browse your library and continue watching instantly.</PageDescription>
 
         <ContinueWatching />
+        <LastWatched />
+        <BecauseYouWatched />
         <InTheatresCarousel />
         <HomeRails />
         

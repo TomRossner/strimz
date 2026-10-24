@@ -23,7 +23,7 @@ import { API_URL } from '@/utils/constants';
 import throttle from 'lodash.throttle';
 import React, { useCallback, useEffect, useRef, useState, useMemo, ChangeEvent, FormEvent } from 'react';
 import { BsPause, BsPlay, BsTrash } from 'react-icons/bs';
-import { BiSearch } from 'react-icons/bi';
+import { BiChevronDown, BiFolder, BiSearch } from 'react-icons/bi';
 import { MdFileDownloadDone } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
 import { twMerge } from 'tailwind-merge';
@@ -32,6 +32,27 @@ import { twMerge } from 'tailwind-merge';
 let hasCompletedInitialRestore = false;
 const posterLookupAttempted = new Set<string>();
 const posterLookupInFlight = new Set<string>();
+
+const pathParts = (filePath: string) => filePath.split(/[/\\]/).filter(Boolean);
+
+const containingFolder = (filePath: string) => {
+    const parts = pathParts(filePath);
+    if (parts.length <= 1) return parts[0] || filePath;
+    const separator = filePath.includes('\\') ? '\\' : '/';
+    return parts.slice(0, -1).join(separator);
+};
+
+const folderLabel = (folder: string) => {
+    const parts = pathParts(folder);
+    return parts[parts.length - 1] || folder;
+};
+
+const collectionKey = (name: string) => {
+    const parts = pathParts(name);
+    if (parts.length < 2) return null;
+    const separator = name.includes('\\') ? '\\' : '/';
+    return parts.slice(0, -1).join(separator);
+};
 
 const posterForDownload = (name: string, hash: string | undefined, cachedPoster: string | undefined, savedPosters: Record<string, string>) => {
     return cachedPoster
@@ -53,6 +74,38 @@ type CombinedDownload = {
     poster?: string; // Movie poster image URL
 }
 
+type DownloadGroup = {
+    kind: 'item';
+    item: CombinedDownload;
+} | {
+    kind: 'folder';
+    name: string;
+    items: CombinedDownload[];
+};
+
+const groupDownloads = (items: CombinedDownload[]): DownloadGroup[] => {
+    const folders = new Map<string, CombinedDownload[]>();
+    const groups: DownloadGroup[] = [];
+
+    items.forEach((item) => {
+        const folder = collectionKey(item.name);
+        if (!folder) {
+            groups.push({ kind: 'item', item });
+            return;
+        }
+        const existing = folders.get(folder);
+        if (existing) {
+            existing.push(item);
+            return;
+        }
+        const grouped = [item];
+        folders.set(folder, grouped);
+        groups.push({ kind: 'folder', name: folder, items: grouped });
+    });
+
+    return groups;
+};
+
 const DownloadsPage = () => {
     const downloads = useAppSelector(selectDownloads);
     const completed = useAppSelector(selectCompleted);
@@ -61,6 +114,7 @@ const DownloadsPage = () => {
     const [downloadsStatus, setDownloadsStatus] = useState<DownloadProgressData[]>([]);
     const [cacheValidationVersion, setCacheValidationVersion] = useState(0); // Track cache updates to trigger re-renders
     const [searchQuery, setSearchQuery] = useState<string>(''); // Search query for filtering downloads
+    const [openCollections, setOpenCollections] = useState<Record<string, boolean>>({});
     const [isBackToTopBtnVisible, setIsBackToTopBtnVisible] = useState(false);
     const completedFetchedRef = useRef<Set<string>>(new Set()); // Track which completed downloads we've already fetched for
     const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Track pending fetch timeout
@@ -287,7 +341,7 @@ const DownloadsPage = () => {
         const filesByFolder = new Map<string, Array<{ name: string; path: string; size: number; extension: string }>>();
         
         downloadedFiles.forEach(file => {
-            const folderName = file.path.split(/[/\\]/)[0] || file.path || '';
+            const folderName = containingFolder(file.path);
             if (!filesByFolder.has(folderName)) {
                 filesByFolder.set(folderName, []);
             }
@@ -320,8 +374,9 @@ const DownloadsPage = () => {
             // Try to find the file path from downloadedFiles
             if (filesByFolder.size > 0) {
                 const matchingFiles = Array.from(filesByFolder.values()).flat().filter(file => {
-                    const folderName = file.path.split(/[/\\]/)[0];
-                    return folderName === download.name;
+                    const folderName = containingFolder(file.path);
+                    const topFolder = pathParts(file.path)[0];
+                    return folderName === download.name || topFolder === download.name;
                 });
                 
                 if (matchingFiles.length > 0) {
@@ -390,7 +445,8 @@ const DownloadsPage = () => {
 
             if (filesByFolder.size > 0) {
                 for (const [folderName, files] of filesByFolder.entries()) {
-                    if (folderName === cachedInfo.title || folderName.includes(cachedInfo.title) || cachedInfo.title.includes(folderName)) {
+                    const label = folderLabel(folderName);
+                    if (folderName === cachedInfo.title || label === cachedInfo.title) {
                         matchingFolder = folderName;
                         matchingFiles = files;
                         break;
@@ -445,6 +501,7 @@ const DownloadsPage = () => {
 
         // STEP 3: Add file-only downloads (files not in cache or backend)
         filesByFolder.forEach((files, folderName) => {
+            const label = folderLabel(folderName);
             // Skip if this folder name is already used by a download in STEP 1 or STEP 2
             if (usedFolderNames.has(folderName.toLowerCase())) {
                 return;
@@ -458,7 +515,7 @@ const DownloadsPage = () => {
             // Check if this folder matches any cache entry by title (without hash match)
             let hasHashMatch = false;
             for (const info of Object.values(cache) as CachedDownloadInfo[]) {
-                if (folderName === info.title || folderName.includes(info.title) || info.title.includes(folderName)) {
+                if (folderName === info.title || label === info.title) {
                     // If it has a hash and was already added, skip
                     if (info.hash && addedHashes.has(info.hash.toLowerCase())) {
                         hasHashMatch = true;
@@ -478,7 +535,7 @@ const DownloadsPage = () => {
             // Check if we have cached info for this file
             let cachedInfo: CachedDownloadInfo | null = null;
             for (const info of Object.values(cache) as CachedDownloadInfo[]) {
-                if (folderName === info.title || mainFile.path.includes(info.title)) {
+                if (folderName === info.title || label === info.title) {
                     cachedInfo = info;
                     break;
                 }
@@ -501,14 +558,14 @@ const DownloadsPage = () => {
             const isCompleted = cachedInfo?.isCompleted ?? true;
             
             const downloadItem: CombinedDownload = {
-                title: cachedInfo?.title || folderName,
+                title: cachedInfo?.title || label,
                 name: folderName,
                 isActive: false,
                 isFileOnly: true,
                 filePath: mainFile.path,
                 fileSize: mainFile.size,
                 isPendingVerification: false, // File-only downloads don't need verification
-                poster: posterForDownload(folderName, cachedInfo?.hash, cachedInfo?.poster, savedPosters),
+                poster: posterForDownload(cachedInfo?.title || label, cachedInfo?.hash, cachedInfo?.poster, savedPosters),
             };
             
             if (isCompleted) {
@@ -559,7 +616,7 @@ const DownloadsPage = () => {
 
     useEffect(() => {
         const missing = [...completedDownloads, ...uncompletedDownloads].filter((item) => !item.poster && item.name);
-        const pending = [...new Set(missing.map((item) => item.name))].filter((name) => {
+        const pending = [...new Set(missing.map((item) => item.title || folderLabel(item.name)))].filter((name) => {
             const key = name.toLowerCase();
             return !posterLookupAttempted.has(key) && !posterLookupInFlight.has(key);
         });
@@ -733,21 +790,11 @@ const DownloadsPage = () => {
             // Only proceed with state updates if deletion was successful
             if (response.status === 200) {
                 // Find the file in downloadedFiles
-                const fileToDelete = downloadedFiles.find(f => {
-                    const folderNameFromPath = f.path.split(/[/\\]/)[0] || f.path;
-                    return folderNameFromPath === folderName;
-                });
+                const filesInFolder = downloadedFiles.filter((file) => containingFolder(file.path) === folderName);
                 
-                // Remove from downloadedFiles state
-                if (fileToDelete) {
-                    // Remove all files in this folder
-                    downloadedFiles.forEach(file => {
-                        const folderNameFromPath = file.path.split(/[/\\]/)[0] || file.path;
-                        if (folderNameFromPath === folderName) {
-                            dispatch(removeDownloadedFile(file.path));
-                        }
-                    });
-                }
+                filesInFolder.forEach((file) => {
+                    dispatch(removeDownloadedFile(file.path));
+                });
                 
                 // Check cache for any matching download info
                 const cache = getDownloadsCache();
@@ -927,9 +974,9 @@ const DownloadsPage = () => {
                             <div className='flex flex-col gap-3'>
                                 <h2 className='text-xl font-semibold text-stone-300'>In Progress ({filteredUncompletedDownloads.length})</h2>
                                 <div className='flex flex-col gap-2'>
-                                    {filteredUncompletedDownloads.map((d) => {
+                                    {groupDownloads(filteredUncompletedDownloads).map((group) => {
                                         // Render function for download item
-                                        const renderDownloadItem = (download: typeof d, isCompleted: boolean) => {
+                                        const renderDownloadItem = (download: CombinedDownload, isCompleted: boolean) => {
                                             const key = download.hash || `file-${download.name}`;
                                             const hasHash = !!download.hash;
                                             const fileOnly = download.isFileOnly;
@@ -1026,12 +1073,12 @@ const DownloadsPage = () => {
                                                     
                                                     {/* Download Info */}
                                                     <div className='flex flex-col gap-1 flex-1 min-w-0'>
-                                                    <div className='flex justify-between w-full'>
-                                                        <p className='text-stone-300 font-medium text-lg flex justify-between'>
+                                                    <div className='flex w-full min-w-0 items-start gap-2'>
+                                                        <p className='min-w-0 flex-1 line-clamp-2 break-words text-lg font-medium text-stone-300'>
                                                             {displayTitle}
                                                         </p>
                                                         
-                                                        <div className='flex gap-1 items-start'>
+                                                        <div className='flex shrink-0 gap-1 items-start'>
                                                             {isCompleted
                                                                 ?   <Button className='aspect-square cursor-default text-green-400 hover:text-green-400 hover:bg-stone-700' title='Download complete'><MdFileDownloadDone /></Button>
                                                                 :   <>
@@ -1071,7 +1118,9 @@ const DownloadsPage = () => {
                                                             </Button>
                                                         </div>
                                                     </div>
-                                                    <p className='text-sm font-light italic text-stone-500'>{download.name}</p>
+                                                    {!collectionKey(download.name) && (
+                                                        <p className='truncate text-sm font-light italic text-stone-500'>{download.name}</p>
+                                                    )}
                                                     {fileOnly && download.fileSize && (
                                                         <p className='text-xs font-light italic text-stone-400'>
                                                             File size: {formatBytes(download.fileSize)}
@@ -1173,7 +1222,28 @@ const DownloadsPage = () => {
                                             );
                                         };
 
-                                        return renderDownloadItem(d, false);
+                                        const cards = (group.kind === 'folder' ? group.items : [group.item]).map((item) => renderDownloadItem(item, false));
+                                        if (group.kind === 'item') return cards[0];
+                                        const open = searchQuery.trim() ? true : openCollections[group.name] !== false;
+                                        return (
+                                            <div key={`collection-${group.name}`} className='flex flex-col gap-2'>
+                                                <button
+                                                    type='button'
+                                                    onClick={() => setOpenCollections((current) => ({ ...current, [group.name]: !open }))}
+                                                    className='flex w-full cursor-pointer items-center gap-2 rounded-sm bg-stone-900 px-3 py-2 text-left text-stone-200 hover:bg-stone-700'
+                                                >
+                                                    <BiChevronDown className={`shrink-0 text-2xl transition-transform ${open ? '' : '-rotate-90'}`} />
+                                                    <BiFolder className='shrink-0 text-xl text-stone-400' />
+                                                    <span className='min-w-0 flex-1 truncate font-medium'>{folderLabel(group.name)}</span>
+                                                    <span className='shrink-0 text-xs text-stone-400'>{group.items.length}</span>
+                                                </button>
+                                                {open && (
+                                                    <div className='ml-3 flex flex-col gap-2 border-l border-stone-700 pl-3'>
+                                                        {cards}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
                                     })}
                                 </div>
                             </div>
@@ -1184,9 +1254,9 @@ const DownloadsPage = () => {
                             <div className='flex flex-col gap-3'>
                                 <h2 className='text-xl font-semibold text-stone-300'>Completed ({filteredCompletedDownloads.length})</h2>
                                 <div className='flex flex-col gap-2'>
-                                    {filteredCompletedDownloads.map((d) => {
+                                    {groupDownloads(filteredCompletedDownloads).map((group) => {
                                         // Render function for download item
-                                        const renderDownloadItem = (download: typeof d, isCompleted: boolean) => {
+                                        const renderDownloadItem = (download: CombinedDownload, isCompleted: boolean) => {
                                             const key = download.hash || `file-${download.name}`;
                                             const hasHash = !!download.hash;
                                             const fileOnly = download.isFileOnly;
@@ -1283,12 +1353,12 @@ const DownloadsPage = () => {
                                                     
                                                     {/* Download Info */}
                                                     <div className='flex flex-col gap-1 flex-1 min-w-0'>
-                                                    <div className='flex justify-between w-full'>
-                                                        <p className='text-stone-300 font-medium text-lg flex justify-between'>
+                                                    <div className='flex w-full min-w-0 items-start gap-2'>
+                                                        <p className='min-w-0 flex-1 line-clamp-2 break-words text-lg font-medium text-stone-300'>
                                                             {displayTitle}
                                                         </p>
                                                         
-                                                        <div className='flex gap-1 items-start'>
+                                                        <div className='flex shrink-0 gap-1 items-start'>
                                                             {isCompleted
                                                                 ?   <Button className='aspect-square cursor-default text-green-400 hover:text-green-400 hover:bg-stone-700' title='Download complete'><MdFileDownloadDone /></Button>
                                                                 :   <>
@@ -1328,7 +1398,9 @@ const DownloadsPage = () => {
                                                             </Button>
                                                         </div>
                                                     </div>
-                                                    <p className='text-sm font-light italic text-stone-500'>{download.name}</p>
+                                                    {!collectionKey(download.name) && (
+                                                        <p className='truncate text-sm font-light italic text-stone-500'>{download.name}</p>
+                                                    )}
                                                     {fileOnly && download.fileSize && (
                                                         <p className='text-xs font-light italic text-stone-400'>
                                                             File size: {formatBytes(download.fileSize)}
@@ -1430,7 +1502,28 @@ const DownloadsPage = () => {
                                             );
                                         };
 
-                                        return renderDownloadItem(d, true);
+                                        const cards = (group.kind === 'folder' ? group.items : [group.item]).map((item) => renderDownloadItem(item, true));
+                                        if (group.kind === 'item') return cards[0];
+                                        const open = searchQuery.trim() ? true : openCollections[group.name] !== false;
+                                        return (
+                                            <div key={`collection-${group.name}`} className='flex flex-col gap-2'>
+                                                <button
+                                                    type='button'
+                                                    onClick={() => setOpenCollections((current) => ({ ...current, [group.name]: !open }))}
+                                                    className='flex w-full cursor-pointer items-center gap-2 rounded-sm bg-stone-900 px-3 py-2 text-left text-stone-200 hover:bg-stone-700'
+                                                >
+                                                    <BiChevronDown className={`shrink-0 text-2xl transition-transform ${open ? '' : '-rotate-90'}`} />
+                                                    <BiFolder className='shrink-0 text-xl text-stone-400' />
+                                                    <span className='min-w-0 flex-1 truncate font-medium'>{folderLabel(group.name)}</span>
+                                                    <span className='shrink-0 text-xs text-stone-400'>{group.items.length}</span>
+                                                </button>
+                                                {open && (
+                                                    <div className='ml-3 flex flex-col gap-2 border-l border-stone-700 pl-3'>
+                                                        {cards}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
                                     })}
                                 </div>
                             </div>

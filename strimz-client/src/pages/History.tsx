@@ -4,7 +4,7 @@ import Container from '@/components/Container';
 import Page from '@/components/Page';
 import PageDescription from '@/components/PageDescription';
 import PageTitle from '@/components/PageTitle';
-import { clearHistory, getLibrarySnapshot, removeHistoryItem, subscribeLibrary, WatchHistoryItem } from '@/services/library';
+import { clearHistory, getLibrarySnapshot, isMostlyWatched, removeHistoryItem, subscribeLibrary, WatchHistoryItem } from '@/services/library';
 import { useAppDispatch } from '@/store/hooks';
 import { openModal } from '@/store/modals/modals.slice';
 import { setSelectedMovie } from '@/store/movies/movies.slice';
@@ -65,7 +65,7 @@ const HistoryPage = () => {
                                 <div className='grow min-w-0'>
                                     <p className='text-white truncate'>{item.title}</p>
                                     <p className='text-xs text-stone-400'>
-                                        {item.watched ? 'Watched' : item.duration ? `${formatTime(item.position)} / ${formatTime(item.duration)}` : 'In progress'}
+                                        {isMostlyWatched(item) ? 'Watched' : item.duration ? `${formatTime(item.position)} / ${formatTime(item.duration)}` : 'In progress'}
                                         {item.kind === 'episode' ? ' · Episode' : ''}
                                     </p>
                                 </div>

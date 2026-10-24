@@ -5,7 +5,7 @@ import MovieCarousel from './MovieCarousel';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectQuery } from '@/store/movies/movies.selectors';
 import { openModal } from '@/store/modals/modals.slice';
-import { getLibrarySnapshot, subscribeLibrary, WatchHistoryItem } from '@/services/library';
+import { getLibrarySnapshot, isMostlyWatched, subscribeLibrary, WatchHistoryItem } from '@/services/library';
 import { getMovieSuggestions } from '@/services/suggestions';
 import axios from 'axios';
 import { API_URL } from '@/utils/constants';
@@ -80,7 +80,7 @@ export const ContinueWatching = () => {
 
     useEffect(() => subscribeLibrary(() => setHistory(getLibrarySnapshot().history)), []);
 
-    const items = history.filter((item) => !item.watched && item.position > 5 && (item.kind === 'movie' || item.kind === 'episode'));
+    const items = history.filter((item) => !isMostlyWatched(item) && item.position > 5 && (item.kind === 'movie' || item.kind === 'episode'));
     if (currentQuery || items.length === 0) return null;
 
     return (
@@ -129,28 +129,68 @@ export const ContinueWatching = () => {
     );
 };
 
-const HomeRails = () => {
+export const LastWatched = () => {
     const dispatch = useAppDispatch();
-    const [recent, setRecent] = useState<Movie[]>([]);
-    const [rated, setRated] = useState<Movie[]>([]);
-    const [isLoadingRails, setIsLoadingRails] = useState(true);
-    const [because, setBecause] = useState<Movie[]>([]);
-    const [becauseTitle, setBecauseTitle] = useState('');
+    const navigate = useNavigate();
+    const currentQuery = useAppSelector(selectQuery);
     const [history, setHistory] = useState<WatchHistoryItem[]>(() => getLibrarySnapshot().history);
 
     useEffect(() => subscribeLibrary(() => setHistory(getLibrarySnapshot().history)), []);
 
-    useEffect(() => {
-        Promise.all([
-            fetchRail('date_added').then(setRecent),
-            fetchRail('rating').then(setRated),
-        ]).catch((error) => console.error(error))
-            .finally(() => setIsLoadingRails(false));
-    }, []);
+    const item = history.find((entry) => entry.kind === 'movie' && isMostlyWatched(entry));
+    if (currentQuery || !item) return null;
+
+    const openFinished = () => {
+        if (item.movie) {
+            dispatch(setSelectedMovie(item.movie));
+            dispatch(openModal('movie'));
+            return;
+        }
+        resumeItem(item, dispatch, navigate);
+    };
+
+    return (
+        <section className='relative z-0 mb-4 w-full min-w-0 overflow-hidden rounded-md bg-stone-950' aria-label='Last watched'>
+            <div className='relative py-3'>
+                <h2 className='px-2 mb-2 text-xl font-semibold text-white'>Last watched</h2>
+                <div className='px-2 py-2'>
+                    <button
+                        type='button'
+                        onClick={openFinished}
+                        title={item.title}
+                        className='group w-[120px] shrink-0 cursor-pointer text-left sm:w-[140px] md:w-[160px]'
+                    >
+                        <span className='relative block aspect-[2/3] overflow-hidden rounded-sm bg-stone-800'>
+                            {item.poster && (
+                                <img src={item.poster} alt='' className='h-full w-full object-cover' />
+                            )}
+                            <span className='absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100'>
+                                <span className='flex h-12 w-12 items-center justify-center rounded-full bg-white text-black shadow-lg'>
+                                    <BsPlayFill className='ml-0.5 text-3xl' />
+                                </span>
+                            </span>
+                        </span>
+                        <span className='mt-1 block line-clamp-2 text-sm text-white'>{item.title}</span>
+                        <span className='block text-xs text-stone-400'>{item.year || 'Watched'}</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+    );
+};
+
+export const BecauseYouWatched = () => {
+    const dispatch = useAppDispatch();
+    const [history, setHistory] = useState<WatchHistoryItem[]>(() => getLibrarySnapshot().history);
+    const [because, setBecause] = useState<Movie[]>([]);
+    const [becauseTitle, setBecauseTitle] = useState('');
+
+    useEffect(() => subscribeLibrary(() => setHistory(getLibrarySnapshot().history)), []);
 
     const loadBecause = useCallback(async (item?: WatchHistoryItem) => {
         if (!item?.movie?.id) {
             setBecause([]);
+            setBecauseTitle('');
             return;
         }
         setBecauseTitle(item.title);
@@ -165,9 +205,33 @@ const HomeRails = () => {
     }, []);
 
     useEffect(() => {
+        const finished = history.find((item) => item.kind === 'movie' && isMostlyWatched(item) && item.movie?.id);
         const latest = history.find((item) => item.movie?.id);
-        loadBecause(latest);
+        loadBecause(finished || latest);
     }, [history, loadBecause]);
+
+    return (
+        <MovieCarousel
+            title={`Because you watched ${becauseTitle}`}
+            movies={because}
+            onOpenMovie={() => dispatch(openModal('movie'))}
+        />
+    );
+};
+
+const HomeRails = () => {
+    const dispatch = useAppDispatch();
+    const [recent, setRecent] = useState<Movie[]>([]);
+    const [rated, setRated] = useState<Movie[]>([]);
+    const [isLoadingRails, setIsLoadingRails] = useState(true);
+
+    useEffect(() => {
+        Promise.all([
+            fetchRail('date_added').then(setRecent),
+            fetchRail('rating').then(setRated),
+        ]).catch((error) => console.error(error))
+            .finally(() => setIsLoadingRails(false));
+    }, []);
 
     return (
         <div className='w-full mb-6'>
@@ -184,12 +248,6 @@ const HomeRails = () => {
                 movies={rated}
                 isLoading={isLoadingRails}
                 collapsible
-                onOpenMovie={() => dispatch(openModal('movie'))}
-            />
-
-            <MovieCarousel
-                title={`Because you watched ${becauseTitle}`}
-                movies={because}
                 onOpenMovie={() => dispatch(openModal('movie'))}
             />
         </div>
