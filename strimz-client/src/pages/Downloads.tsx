@@ -10,7 +10,7 @@ import { deleteDownload, pauseDownload, playTorrent, restoreTorrent, resumeDownl
 import { updateDownloadCompletion, removeDownloadInfo, updateDownloadProgress, validateDownloadsCache } from '@/utils/downloadsCache';
 import { selectCompleted, selectDownloads, selectDownloadedFiles } from '@/store/downloads/downloads.selectors';
 import { setCompleted, fetchDownloadedFilesAsync, removeDownload, removeDownloadedFile, fetchAllDownloadsAsync } from '@/store/downloads/downloads.slice';
-import { getDownloadsCache, getSavedPosters, saveDownloadPoster, updateCachedPoster, CachedDownloadInfo } from '@/utils/downloadsCache';
+import { getDownloadsCache, getSavedPosters, lookupSavedPoster, saveDownloadPoster, updateCachedPoster, CachedDownloadInfo } from '@/utils/downloadsCache';
 import { findPosterForRelease } from '@/utils/downloadPoster';
 import { removeHistoryForDownload } from '@/services/library';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -22,8 +22,8 @@ import { msToReadableTime } from '@/utils/formatTime';
 import { API_URL } from '@/utils/constants';
 import throttle from 'lodash.throttle';
 import React, { useCallback, useEffect, useRef, useState, useMemo, ChangeEvent, FormEvent } from 'react';
-import { BsPause, BsPlay, BsTrash } from 'react-icons/bs';
-import { BiChevronDown, BiFolder, BiSearch } from 'react-icons/bi';
+import { BsPause, BsPlay, BsPlayFill, BsTrash } from 'react-icons/bs';
+import { BiChevronDown, BiFolder, BiFolderOpen, BiSearch } from 'react-icons/bi';
 import { MdFileDownloadDone } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
 import { twMerge } from 'tailwind-merge';
@@ -759,7 +759,8 @@ const DownloadsPage = () => {
         
         const res = await playTorrent(hash);
         if (res.status === 200 && slug) {
-            navigate(`/stream/${slug}?hash=${hash}&title=${title}&poster=${background_image}`, {
+            const image = background_image || lookupSavedPoster(title, hash);
+            navigate(`/stream/${slug}?hash=${hash}&title=${title}&poster=${encodeURIComponent(image)}&cover=${encodeURIComponent(image)}`, {
                 state: {
                     from: '/downloads'
                 }
@@ -771,9 +772,18 @@ const DownloadsPage = () => {
         // For file-only downloads, stream directly from file path using the backend endpoint
         const fullPath = `${settings.downloadsFolderPath}/${filePath}`;
         const streamUrl = `${API_URL}/stream/file/stream?path=${encodeURIComponent(fullPath)}`;
+        const poster = lookupSavedPoster(title, folderName);
+        const params = new URLSearchParams({
+            src: streamUrl,
+            title,
+        });
+        if (poster) {
+            params.set('poster', poster);
+            params.set('cover', poster);
+        }
         
         // Navigate to watch page with the stream URL and navigation state
-        navigate(`/watch-file?src=${encodeURIComponent(streamUrl)}&title=${encodeURIComponent(title)}`, {
+        navigate(`/watch-file?${params.toString()}`, {
             state: {
                 from: '/downloads'
             }
@@ -1192,27 +1202,30 @@ const DownloadsPage = () => {
                                                     )}>
                                                         <Button 
                                                             onClick={() => window.electronAPI.openFolder(`${settings.downloadsFolderPath}/${download.name}`)} 
-                                                            className='text-stone-400 hover:text-stone-200 bg-transparent hover:bg-stone-700 text-sm'
+                                                            className='gap-1.5 text-stone-400 hover:text-stone-200 bg-transparent hover:bg-stone-700 text-sm'
                                                             disabled={isPendingVerification}
                                                         >
+                                                            <BiFolderOpen />
                                                             Open folder
                                                         </Button>
                                                         {hasHash && download.hash && (
                                                             <Button 
                                                                 onClick={() => handlePlay(download.slug, download.hash, download.title, '', download.filePath, download.name)} 
-                                                                className='text-blue-500 hover:text-blue-400 font-medium text-sm'
+                                                                className='gap-1.5 text-blue-500 hover:text-blue-400 font-medium text-sm'
                                                                 disabled={!download.slug || isPendingVerification}
                                                                 title={!download.slug ? 'Slug not available yet' : (isCompleted ? 'Watch now' : 'Continue stream')}
                                                             >
+                                                                <BsPlayFill />
                                                                 {isCompleted ? 'Watch now' : 'Continue stream'}
                                                             </Button>
                                                         )}
                                                         {fileOnly && download.filePath && !download.hash && isCompleted && (
                                                             <Button 
                                                                 onClick={() => handlePlayFileOnly(download.filePath!, download.name, download.title)} 
-                                                                className='text-blue-500 hover:text-blue-400 font-medium text-sm'
+                                                                className='gap-1.5 text-blue-500 hover:text-blue-400 font-medium text-sm'
                                                                 disabled={isPendingVerification}
                                                             >
+                                                                <BsPlayFill />
                                                                 Watch now
                                                             </Button>
                                                         )}
@@ -1472,27 +1485,30 @@ const DownloadsPage = () => {
                                                     )}>
                                                         <Button 
                                                             onClick={() => window.electronAPI.openFolder(`${settings.downloadsFolderPath}/${download.name}`)} 
-                                                            className='text-stone-400 hover:text-stone-200 bg-transparent hover:bg-stone-700 text-sm'
+                                                            className='gap-1.5 text-stone-400 hover:text-stone-200 bg-transparent hover:bg-stone-700 text-sm'
                                                             disabled={isPendingVerification}
                                                         >
+                                                            <BiFolderOpen />
                                                             Open folder
                                                         </Button>
                                                         {hasHash && download.hash && (
                                                             <Button 
                                                                 onClick={() => handlePlay(download.slug, download.hash, download.title, '', download.filePath, download.name)} 
-                                                                className='text-blue-500 hover:text-blue-400 font-medium text-sm'
+                                                                className='gap-1.5 text-blue-500 hover:text-blue-400 font-medium text-sm'
                                                                 disabled={!download.slug || isPendingVerification}
                                                                 title={!download.slug ? 'Slug not available yet' : (isCompleted ? 'Watch now' : 'Continue stream')}
                                                             >
+                                                                <BsPlayFill />
                                                                 {isCompleted ? 'Watch now' : 'Continue stream'}
                                                             </Button>
                                                         )}
                                                         {fileOnly && download.filePath && !download.hash && isCompleted && (
                                                             <Button 
                                                                 onClick={() => handlePlayFileOnly(download.filePath!, download.name, download.title)} 
-                                                                className='text-blue-500 hover:text-blue-400 font-medium text-sm'
+                                                                className='gap-1.5 text-blue-500 hover:text-blue-400 font-medium text-sm'
                                                                 disabled={isPendingVerification}
                                                             >
+                                                                <BsPlayFill />
                                                                 Watch now
                                                             </Button>
                                                         )}

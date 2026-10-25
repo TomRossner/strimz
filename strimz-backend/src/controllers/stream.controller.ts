@@ -457,6 +457,7 @@ const streamWithRange = (videoFile: WebTorrent.TorrentFile, fileSize: number, ra
         "Accept-Ranges": "bytes",
         "Content-Length": chunkSize,
         "Content-Type": mime,
+        "Access-Control-Allow-Origin": "*",
     });
 
     const stream = videoFile.createReadStream({ start, end });
@@ -481,6 +482,7 @@ const initStream = (videoFile: WebTorrent.TorrentFile, fileSize: number, res: Re
     res.writeHead(206, {
         "Content-Length": fileSize,
         "Content-Type": "video/mp4",
+        "Access-Control-Allow-Origin": "*",
     });
 
     const stream = videoFile.createReadStream();
@@ -791,6 +793,7 @@ const streamFromDisk = (req: Request, res: Response, downloadDir: string, torren
         'Accept-Ranges': 'bytes',
         'Content-Length': end - start + 1,
         'Content-Type': mime,
+        'Access-Control-Allow-Origin': '*',
     });
 
     fs.createReadStream(filePath, { start, end }).pipe(res);
@@ -833,6 +836,7 @@ export const streamFileByPath = async (req: Request, res: Response) => {
             res.writeHead(200, {
                 'Content-Length': stat.size,
                 'Content-Type': mime,
+                'Access-Control-Allow-Origin': '*',
             });
             return fs.createReadStream(resolvedPath).pipe(res);
         }
@@ -850,6 +854,7 @@ export const streamFileByPath = async (req: Request, res: Response) => {
             'Accept-Ranges': 'bytes',
             'Content-Length': chunkSize,
             'Content-Type': mime,
+            'Access-Control-Allow-Origin': '*',
         });
 
         fs.createReadStream(resolvedPath, { start, end }).pipe(res);

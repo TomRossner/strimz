@@ -38,6 +38,27 @@ export const getSavedPosters = (): Record<string, string> => {
     }
 };
 
+export const lookupSavedPoster = (...keys: Array<string | undefined | null>) => {
+    const posters = getSavedPosters();
+    for (const key of keys) {
+        const normalized = key?.trim().toLowerCase();
+        if (normalized && posters[normalized]) return posters[normalized];
+    }
+    return '';
+};
+
+const releaseFolderName = (filePath?: string | null) => {
+    if (!filePath) return '';
+    const parts = filePath.split(/[\\/]/).filter(Boolean);
+    if (parts.length < 2) return '';
+    const last = parts[parts.length - 1];
+    return /\.[a-z0-9]{2,4}$/i.test(last) ? parts[parts.length - 2] : last;
+};
+
+export const posterForWatch = (item: { poster?: string; title?: string; hash?: string; fileName?: string }) => {
+    return item.poster || lookupSavedPoster(item.title, item.hash, releaseFolderName(item.fileName));
+};
+
 export const saveDownloadPoster = (key: string, poster: string) => {
     const normalized = key.trim().toLowerCase();
     if (!normalized || !poster) return;

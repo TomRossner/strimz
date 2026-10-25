@@ -81,9 +81,21 @@ export const isMostlyWatched = (item: { position: number; duration: number; watc
 };
 
 export const recordWatchProgress = (item: Omit<WatchHistoryItem, 'updatedAt' | 'watched'> & { watched?: boolean }) => {
+    const previous = snapshot.history.find((entry) => entry.key === item.key);
+    const duration = Number.isFinite(item.duration) && item.duration > 0
+        ? item.duration
+        : (previous?.duration || 0);
     const next: WatchHistoryItem = {
+        ...previous,
         ...item,
-        watched: item.watched ?? false,
+        poster: item.poster || previous?.poster || '',
+        fileName: item.fileName || previous?.fileName,
+        hash: item.hash || previous?.hash,
+        slug: item.slug || previous?.slug,
+        movie: item.movie ?? previous?.movie,
+        year: item.year || previous?.year,
+        duration,
+        watched: item.watched ?? previous?.watched ?? false,
         updatedAt: Date.now(),
     };
     const without = snapshot.history.filter((entry) => entry.key !== item.key);

@@ -28,12 +28,9 @@ const historyPoster = (title: string) => {
     return match?.poster || '';
 };
 
-export const findPosterForRelease = async (releaseName: string): Promise<string> => {
+export const matchRelease = async (releaseName: string): Promise<{ title: string; year?: number; poster: string } | null> => {
     const { title, year } = releaseTitle(releaseName);
-    if (!title || title.length < 2) return '';
-
-    const fromHistory = historyPoster(title);
-    if (fromHistory) return fromHistory;
+    if (!title || title.length < 2) return null;
 
     try {
         const response = await axios.get(`${API_URL}/movies`, {
@@ -54,9 +51,26 @@ export const findPosterForRelease = async (releaseName: string): Promise<string>
             const yearMatches = !year || movieYear === year;
             return titleMatches && yearMatches && Boolean(coverFromMovie(movie));
         });
-        return match ? coverFromMovie(match) : '';
+        if (!match) return null;
+        const matchedYear = Number(match.year);
+        return {
+            title: String(match.title || title),
+            year: Number.isFinite(matchedYear) ? matchedYear : year,
+            poster: coverFromMovie(match),
+        };
     } catch (error) {
         console.error(error);
-        return '';
+        return null;
     }
+};
+
+export const findPosterForRelease = async (releaseName: string): Promise<string> => {
+    const { title } = releaseTitle(releaseName);
+    if (!title || title.length < 2) return '';
+
+    const fromHistory = historyPoster(title);
+    if (fromHistory) return fromHistory;
+
+    const match = await matchRelease(releaseName);
+    return match?.poster || '';
 };

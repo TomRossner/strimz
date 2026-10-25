@@ -27,10 +27,10 @@ import Subtitles from './Subtitles';
 import BackButton from '../BackButton';
 import { pauseDownload } from '@/services/movies';
 import { openModal } from '@/store/modals/modals.slice';
-import { updatePlaybackPosition, getPlaybackPosition } from '@/utils/downloadsCache';
+import { updatePlaybackPosition, getPlaybackPosition, lookupSavedPoster } from '@/utils/downloadsCache';
 import { getPlayerPrefs, savePlayerPrefs, subscribePlayerPrefs } from '@/services/playerPrefs';
-import { setPipActive } from '@/services/pip';
-import { isMostlyWatched, markWatched, recordWatchProgress } from '@/services/library';
+import { leavePictureInPicture, setPipActive } from '@/services/pip';
+import { getLibrarySnapshot, isMostlyWatched, markWatched, recordWatchProgress } from '@/services/library';
 import { parseVTTToCues } from '@/utils/subtitles';
 import PlayNextOverlay from './PlayNextOverlay';
 import { getMovieSuggestions } from '@/services/suggestions';
@@ -52,6 +52,16 @@ const pickTorrent = (torrents: Torrent[]) => {
         if (match) return match;
     }
     return playable.sort((a, b) => (b.seeds || 0) - (a.seeds || 0))[0];
+};
+
+const filePathFromSrc = (src: string | null) => {
+    if (!src) return '';
+    try {
+        return new URL(src).searchParams.get('path') || '';
+    } catch {
+        const match = src.match(/[?&]path=([^&]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 };
 
 const moviesFromResponse = (data: { data?: { movies?: Movie[] }; movies?: Movie[] } | Movie[]) => {
@@ -80,7 +90,8 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const title = searchParams.get('title');
     const watchKey = searchParams.get('watchKey');
     const isEpisode = searchParams.get('kind') === 'episode';
-    const progressKey = (isEpisode && watchKey) ? watchKey : hash?.toLowerCase();
+    const filePath = filePathFromSrc(searchParams.get('src'));
+    const progressKey = (isEpisode && watchKey) ? watchKey : (hash?.toLowerCase() || (filePath ? `file:${filePath}` : ''));
     const { slug } = useParams();
     const playerPrefs = useSyncExternalStore(subscribePlayerPrefs, getPlayerPrefs);
     const dispatch = useAppDispatch();
@@ -170,8 +181,9 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         });
     }, [parsedSubtitles, subtitleDelay]);
 
+    const lastDurationRef = useRef(0);
     const throttledHandleTimeUpdate = useRef<((e: React.SyntheticEvent<HTMLVideoElement>) => void) | null>(null);
-    const throttledSavePlaybackPosition = useRef<((currentTime: number) => void) | null>(null);
+    const throttledSavePlaybackPosition = useRef<(((currentTime: number) => void) & { flush: () => void }) | null>(null);
 
     useEffect(() => {
         throttledHandleTimeUpdate.current = throttle((e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -185,42 +197,46 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             setPlaybackWidth((video.currentTime / video.duration) * 100);
             
             // Save playback position periodically (throttled to avoid excessive writes)
-            if (hash && video.currentTime > 0 && !video.paused) {
+            if (progressKey && video.currentTime > 0 && !video.paused) {
                 throttledSavePlaybackPosition.current?.(video.currentTime);
             }
         }, 250);
         
         // Throttled function to save playback position (save every 5 seconds)
         const saveProgress = throttle((currentTime: number) => {
-            if (hash && progressKey) {
-                updatePlaybackPosition(hash, currentTime);
-                const video = videoRef.current;
-                const duration = video && Number.isFinite(video.duration) ? video.duration : 0;
-                const playingMovie = !isEpisode && movie && (
-                    (slug && movie.slug === slug) || (title && movie.title === title)
-                ) ? movie : null;
-                recordWatchProgress({
-                    key: progressKey,
-                    title: title || playingMovie?.title || 'Untitled',
-                    poster: isEpisode
-                        ? (poster || '')
-                        : (playingMovie?.medium_cover_image || playingMovie?.large_cover_image || playingMovie?.small_cover_image || cover || poster || ''),
-                    year: isEpisode ? undefined : playingMovie?.year,
-                    slug,
-                    hash,
-                    position: currentTime,
-                    duration,
-                    watched: isMostlyWatched({ position: currentTime, duration }),
-                    kind: isEpisode ? 'episode' : 'movie',
-                    movie: playingMovie,
-                });
-            }
+            if (!progressKey || currentTime <= 0) return;
+            if (hash) updatePlaybackPosition(hash, currentTime);
+            const video = videoRef.current;
+            const liveDuration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+            if (liveDuration > 0) lastDurationRef.current = liveDuration;
+            const duration = liveDuration || lastDurationRef.current;
+            const playingMovie = !isEpisode && movie && (
+                (slug && movie.slug === slug) || (title && movie.title === title)
+            ) ? movie : null;
+            const folderName = filePath.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0];
+            recordWatchProgress({
+                key: progressKey,
+                title: title || playingMovie?.title || 'Untitled',
+                poster: isEpisode
+                    ? (poster || '')
+                    : (playingMovie?.medium_cover_image || playingMovie?.large_cover_image || playingMovie?.small_cover_image || cover || poster || lookupSavedPoster(title, hash, folderName) || ''),
+                year: isEpisode ? undefined : playingMovie?.year,
+                slug,
+                hash: hash || undefined,
+                position: currentTime,
+                duration,
+                watched: isMostlyWatched({ position: currentTime, duration }),
+                kind: isEpisode ? 'episode' : 'movie',
+                movie: playingMovie,
+                fileName: filePath || undefined,
+            });
         }, 5000);
         throttledSavePlaybackPosition.current = saveProgress;
         return () => {
+            saveProgress.flush();
             saveProgress.cancel();
         };
-    }, [renderSubtitles, hash, title, movie, poster, cover, slug, progressKey, isEpisode]);
+    }, [renderSubtitles, hash, title, movie, poster, cover, slug, progressKey, isEpisode, filePath]);
 
     // Note: Playback position restoration is handled in onLoadedMetadata handler on the video element
     // This ensures it happens at the right time after the video metadata is loaded
@@ -656,7 +672,19 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         if (!video) return;
 
         const enterPip = () => setPipActive(true);
-        const leavePip = () => setPipActive(false);
+        const leavePip = () => {
+            const wasPlaying = !video.paused;
+            window.setTimeout(() => {
+                const current = videoRef.current;
+                if (!current) {
+                    leavePictureInPicture(false);
+                    return;
+                }
+                // Back to tab leaves playback running. The close button pauses a playing video.
+                const backToTab = !wasPlaying || !current.paused;
+                leavePictureInPicture(backToTab);
+            }, 0);
+        };
         video.addEventListener('enterpictureinpicture', enterPip);
         video.addEventListener('leavepictureinpicture', leavePip);
         if (document.pictureInPictureElement === video) setPipActive(true);
@@ -833,13 +861,25 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                             onPlayCapture={() => {
                                 if (!isPlaying) setIsPlaying(true);
                             }}
-                            onPause={() => setIsPlaying(false)}
+                            onPause={() => {
+                                setIsPlaying(false);
+                                const video = videoRef.current;
+                                const save = throttledSavePlaybackPosition.current;
+                                if (video && video.currentTime > 0 && save) {
+                                    save(video.currentTime);
+                                    save.flush();
+                                }
+                            }}
                             onEnded={() => {
                                 setIsPlaying(false);
-                                if (hash && progressKey) {
-                                    updatePlaybackPosition(hash, 0);
+                                const video = videoRef.current;
+                                const save = throttledSavePlaybackPosition.current;
+                                if (progressKey && video && Number.isFinite(video.duration)) {
+                                    save?.(video.duration);
+                                    save?.flush();
                                     markWatched(progressKey);
                                 }
+                                if (hash) updatePlaybackPosition(hash, 0);
                                 setShowPlayNext(true);
                             }}
                             onLoadedMetadata={() => {
@@ -848,8 +888,13 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     videoRef.current.volume = stored.volume / 100;
                                     videoRef.current.playbackRate = stored.playbackRate || 1;
                                 }
-                                if (hash && videoRef.current && !activeFile) {
-                                    const savedPosition = getPlaybackPosition(hash);
+                                if (videoRef.current && !activeFile && progressKey) {
+                                    const cachedPosition = hash ? getPlaybackPosition(hash) : null;
+                                    const historyItem = getLibrarySnapshot().history.find((entry) => entry.key === progressKey);
+                                    const historyPosition = historyItem && historyItem.position > 5 && !isMostlyWatched(historyItem)
+                                        ? Math.max(0, historyItem.position - 5)
+                                        : null;
+                                    const savedPosition = cachedPosition ?? historyPosition;
                                     if (savedPosition !== null && savedPosition > 0 && videoRef.current.duration) {
                                         if (savedPosition < videoRef.current.duration) {
                                             videoRef.current.currentTime = savedPosition;
@@ -863,6 +908,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                 setIsPlaying(!videoRef.current.paused);
                             }}
                             onDoubleClick={toggleFullscreen}
+                            crossOrigin='anonymous'
                             className={twMerge(`
                                 aspect-video
                                 w-full

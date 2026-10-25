@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import SplashScreen from './SplashScreen';
-import { getPipActive, subscribePip } from '@/services/pip';
+import { clearReturnToPlayer, getPipActive, getReturnToPlayer, subscribePip } from '@/services/pip';
 import { pauseDownload } from '@/services/movies';
 
 const WatchMoviePage = lazy(() => import('../pages/Watch'));
@@ -11,26 +11,48 @@ const isWatchPath = (pathname: string) => pathname.startsWith('/stream/') || pat
 
 const PersistedWatch = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const pipActive = useSyncExternalStore(subscribePip, getPipActive);
+    const returnToPlayer = useSyncExternalStore(subscribePip, getReturnToPlayer);
     const onWatchRoute = isWatchPath(location.pathname);
     const [watchLocation, setWatchLocation] = useState(location);
     const hashRef = useRef<string | null>(null);
 
+    if (
+        onWatchRoute &&
+        (watchLocation.pathname !== location.pathname || watchLocation.search !== location.search)
+    ) {
+        setWatchLocation(location);
+    }
+
     useEffect(() => {
         if (!onWatchRoute) return;
-        setWatchLocation(location);
         hashRef.current = new URLSearchParams(location.search).get('hash');
     }, [onWatchRoute, location]);
 
     useEffect(() => {
-        if (onWatchRoute || pipActive) return;
+        if (!returnToPlayer) return;
+        if (onWatchRoute) {
+            clearReturnToPlayer();
+            return;
+        }
+        if (!isWatchPath(watchLocation.pathname)) return;
+        navigate({
+            pathname: watchLocation.pathname,
+            search: watchLocation.search,
+            hash: watchLocation.hash,
+        }, { state: watchLocation.state });
+    }, [returnToPlayer, onWatchRoute, watchLocation, navigate]);
+
+    useEffect(() => {
+        if (onWatchRoute || pipActive || returnToPlayer) return;
         const hash = hashRef.current;
         if (!hash) return;
         hashRef.current = null;
         pauseDownload(hash).catch((error) => console.error(error));
-    }, [onWatchRoute, pipActive]);
+    }, [onWatchRoute, pipActive, returnToPlayer]);
 
-    const keepPlaying = pipActive && isWatchPath(watchLocation.pathname);
+    const keepPlaying = (pipActive || returnToPlayer) && isWatchPath(watchLocation.pathname);
     if (!onWatchRoute && !keepPlaying) return null;
 
     return (
@@ -39,7 +61,7 @@ const PersistedWatch = () => {
             className={onWatchRoute ? 'contents' : 'pointer-events-none fixed -left-[120vw] top-0 h-[360px] w-[640px] overflow-hidden'}
         >
             <Suspense fallback={onWatchRoute ? <SplashScreen /> : null}>
-                <Routes location={onWatchRoute ? location : watchLocation}>
+                <Routes location={watchLocation}>
                     <Route path='/stream/:slug' element={<WatchMoviePage />} />
                     <Route path='/watch-file' element={<WatchFilePage />} />
                 </Routes>
