@@ -47,7 +47,7 @@ const VolumeSlider = ({
             justify-between
             py-2
             px-3
-            z-10
+            z-50
             right-0
             bottom-[120%]
             rounded-sm

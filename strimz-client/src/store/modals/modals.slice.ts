@@ -12,6 +12,8 @@ interface ModalsState {
   subtitlesSize: boolean;
   movieDownloadInfo: boolean;
   subtitlesSelectorTab: boolean;
+  // The system color picker of the subtitles style panel is open
+  subtitleColorPicker: boolean;
   summary: boolean;
   playFromMagnet: boolean;
 }
@@ -27,6 +29,7 @@ const initialState: ModalsState = {
   subtitlesSize: false,
   movieDownloadInfo: false,
   subtitlesSelectorTab: false,
+  subtitleColorPicker: false,
   summary: false,
   playFromMagnet: false,
 }

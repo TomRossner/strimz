@@ -2,15 +2,16 @@ import React, { useCallback, useEffect, useMemo } from 'react';
 import Button from '../Button';
 import { PiSubtitles } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled } from '@/store/movies/movies.selectors';
-import { setSubtitleFilePath, setSubtitleLang, setVttSubtitlesContent } from '@/store/movies/movies.slice';
+import { selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
+import { setSelectedSubtitleFileId, setSubtitleFilePath, setSubtitleLang } from '@/store/movies/movies.slice';
 import { twMerge } from 'tailwind-merge';
 import { RxCross2 } from 'react-icons/rx';
-import { detectLanguageFromSubtitle, extractTextFromSubtitle, getFlagEmoji, getSubtitleMetadata, resolveCountryCode } from '@/utils/detectLanguage';
+import { detectLanguageFromSubtitle, extractTextFromSubtitle, getFlagEmoji, resolveCountryCode } from '@/utils/detectLanguage';
 import Flag from "../Flag";
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { BsInfoCircle } from 'react-icons/bs';
 import SubtitleDropdown from './SubtitlesDropdown';
+import WithTooltip from '../WithTooltip';
 
 interface SubtitleFile {
     fileId: string;
@@ -53,23 +54,30 @@ const SubtitlesSelector = ({
     const dispatch = useAppDispatch();
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const subtitleLang = useAppSelector(selectSubtitleLang);
+    const selectedSubtitleFileId = useAppSelector(selectSelectedSubtitleFileId);
 
     const countryCode = useMemo(() => resolveCountryCode(subtitleLang as string),[subtitleLang]);
 
     const flag = useMemo(() => countryCode ? getFlagEmoji(countryCode) : '', [countryCode]);
 
     const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
+    const subtitleFileName = subtitleFilePath ? subtitleFilePath.split(/[\\/]/).pop() || '' : '';
 
-    const { lang } = useMemo(() => getSubtitleMetadata(subtitleLang as string), [subtitleLang]);
 
     const handleSubtitleFileUpload = (path: string | null) => {
         if (!path) return;
 
+        // A manually chosen file is not an OpenSubtitles file: drop the previous selection
+        // so its language is detected from the file instead.
+        dispatch(setSelectedSubtitleFileId(null));
+        dispatch(setSubtitleLang(null));
         dispatch(setSubtitleFilePath(path));
     }
 
-    const getSubtitleLanguage = useCallback(async () => {
+    const getSubtitleLanguage = useCallback(async (isCancelled: () => boolean) => {
         const content = await window.electronAPI.detectSubtitlesLanguage(subtitleFilePath as string);
+        // Another file was selected (or the player closed) while reading this one
+        if (isCancelled()) return;
 
         if (content) {
             const cleanText = extractTextFromSubtitle(content);
@@ -82,24 +90,20 @@ const SubtitlesSelector = ({
     }, [subtitleFilePath, dispatch]);
 
     useEffect(() => {
-        if (!subtitleFilePath) return;
+        // Subtitles picked from the list already have a known language. Guessing it from the
+        // text would overwrite it (a mis-decoded Hebrew file can be guessed as English), and
+        // the changed language re-triggers downloads that then serve the wrong file.
+        if (!subtitleFilePath || selectedSubtitleFileId) return;
 
-        getSubtitleLanguage();
-    }, [subtitleFilePath, getSubtitleLanguage]);
+        let cancelled = false;
+        getSubtitleLanguage(() => cancelled);
+        return () => {
+            cancelled = true;
+        };
+    }, [subtitleFilePath, selectedSubtitleFileId, getSubtitleLanguage]);
     
-    useEffect(() => {
-        const handleSrtSubs = async (srtFilePath: string, lang: string) => {
-            const vttText = await window.electronAPI.convertSRTtoVTT(srtFilePath, lang);
-
-            if (vttText) {
-                dispatch(setVttSubtitlesContent(vttText));
-            }
-        }
-
-        if (subtitleFilePath && lang) {
-            handleSrtSubs(subtitleFilePath, lang);
-        }
-    }, [subtitleFilePath, lang, dispatch]);
+    // SRT -> VTT conversion happens only in Player, which cancels outdated conversions.
+    // A second, unsynchronized conversion here could finish late and show a previous file's cues.
 
   return (
     <div className={twMerge(`flex w-full ${buttonOnly ? 'my-0' : 'my-2'} gap-1 ${reverseButtonPosition ? 'flex-col-reverse' : 'flex-col'} ${containerClassName}`)}>
@@ -159,15 +163,16 @@ const SubtitlesSelector = ({
                     />
                 }
 
-                <input
-                    readOnly
-                    type="text"
-                    name="subtitles"
-                    id="subtitles"
-                    title={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
-                    value={subtitleFilePath ? subtitleFilePath.split('\\').pop()?.split('/').pop() : ''}
-                    className={twMerge(`w-full text-white text-[11px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
-                />
+                <WithTooltip label={subtitleFileName}>
+                    <input
+                        readOnly
+                        type="text"
+                        name="subtitles"
+                        id="subtitles"
+                        value={subtitleFileName}
+                        className={twMerge(`w-full text-white text-[11px] min-h-5 outline-0 border-none truncate ${useOnSelect ? 'cursor-pointer' : ''}`)}
+                    />
+                </WithTooltip>
 
                 {subtitleFilePath &&
                     <Button

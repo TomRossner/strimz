@@ -1,0 +1,13 @@
+/*
+ * One box per subtitle line, sized to its text (the container spans the whole video width).
+ * The color comes from the --subtitle-bg variable set on the container from the player prefs.
+ * box-decoration-break: clone gives each wrapped visual line its own padded box.
+ */
+.subtitle-line {
+  background-color: var(--subtitle-bg, transparent);
+  padding: 0.04em 0.35em;
+  border-radius: 0.12em;
+  line-height: 1.4;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}

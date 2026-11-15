@@ -1,4 +1,4 @@
-import React, { ChangeEvent, RefObject, useEffect, useRef, useState, useMemo } from 'react';
+import React, { ChangeEvent, RefObject, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import Button from '../Button';
 import { BsPause, BsPlay } from 'react-icons/bs';
 import { IoExpandOutline, IoVolumeHighOutline, IoVolumeLowOutline, IoVolumeMediumOutline, IoVolumeMuteOutline } from 'react-icons/io5';
@@ -7,11 +7,13 @@ import TimeTrack from './TimeTrack';
 import VolumeSlider from './VolumeSlider';
 import { PiArrowArcLeft, PiArrowArcRight, PiSubtitlesLight } from 'react-icons/pi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectSubtitleFilePath, selectSubtitlesSize, selectSubtitleDelay, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages, selectMoviesMap, selectLanguageFiles, selectSelectedSubtitleFileId, selectExternalTorrent } from '@/store/movies/movies.selectors';
+import { selectSubtitleFilePath, selectSubtitleDelay, selectIsSubtitlesEnabled, selectMovie, selectSubtitleLang, selectAvailableSubtitlesLanguages, selectMoviesMap, selectLanguageFiles, selectSelectedSubtitleFileId, selectExternalTorrent } from '@/store/movies/movies.selectors';
 import { setIsSubtitlesEnabled, setSubtitleFilePath, setSubtitleLang, setAvailableSubtitlesLanguages, setSubtitleDelay, setVttSubtitlesContent, setSelectedMovie, setLanguageFiles, setSelectedSubtitleFileId } from '@/store/movies/movies.slice';
 import { closeModal, openModal } from '@/store/modals/modals.slice';
-import SubtitlesSizeDialog from './SubtitlesSizeDialog';
-import { selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
+import SubtitlesStyleDialog from './SubtitlesStyleDialog';
+import SubtitleDelayInput from './SubtitleDelayInput';
+import SubtitleFontSizeControl from './SubtitleFontSizeControl';
+import { selectSubtitleColorPicker, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import { MdEdit, MdSpeed, MdOutlinePictureInPictureAlt } from 'react-icons/md';
 import CloseButton from '../CloseButton';
@@ -71,7 +73,6 @@ const Controls = ({
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const isSubtitlesEnabled = useAppSelector(selectIsSubtitlesEnabled);
     const isSubtitlesSizeModalOpen = useAppSelector(selectSubtitlesSizeModal);
-    const subtitlesSize = useAppSelector(selectSubtitlesSize);
     const subtitleDelay = useAppSelector(selectSubtitleDelay);
     const selectedMovie = useAppSelector(selectMovie);
     const moviesMap = useAppSelector(selectMoviesMap);
@@ -91,13 +92,65 @@ const Controls = ({
     const [notAvailableSubs, setNotAvailableSubs] = useState<string[]>([]);
     const [isLoadingSubs, setIsLoadingSubs] = useState<boolean>(false);
     const [isDownloadingSubs, setIsDownloadingSubs] = useState<boolean>(false);
+    // Fetching the language list from OpenSubtitles (all result pages: can take several seconds)
+    const [isFetchingLanguages, setIsFetchingLanguages] = useState<boolean>(false);
+    const languagesFetchIdRef = useRef(0);
+    // Identifying the movie of a file played from Downloads (title search), needed before the list
+    const [isResolvingMovie, setIsResolvingMovie] = useState<boolean>(false);
 
     const closeTimeout = useRef<NodeJS.Timeout | null>(null);
+    const isSubtitlesPanelHoveredRef = useRef(false);
+    const isColorPickerOpen = useAppSelector(selectSubtitleColorPicker);
+    const isColorPickerOpenRef = useRef(isColorPickerOpen);
+    isColorPickerOpenRef.current = isColorPickerOpen;
+
+    // Closes the subtitles panel 3s after the pointer left it, unless the pointer came back or
+    // the system color picker of the style dialog is in use (it pulls the pointer off the panel).
+    const scheduleSubtitlesPanelClose = useCallback(() => {
+        if (closeTimeout.current) clearTimeout(closeTimeout.current);
+        closeTimeout.current = setTimeout(() => {
+            closeTimeout.current = null;
+            if (isColorPickerOpenRef.current || isSubtitlesPanelHoveredRef.current) return;
+            dispatch(closeModal('subtitlesSelectorTab'));
+            dispatch(closeModal('subtitlesSize'));
+        }, 3000);
+    }, [dispatch]);
+
+    // Picker opened: keep the panel. Picker closed with the pointer elsewhere: start the countdown again.
+    const prevColorPickerOpenRef = useRef(isColorPickerOpen);
+    useEffect(() => {
+        const wasOpen = prevColorPickerOpenRef.current;
+        prevColorPickerOpenRef.current = isColorPickerOpen;
+        if (isColorPickerOpen) {
+            if (closeTimeout.current) {
+                clearTimeout(closeTimeout.current);
+                closeTimeout.current = null;
+            }
+        } else if (wasOpen && !isSubtitlesPanelHoveredRef.current) {
+            scheduleSubtitlesPanelClose();
+        }
+    }, [isColorPickerOpen, scheduleSubtitlesPanelClose]);
+
+    useEffect(() => () => {
+        if (closeTimeout.current) clearTimeout(closeTimeout.current);
+    }, []);
     const speedCloseTimeout = useRef<NodeJS.Timeout | null>(null);
     const searchInProgressRef = useRef<boolean>(false);
     const lastSearchedTitleRef = useRef<string | null>(null);
     const processedMovieRef = useRef<string | null>(null);
     const lastFetchedImdbRef = useRef<string | null>(null);
+    // imdb_code of the movie currently being played, read by async callbacks to drop stale results
+    const currentImdbRef = useRef<string | null>(null);
+    // Incremented per subtitle selection so only the latest download wins
+    const subtitleRequestRef = useRef(0);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -220,12 +273,14 @@ const Controls = ({
     // Load subtitle availability from API - only if not already loaded and no subtitle is selected
     // Don't fetch if subtitleLang, subtitleFilePath, or languages are already set
     const finalMovieForCache = movieDataForCache || selectedMovie;
+    const languageFilesCount = Object.keys(languageFiles).length;
     
     useEffect(() => {
         // Wait for movie data to be available (especially important when playing from disk)
-        // Use the most current movie data - check selectedMovie first (most up-to-date), then movieDataForCache
+        // Prefer the movie resolved from the route (slug / downloads cache): selectedMovie can be a
+        // leftover from a previous playback, and using it would list (and download) its subtitles.
         // For external torrents, use imdbCode from externalTorrent
-        const movieToUse = selectedMovie || movieDataForCache;
+        const movieToUse = movieDataForCache || selectedMovie;
         const imdbCode = externalTorrent?.imdbCode || movieToUse?.imdb_code;
         const year = movieToUse?.year;
         
@@ -257,11 +312,18 @@ const Controls = ({
 
         // Fetch fresh data from OpenSubtitles API only if not already loaded
         const fetchSubtitles = async () => {
+            const fetchId = ++languagesFetchIdRef.current;
+            setIsFetchingLanguages(true);
             try {
                 // Mark as fetched before making the request to prevent duplicate calls
                 lastFetchedImdbRef.current = imdbCode;
                 
                 const response = await searchSubtitlesByImdb(imdbCode, undefined, 'movie');
+                // The playing movie changed (or the player closed) while searching
+                if (!isMountedRef.current || currentImdbRef.current !== imdbCode) {
+                    if (lastFetchedImdbRef.current === imdbCode) lastFetchedImdbRef.current = null;
+                    return;
+                }
                 const { languages, languageFiles: files } = response.data;
 
                 if (languages && languages.length > 0) {
@@ -273,11 +335,17 @@ const Controls = ({
                 }
             } catch (error) {
                 console.error('Error fetching subtitles from OpenSubtitles API:', error);
+                if (!isMountedRef.current || currentImdbRef.current !== imdbCode) return;
                 dispatch(setAvailableSubtitlesLanguages([]));
                 dispatch(setLanguageFiles({}));
                 // Reset on error so we can retry if needed
                 if (lastFetchedImdbRef.current === imdbCode) {
                     lastFetchedImdbRef.current = null;
+                }
+            } finally {
+                // Only the latest fetch ends the loading state (a newer one may be running)
+                if (isMountedRef.current && languagesFetchIdRef.current === fetchId) {
+                    setIsFetchingLanguages(false);
                 }
             }
         };
@@ -287,7 +355,8 @@ const Controls = ({
         // Note: We intentionally exclude movieDataForCache, selectedMovie, availableSubsLanguages, languageFiles,
         // subtitleLang, and subtitleFilePath from dependencies to prevent re-fetching when player mounts.
         // We only want to fetch when the movie changes (imdb_code/year changes), not when subtitle state changes.
-    }, [selectedMovie?.imdb_code, selectedMovie?.year, movieDataForCache?.imdb_code, movieDataForCache?.year, externalTorrent?.imdbCode, dispatch]);
+        // The language counts are included so the list is fetched again after it was cleared for a movie change.
+    }, [selectedMovie?.imdb_code, selectedMovie?.year, movieDataForCache?.imdb_code, movieDataForCache?.year, externalTorrent?.imdbCode, availableSubsLanguages.length, languageFilesCount, dispatch]);
 
     // Try to fetch movie data from downloads cache when hash is available, or search by title for file-only playback
     useEffect(() => {
@@ -334,6 +403,7 @@ const Controls = ({
                 // Mark search as in progress
                 searchInProgressRef.current = true;
                 lastSearchedTitleRef.current = title;
+                setIsResolvingMovie(true);
 
                 try {
                     // Extract clean title and year from folder name (may contain metadata like [2160p] [4K] etc.)
@@ -438,6 +508,7 @@ const Controls = ({
                 } finally {
                     // Reset search flag after completion
                     searchInProgressRef.current = false;
+                    if (isMountedRef.current) setIsResolvingMovie(false);
                 }
             };
             findMovieFromDownloadsCache();
@@ -462,6 +533,9 @@ const Controls = ({
             selectedSubtitleFileId === fileId) {
             return;
         }
+
+        const requestId = ++subtitleRequestRef.current;
+        const isLatestRequest = () => isMountedRef.current && subtitleRequestRef.current === requestId;
         
         // Get movie data - try multiple sources
         let movie = finalMovieForCache;
@@ -594,6 +668,9 @@ const Controls = ({
             }
         }
         
+        // A newer selection (or closing the player) during the movie lookup cancels this one
+        if (!isLatestRequest()) return;
+
         // Update selected language and file ID in store
         dispatch(setSubtitleLang(langId));
         dispatch(setSelectedSubtitleFileId(fileId));
@@ -601,6 +678,8 @@ const Controls = ({
         // Reset subtitle file path when selecting a new file
         // The file will be downloaded immediately for Controls.tsx
         dispatch(setSubtitleFilePath(null));
+        // Each file has its own timing: a delay tuned for the previous file would put this one out of sync
+        dispatch(setSubtitleDelay(0));
 
         // Download subtitle file immediately (Controls.tsx behavior - auto-download when selecting)
         if (fileId && settings.downloadsFolderPath) {
@@ -616,12 +695,15 @@ const Controls = ({
                     openSubtitlesLangCode,
                     settings.downloadsFolderPath
                 );
+                // Ignore if the user picked another file meanwhile, or closed the player
+                if (!isLatestRequest()) return;
                 dispatch(setSubtitleFilePath(downloadedPath));
                 dispatch(setIsSubtitlesEnabled(true)); // Enable subtitles when downloaded
             } catch (error) {
                 console.error('Error downloading subtitle from API:', error);
             } finally {
-                setIsDownloadingSubs(false);
+                // An older download finishing must not hide the indicator of the current one
+                if (isLatestRequest()) setIsDownloadingSubs(false);
             }
         }
     };
@@ -650,8 +732,9 @@ const Controls = ({
     // Use imdb_code as the primary identifier since it's the most reliable
     const prevMovieImdbRef = useRef<string | null>(null);
     const hasInitializedRef = useRef<boolean>(false);
-    // Use selectedMovie first (most reliable), then fallback to finalMovieForCache
-    const currentMovieImdb = selectedMovie?.imdb_code || finalMovieForCache?.imdb_code || null;
+    // Prefer the movie resolved from the route, then fall back to selectedMovie
+    const currentMovieImdb = externalTorrent?.imdbCode || finalMovieForCache?.imdb_code || selectedMovie?.imdb_code || null;
+    currentImdbRef.current = currentMovieImdb;
 
     // Clear subtitle state only when movie actually changes (different imdb_code)
     // IMPORTANT: Don't clear on initial mount - preserve subtitle state when navigating from MovieDialog to Player
@@ -724,6 +807,9 @@ const Controls = ({
         return () => video.removeEventListener('ended', handleEnded);
     }, [videoRef, setIsPlaying]);
     
+  // Any dialog of the controls open (subtitles, font size, speed, volume)
+  const isDialogOpen = subtitlesSelectorTabOpen || isSubtitlesSizeModalOpen || speedPanelVisible || volumeSliderVisible;
+
   return (
     <div
         className={twMerge(`
@@ -742,7 +828,11 @@ const Controls = ({
             background: 'linear-gradient(to top, black 0%, transparent 100%)',
             opacity: controlsVisible ? 1 : 0,
             pointerEvents: controlsVisible ? 'all' : 'none',
-            willChange: 'opacity',
+            // No will-change here: it would make this bar its own stacking context, trapping the
+            // dialogs' z-50 inside it and leaving them under the subtitles (z-10).
+            // While a dialog is open the whole bar is lifted above the subtitles as well, so the
+            // dialogs stay on top even while the bar fades (opacity < 1 also creates a stacking context).
+            zIndex: isDialogOpen ? 20 : undefined,
             height: `${videoHeight * 0.15}px`,
         }}
 
@@ -980,20 +1070,16 @@ const Controls = ({
 
             <div
                 onMouseEnter={() => {
+                    isSubtitlesPanelHoveredRef.current = true;
                     if (closeTimeout.current) {
                         clearTimeout(closeTimeout.current);
                         closeTimeout.current = null;
                     }
                 }}
                 onMouseLeave={() => {
-                    closeTimeout.current = setTimeout(() => {
-                        dispatch(closeModal('subtitlesSelectorTab'));
-                        closeTimeout.current = null;
-
-                        if (isSubtitlesSizeModalOpen) {
-                            dispatch(closeModal('subtitlesSize'));
-                        }
-                    }, 3000);
+                    isSubtitlesPanelHoveredRef.current = false;
+                    if (isColorPickerOpenRef.current) return;
+                    scheduleSubtitlesPanelClose();
                 }}
                 className={twMerge(`
                     absolute
@@ -1026,23 +1112,22 @@ const Controls = ({
                         <CloseButton onClose={() => dispatch(closeModal('subtitlesSelectorTab'))} className='md:block absolute top-2 right-2 text-sm p-1 z-0' />
                     </p>
                     
-                    <div className='border-y border-stone-500 py-1 flex flex-col'>
-                        <span className='text-start text-sm text-stone-400'>Font size</span>
-                        
-                        <span className='w-full flex justify-between px-2'>
-                            <span className='text-base font-medium text-stone-300'>{subtitlesSize}px</span>
-                            
+                    <div className='border-y border-stone-500 py-2 flex flex-col gap-2'>
+                        <SubtitleFontSizeControl />
+
+                        <div className='flex items-center justify-between'>
+                            <span className='text-sm text-stone-400'>Color, background & font</span>
                             <Button
                                 onClick={(e) => {
                                     stop(e);
                                     dispatch(openModal('subtitlesSize'));
                                 }}
-                                className='bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'
+                                className='py-0.5 bg-transparent hover:bg-stone-700 text-sm text-blue-500 gap-1 hover:text-blue-400'
                             >
                                 <MdEdit />
-                                Edit
+                                Style
                             </Button>
-                        </span>
+                        </div>
                     </div>
                 </div>
                 
@@ -1051,18 +1136,9 @@ const Controls = ({
                         <span className='text-start text-[16px] text-white w-full'>Delay</span>
                         
                         <div className='flex items-center gap-2 w-full'>
-                            <input
-                                type="number"
+                            <SubtitleDelayInput
                                 value={subtitleDelay}
-                                onChange={(e) => {
-                                    const value = parseFloat(e.target.value) || 0;
-                                    dispatch(setSubtitleDelay(value));
-                                }}
-                                step="0.1"
-                                min="-60"
-                                max="60"
-                                className='w-16 text-base font-medium text-stone-300 bg-stone-700 border border-stone-600 rounded pl-2 outline-none focus:border-blue-500'
-                                placeholder="0.0"
+                                onChange={(value) => dispatch(setSubtitleDelay(value))}
                             />
                             <span className='text-sm text-stone-400'>seconds</span>
                         </div>
@@ -1144,7 +1220,7 @@ const Controls = ({
                         return [...sortedCommon, ...sortedOther];
                     }, [availableSubsLanguages, languageFiles])}
                     languageFiles={languageFiles}
-                    isLoading={isLoadingSubs}
+                    isLoading={isLoadingSubs || isResolvingMovie || isFetchingLanguages}
                     isDownloading={isDownloadingSubs}
                     onSelectSubtitle={handleSelectSubtitleLanguage}
                 />
@@ -1152,6 +1228,12 @@ const Controls = ({
                 <Button
                     onClick={() => window.electronAPI.openSubtitleFileDialog().then((path) => {
                         if (path) {
+                            // Cancel any list download still in flight and let the language be detected from the file
+                            subtitleRequestRef.current += 1;
+                            dispatch(setSelectedSubtitleFileId(null));
+                            dispatch(setSubtitleLang(null));
+                            dispatch(setSubtitleDelay(0));
+                            setIsDownloadingSubs(false);
                             dispatch(setSubtitleFilePath(path));
                             dispatch(setIsSubtitlesEnabled(true));
                         }
@@ -1162,13 +1244,13 @@ const Controls = ({
                 </Button>
 
                 {isSubtitlesSizeModalOpen && <div
-                    className='w-full h-full absolute top-0 bottom-0 right-0 left-0 z[60]'
+                    className='w-full h-full absolute top-0 bottom-0 right-0 left-0 z-[60]'
                     style={{
                         pointerEvents: isSubtitlesSizeModalOpen ? 'none' : 'all',
                     }}
                 >
                     <div className='relative w-full h-full pointer-events-auto'>
-                        <SubtitlesSizeDialog isOpen={isSubtitlesSizeModalOpen} />
+                        <SubtitlesStyleDialog isOpen={isSubtitlesSizeModalOpen} />
                     </div>
                 </div>}
             </div>

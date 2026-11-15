@@ -1,3 +1,4 @@
+import WithTooltip from './WithTooltip';
 import al from 'svg-country-flags/svg/al.svg';
 import ba from 'svg-country-flags/svg/ba.svg';
 import bd from 'svg-country-flags/svg/bd.svg';
@@ -68,13 +69,15 @@ const Flag = ({ code, title, className }: FlagProps) => {
     const src = code ? flags[code.toLowerCase()] : '';
     if (!src) return null;
 
+    // The label is shown with the app tooltip rather than a native title
     return (
-        <img
-            src={src}
-            alt=""
-            title={title}
-            className={className}
-        />
+        <WithTooltip label={title}>
+            <img
+                src={src}
+                alt={title || ''}
+                className={className}
+            />
+        </WithTooltip>
     );
 };
 

@@ -23,6 +23,23 @@ interface SubtitleDropdownProps {
 }
 
 const LOAD_BATCH = 10;
+const SKELETON_ROWS = [72, 56, 64, 48]; // label widths in %, so the rows don't look identical
+
+/** Placeholder rows shown while the language list is being fetched */
+const LoadingRows = () => (
+    <div className='flex flex-col' aria-hidden>
+        {SKELETON_ROWS.map((width, index) => (
+            <div key={index} className='flex items-center gap-2 px-4 py-2.5 bg-stone-800 border-b border-stone-900 last:border-b-0'>
+                <div className='h-3.5 w-5 shrink-0 rounded-[2px] bg-stone-700 animate-pulse' />
+                <div className='h-3 rounded-sm bg-stone-700 animate-pulse' style={{ width: `${width}%` }} />
+            </div>
+        ))}
+        <p className='flex items-center justify-center gap-2 px-4 py-2 text-xs italic text-stone-400 bg-stone-900'>
+            <LoadingIcon size={12} />
+            Searching for subtitles...
+        </p>
+    </div>
+);
 
 const SubtitleDropdown = ({ languages, languageFiles, onSelect, isLoading, isDownloading = false }: SubtitleDropdownProps) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -95,6 +112,9 @@ const SubtitleDropdown = ({ languages, languageFiles, onSelect, isLoading, isDow
             onClick={() => setIsOpen((prev) => !prev)}
             className="w-full hover:bg-stone-600 justify-between"
         >
+            <span className='sr-only' aria-live='polite'>
+                {isLoading ? 'Loading subtitles' : isDownloading ? 'Downloading subtitles' : ''}
+            </span>
             {subtitleLang ? (
               <div className={`flex w-full items-center gap-1 justify-between ${(isLoading || isDownloading) && 'justify-between'}`}>
                   <span className='flex gap-2 text-sm'>
@@ -111,15 +131,17 @@ const SubtitleDropdown = ({ languages, languageFiles, onSelect, isLoading, isDow
                   )}
               </div>
             ) : (
-                <span className={twMerge('text-sm flex items-center gap-2', isLoading && 'italic text-stone-400')}>
-                    {isLoading && (
-                      <span className='flex items-center gap-2'>
+                <span className={twMerge('text-sm flex items-center gap-2', (isLoading || !languages.length) && 'italic text-stone-400')}>
+                    {isLoading ? (
+                      <>
                         <LoadingIcon size={14} />
                         <span>Loading subtitles...</span>
-                      </span>
+                      </>
+                    ) : languages.length ? (
+                      'Select subtitles'
+                    ) : (
+                      'No subtitles found'
                     )}
-                    {selectedLabel && !isLoading ? selectedLabel : ''}
-                    {!selectedLabel && !isLoading && 'Select subtitles'}
                 </span>
             )}
             
@@ -153,11 +175,14 @@ const SubtitleDropdown = ({ languages, languageFiles, onSelect, isLoading, isDow
                 : 'scale-y-0 opacity-0 pointer-events-none'}
             `)}
         >
-            {normalizedVisibleSubs.length === 0 ? (
-                <div className="px-4 py-2 text-sm text-stone-400 text-center">
-                    {isLoading ? 'Loading subtitles...' : 'No subtitles available'}
-                </div>
-            ) : null}
+            {normalizedVisibleSubs.length === 0 && (
+                isLoading ? <LoadingRows /> : (
+                    <div className="px-4 py-3 text-sm text-stone-400 text-center">
+                        No subtitles available for this movie.
+                        <span className='block text-xs text-stone-500'>You can still choose a subtitle file from your computer.</span>
+                    </div>
+                )
+            )}
             {normalizedVisibleSubs.map(({ iso3, label }) => {
                 const countryCode = resolveCountryCode(iso3);
                 const files = languageFiles[iso3] || [];

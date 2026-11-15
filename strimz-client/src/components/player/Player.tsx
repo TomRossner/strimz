@@ -13,11 +13,8 @@ import '../../styles/playbackRangeInput.css';
 import '../../styles/volumeRangeInput.css';
 import Controls from './Controls';
 import { selectMovie, selectSubtitleFilePath, selectSubtitleLang, selectIsSubtitlesEnabled, selectSubtitleDelay, selectSelectedSubtitleFileId } from '@/store/movies/movies.selectors';
-import { selectMovieDownloadInfoPanel, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
+import { selectMovieDownloadInfoPanel, selectSubtitleColorPicker, selectSubtitlesSelectorTab, selectSubtitlesSizeModal } from '@/store/modals/modals.selectors';
 import { setIsSubtitlesEnabled, setVttSubtitlesContent, setAvailableSubtitlesLanguages, setSubtitleLang, setSubtitleFilePath, setSubtitleDelay, setSelectedMovie, setSelectedSubtitleFileId, setSelectedTorrent, setLanguageFiles, setExternalTorrent, setSubtitlesSize } from '@/store/movies/movies.slice';
-import { selectSettings } from '@/store/settings/settings.selectors';
-import { downloadSubtitleFromApi } from '@/services/subtitles';
-import { toOpenSubtitlesCode } from '@/utils/detectLanguage';
 import { API_URL, PLAYER_CONTROLS_KEY_BINDS, SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS } from '@/utils/constants';
 import TopOverlay from './TopOverlay';
 import ShortcutActionDisplay from './ShortcutActionDisplay';
@@ -139,6 +136,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const [keyboardShortcut, setKeyboardShortcut] = useState<string | null>(null);
 
     const subtitlesSelectorTabOpen = useAppSelector(selectSubtitlesSelectorTab);
+    const isColorPickerOpen = useAppSelector(selectSubtitleColorPicker);
 
     const [downloadInfo, setDownloadInfo] = useState<DownloadProgressData | null>(null);
     const bufferWidth = downloadInfo ? Number((downloadInfo.progress * 100).toFixed(2)) : 0;
@@ -164,14 +162,16 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
         const currentTime = videoRef.current.currentTime;
         const adjustedTime = currentTime + subtitleDelay;
-        let currentSubtitleText = '';
+        // Several cues can be active at once (e.g. a sign and dialogue): show all of them.
+        // The end is exclusive so back-to-back cues don't both show at the boundary.
+        const activeTexts: string[] = [];
 
         for (const cue of parsedSubtitles) {
-            if (adjustedTime >= cue.start && adjustedTime <= cue.end) {
-                currentSubtitleText = cue.text;
-                break;
+            if (adjustedTime >= cue.start && adjustedTime < cue.end) {
+                activeTexts.push(cue.text);
             }
         }
+        const currentSubtitleText = activeTexts.join('\n');
 
         setCurrentSubtitle(prev => {
             if (prev !== currentSubtitleText) {
@@ -180,6 +180,25 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             return prev;
         });
     }, [parsedSubtitles, subtitleDelay]);
+
+    // Subtitles follow the video frame by frame instead of the throttled timeupdate event
+    // (up to ~250ms late, and silent while paused). The loop also picks the cues up right
+    // away after switching files or changing the delay, even when paused or after a seek.
+    useEffect(() => {
+        if (!parsedSubtitles.length) {
+            setCurrentSubtitle('');
+            return;
+        }
+
+        let frame = 0;
+        const tick = () => {
+            renderSubtitles();
+            frame = requestAnimationFrame(tick);
+        };
+        tick();
+
+        return () => cancelAnimationFrame(frame);
+    }, [parsedSubtitles, renderSubtitles]);
 
     const lastDurationRef = useRef(0);
     const throttledHandleTimeUpdate = useRef<((e: React.SyntheticEvent<HTMLVideoElement>) => void) | null>(null);
@@ -191,7 +210,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
             if (!video) return;
 
-            renderSubtitles();
             setCurrentTime(video.currentTime);
             setDuration(video.duration);
             setPlaybackWidth((video.currentTime / video.duration) * 100);
@@ -236,7 +254,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             saveProgress.flush();
             saveProgress.cancel();
         };
-    }, [renderSubtitles, hash, title, movie, poster, cover, slug, progressKey, isEpisode, filePath]);
+    }, [hash, title, movie, poster, cover, slug, progressKey, isEpisode, filePath]);
 
     // Note: Playback position restoration is handled in onLoadedMetadata handler on the video element
     // This ensures it happens at the right time after the video metadata is loaded
@@ -350,6 +368,15 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         const video = videoRef.current;
 
         if (!video || isSubtitlesSizeModalOpen) return;
+        // Typing in a field (e.g. the subtitle delay) must not seek, change volume or pause
+        const target = e.target as HTMLElement | null;
+        if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) {
+            const inputType = target.tagName === 'INPUT' ? (target as HTMLInputElement).type : '';
+            const isTextField = target.tagName !== 'INPUT' || !['checkbox', 'radio', 'range', 'button'].includes(inputType);
+            if (isTextField) return;
+            // A focused slider (e.g. the subtitle size) uses the arrow keys itself
+            if (inputType === 'range' && e.key.startsWith('Arrow')) return;
+        }
         if (
             document.pictureInPictureElement &&
             !location.pathname.startsWith('/stream/') &&
@@ -436,7 +463,6 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const subtitleLang = useAppSelector(selectSubtitleLang);
     const subtitleFilePath = useAppSelector(selectSubtitleFilePath);
     const selectedSubtitleFileId = useAppSelector(selectSelectedSubtitleFileId);
-    const settings = useAppSelector(selectSettings);
 
     useEffect(() => {
         const stored = getPlayerPrefs();
@@ -543,6 +569,9 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                     const found = moviesFromResponse(response.data);
                     const exact = found.filter((entry) => sameTitle(entry.title, displayTitle));
                     playing = (parsed.year ? exact.find((entry) => Number(entry.year) === parsed.year) : exact[0]) || exact[0] || null;
+                    // The player may have been closed while the search was in flight. Writing the
+                    // movie then would leak it (and its subtitles) into the next playback.
+                    if (cancelled) return;
                     if (playing && playing.id !== movie?.id) {
                         dispatch(setSelectedMovie(playing));
                     }
@@ -589,27 +618,32 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
 
     // Convert SRT subtitle file to VTT when subtitleFilePath changes
     useEffect(() => {
+        // A slower conversion of a previous file must never overwrite a newer one.
+        let cancelled = false;
+
         const convertSubtitleToVTT = async () => {
-            if (!subtitleFilePath || !subtitleLang) {
+            if (!subtitleFilePath) {
                 dispatch(setVttSubtitlesContent(null));
                 return;
             }
 
             try {
-                const lang = subsMetadata?.lang || subtitleLang;
+                // The language is optional: text direction is derived from the subtitle text itself.
+                const lang = subsMetadata?.lang || subtitleLang || '';
                 const vttText = await window.electronAPI.convertSRTtoVTT(subtitleFilePath, lang);
-                if (vttText) {
-                    dispatch(setVttSubtitlesContent(vttText));
-                } else {
-                    dispatch(setVttSubtitlesContent(null));
-                }
+                if (cancelled) return;
+                dispatch(setVttSubtitlesContent(vttText || null));
             } catch (error) {
+                if (cancelled) return;
                 console.error('Error converting subtitle to VTT:', error);
                 dispatch(setVttSubtitlesContent(null));
             }
         };
 
         convertSubtitleToVTT();
+        return () => {
+            cancelled = true;
+        };
     }, [subtitleFilePath, subtitleLang, subsMetadata?.lang, dispatch]);
 
     // Update video dimensions when video element resizes
@@ -751,73 +785,55 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         }
     }, [movie, dispatch]);
 
-    // Clear subtitle playback state when source changes (new movie from disk or stream)
-    // BUT preserve subtitleLang, selectedSubtitleFileId, availableSubtitlesLanguages, and languageFiles
-    // These should persist so user doesn't have to re-select or re-fetch
-    // If subtitleLang and selectedSubtitleFileId are set, restore the subtitle file path
-    const prevSrcRef = useRef<string | undefined>(undefined);
-    const prevHashRef = useRef<string | null>(null);
-    const prevTitleRef = useRef<string | null>(null);
-    
+    // Make sure the subtitle state belongs to what is actually playing.
+    // Subtitles can be pre-selected in the movie dialog before streaming, so a matching movie keeps
+    // its selection on mount. Anything left over from another movie (a stale selectedMovie, its
+    // language list or its subtitle file) is reset, otherwise the old movie's subtitles get reused.
+    const playbackIdentity = slug || title || hash || src || '';
+    const prevPlaybackIdentityRef = useRef<string | null>(null);
+
     useEffect(() => {
-        // Only clear playback state if src, hash, or title actually changed (not on initial mount)
-        const srcChanged = prevSrcRef.current !== undefined && prevSrcRef.current !== src;
-        const hashChanged = prevHashRef.current !== null && prevHashRef.current !== hash;
-        const titleChanged = prevTitleRef.current !== null && prevTitleRef.current !== title;
-        const isInitialMount = prevSrcRef.current === undefined && prevHashRef.current === null && prevTitleRef.current === null;
-        
-        // Update refs for next comparison
-        prevSrcRef.current = src;
-        prevHashRef.current = hash;
-        prevTitleRef.current = title;
-        
-        // On initial mount, preserve all subtitle state (don't clear anything)
+        const isInitialMount = prevPlaybackIdentityRef.current === null;
+        const identityChanged = !isInitialMount && prevPlaybackIdentityRef.current !== playbackIdentity;
+        prevPlaybackIdentityRef.current = playbackIdentity;
+        if (!isInitialMount && !identityChanged) return;
+
+        const playingTitle = releaseTitle(title || '').title || title || '';
+        const matchesHash = !!movie && !!hash && ((movie.torrents || []) as Torrent[])
+            .some((torrent) => torrent.hash?.toLowerCase() === hash.toLowerCase());
+        const movieMatches = !!movie && (matchesHash || (slug
+            ? movie.slug === slug
+            : !!playingTitle && sameTitle(movie.title, playingTitle)));
+
+        const resetSubtitleSelection = () => {
+            dispatch(setAvailableSubtitlesLanguages([]));
+            dispatch(setLanguageFiles({}));
+            dispatch(setSubtitleLang(null));
+            dispatch(setSelectedSubtitleFileId(null));
+            dispatch(setSubtitleFilePath(null));
+            dispatch(setIsSubtitlesEnabled(false));
+            dispatch(setVttSubtitlesContent(null));
+        };
+
         if (isInitialMount) {
-            // If subtitle was already set before playing, ensure it's enabled
-            if (subtitleLang && selectedSubtitleFileId) {
+            // File playback (Downloads, History) never has a pre-selected subtitle.
+            const shouldReset = slug ? (!!movie && !movieMatches) : !movieMatches;
+            if (shouldReset) {
+                resetSubtitleSelection();
+                if (movie && !movieMatches) dispatch(setSelectedMovie(null));
+            } else if (subtitleLang && selectedSubtitleFileId) {
                 dispatch(setIsSubtitlesEnabled(true));
             }
             return;
         }
-        
-        // Only clear playback-related state if source/hash/title actually changed
-        if (srcChanged || hashChanged || titleChanged) {
-            // Clear only playback-related subtitle state
-            // Don't clear subtitleLang, selectedSubtitleFileId, availableSubtitlesLanguages, or languageFiles
-            dispatch(setIsSubtitlesEnabled(false));
-            dispatch(setSubtitleDelay(0));
-            dispatch(setVttSubtitlesContent(null));
-            
-            // Only clear subtitleFilePath if no subtitle is selected
-            if (!subtitleLang && !selectedSubtitleFileId) {
-                dispatch(setSubtitleFilePath(null));
-            }
-            
-            // If subtitle was selected before playing, restore/check the subtitle file path
-            // This ensures the subtitle works immediately without re-selection
-            if (subtitleLang && selectedSubtitleFileId && movie?.imdb_code && movie?.title && movie?.year && settings.downloadsFolderPath) {
-                const restoreSubtitle = async () => {
-                    try {
-                        const openSubtitlesLangCode = toOpenSubtitlesCode(subtitleLang);
-                        // Call download API - it will check if file exists and return existing path or download new one
-                        const { data: subtitlePath } = await downloadSubtitleFromApi(
-                            selectedSubtitleFileId,
-                            movie.imdb_code,
-                            movie.title,
-                            movie.year.toString(),
-                            openSubtitlesLangCode,
-                            settings.downloadsFolderPath
-                        );
-                        dispatch(setSubtitleFilePath(subtitlePath));
-                        dispatch(setIsSubtitlesEnabled(true));
-                    } catch (error) {
-                        console.error('Failed to restore subtitle file:', error);
-                    }
-                };
-                restoreSubtitle();
-            }
-        }
-    }, [src, hash, title, dispatch, subtitleLang, selectedSubtitleFileId, movie?.imdb_code, movie?.title, movie?.year, settings.downloadsFolderPath]);
+
+        // Switched to another movie/file while the player stayed mounted.
+        resetSubtitleSelection();
+        dispatch(setSubtitleDelay(0));
+        if (movie && !movieMatches) dispatch(setSelectedMovie(null));
+        // Only react to a change of what is playing, not to every subtitle/movie state change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [playbackIdentity]);
 
     // NOTE: Cleanup effect removed - it was causing issues with React StrictMode double-invocation
     // The cleanup was running during development mode, clearing states right after they were set
@@ -833,7 +849,12 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                 {isReadyToPlay ? (
                     <div
                         ref={containerRef}
-                        onMouseLeave={() => setControlsVisible(false)}
+                        onMouseLeave={() => {
+                            // The system color picker of the subtitles style panel pulls the pointer
+                            // out of the player: keep the controls (and that panel) visible meanwhile
+                            if (isColorPickerOpen) return;
+                            setControlsVisible(false);
+                        }}
                         className='player-stage flex flex-col justify-center w-full h-[98vh] relative'
                     >
                         <TopOverlay

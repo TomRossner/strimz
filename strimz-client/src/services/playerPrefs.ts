@@ -28,12 +28,20 @@ const listeners = new Set<() => void>();
 
 let cache: PlayerPrefs = readPlayerPrefs();
 
+// The color picker only understands #rrggbb: anything else shows (and would save) black
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
 function readPlayerPrefs(): PlayerPrefs {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return { ...DEFAULT_PLAYER_PREFS };
         const parsed = JSON.parse(raw) as Partial<PlayerPrefs>;
-        return { ...DEFAULT_PLAYER_PREFS, ...parsed };
+        const prefs = { ...DEFAULT_PLAYER_PREFS, ...parsed };
+        // Subtitles are white unless a valid color was chosen
+        if (typeof prefs.subtitleColor !== 'string' || !HEX_COLOR.test(prefs.subtitleColor)) {
+            prefs.subtitleColor = DEFAULT_PLAYER_PREFS.subtitleColor;
+        }
+        return prefs;
     } catch {
         return { ...DEFAULT_PLAYER_PREFS };
     }

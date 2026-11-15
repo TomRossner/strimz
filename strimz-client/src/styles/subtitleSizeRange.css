@@ -1,0 +1,30 @@
+/* Subtitle font size slider (track fill is set inline from the value) */
+input[type="range"].subtitle-size-range {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+input[type="range"].subtitle-size-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 100%;
+  background: white;
+  cursor: pointer;
+  transition: scale 0.1s;
+}
+
+input[type="range"].subtitle-size-range::-webkit-slider-thumb:hover,
+input[type="range"].subtitle-size-range:focus-visible::-webkit-slider-thumb {
+  scale: 1.25;
+}
+
+input[type="range"].subtitle-size-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 100%;
+  background: white;
+  cursor: pointer;
+}

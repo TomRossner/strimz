@@ -36,10 +36,15 @@ function TooltipContent({
   className,
   sideOffset = 0,
   children,
+  container,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & {
+  container?: React.ComponentProps<typeof TooltipPrimitive.Portal>["container"]
+}) {
   return (
-    <TooltipPrimitive.Portal>
+    // In fullscreen only the fullscreen element is drawn, so a tooltip portaled to <body>
+    // would be invisible (e.g. in the player): portal into the fullscreen element instead.
+    <TooltipPrimitive.Portal container={container ?? (document.fullscreenElement as HTMLElement | null) ?? undefined}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}

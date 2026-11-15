@@ -65,29 +65,38 @@ const WatchMoviePage = () => {
             !settings.downloadsFolderPath
         ) return;
 
+        // Switching subtitles while a download is in flight must not let the older
+        // response replace the newer file.
+        let cancelled = false;
+
         const startSubtitlesDownload = async () => {
             try {
                 const openSubtitlesLangCode = toOpenSubtitlesCode(subtitleLang);
                 const {data: subtitleFilePath} = await downloadSubtitleFromApi(
                     selectedSubtitleFileId,
                     movie.imdb_code,
-                    title,
+                    movie.title || title,
                     movie.year.toString(),
                     openSubtitlesLangCode,
                     settings.downloadsFolderPath
                 );
+                if (cancelled) return;
                 dispatch(setSubtitleFilePath(subtitleFilePath));
             } catch (error) {
-                console.error('Error downloading subtitle from API:', error);
+                if (!cancelled) console.error('Error downloading subtitle from API:', error);
             }
         }
 
         startSubtitlesDownload();
+        return () => {
+            cancelled = true;
+        };
     }, [
         subtitleLang,
         selectedSubtitleFileId,
         movie?.imdb_code,
         movie?.year,
+        movie?.title,
         title,
         settings.downloadsFolderPath,
         dispatch

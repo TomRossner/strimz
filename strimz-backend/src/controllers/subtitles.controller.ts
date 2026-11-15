@@ -1,9 +1,14 @@
 import { Request, Response } from 'express';
-import { searchSubtitlesByImdbId, downloadSubtitleFromApi } from '../subtitles/subtitles.js';
+import { searchSubtitlesByImdbId, downloadSubtitleFromApi, getSubtitleBaseName } from '../subtitles/subtitles.js';
 import path from 'path';
 import fs from 'fs';
 
 const RESPONSE_TIMEOUT: number = 60000 // milliseconds;
+
+// Downloads in progress, by target file. The player and the watch page can ask for the same
+// file at the same moment: they share one download instead of using the OpenSubtitles quota
+// twice and writing the same file concurrently.
+const downloadsInProgress = new Map<string, Promise<string>>();
 
 /**
  * Search for subtitles using OpenSubtitles REST API
@@ -55,9 +60,8 @@ export const downloadSubtitleFromOpenSubtitlesApi = async (req: Request, res: Re
             fs.mkdirSync(subsDir, { recursive: true });
         }
 
-        // Check if file already exists
-        const sanitizedTitle = title.replace(/[^A-Za-z]/g, '.');
-        const fileName = `${imdbCode}-${sanitizedTitle}-${year}-[${language}].srt`;
+        // Reuse the file if this exact subtitle (file ID) was downloaded before
+        const fileName = `${getSubtitleBaseName(imdbCode, title, String(year), language, String(fileId))}.srt`;
         const filePath = path.join(subsDir, fileName);
 
         if (fs.existsSync(filePath)) {
@@ -65,14 +69,20 @@ export const downloadSubtitleFromOpenSubtitlesApi = async (req: Request, res: Re
             return;
         }
 
-        const downloadedPath = await downloadSubtitleFromApi(
-            fileId,
-            subsDir,
-            imdbCode,
-            title,
-            year,
-            language
-        );
+        let download = downloadsInProgress.get(filePath);
+        if (!download) {
+            download = downloadSubtitleFromApi(
+                fileId,
+                subsDir,
+                imdbCode,
+                title,
+                year,
+                language
+            ).finally(() => downloadsInProgress.delete(filePath));
+            downloadsInProgress.set(filePath, download);
+        }
+
+        const downloadedPath = await download;
 
         res.status(200).json(downloadedPath);
     } catch (error) {

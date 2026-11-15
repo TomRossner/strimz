@@ -80,6 +80,15 @@ export const DEFAULT_PARAMS: Filters & {page: number} = {
 }
 
 export const DEFAULT_SUBTITLES_SIZE: number = 30; // px
+export const MIN_SUBTITLES_SIZE: number = 16; // px
+export const MAX_SUBTITLES_SIZE: number = 60; // px
+export const SUBTITLES_SIZE_STEP: number = 2; // px, per A- / A+ click
+export const SUBTITLES_SIZE_PRESETS: { label: string; title: string; size: number }[] = [
+  { label: 'S', title: 'Small', size: 24 },
+  { label: 'M', title: 'Medium', size: DEFAULT_SUBTITLES_SIZE },
+  { label: 'L', title: 'Large', size: 38 },
+  { label: 'XL', title: 'Extra large', size: 46 },
+];
 
 export const PLAYER_CONTROLS_KEY_BINDS = {
   PLAY_PAUSE: ' ', // Space

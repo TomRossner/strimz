@@ -2,10 +2,11 @@ import { useAppSelector } from '@/store/hooks';
 import { selectSubtitleLang, selectSubtitlesSize, selectIsSubtitlesEnabled, selectVttSubtitlesContent } from '@/store/movies/movies.selectors';
 import { getPlayerPrefs, subscribePlayerPrefs } from '@/services/playerPrefs';
 import { getSubtitleMetadata } from '@/utils/detectLanguage';
-import { isRTL, parseVTTToCues } from '@/utils/subtitles';
+import { detectTextDirection, parseVTTToCues, subtitleTextToHTML } from '@/utils/subtitles';
 import { Cue } from '@/utils/types';
 import React, {  useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { twMerge } from 'tailwind-merge';
+import '../../styles/subtitles.css';
 
 interface SubtitlesProps {
     parsedSubtitles: Cue[];
@@ -29,7 +30,8 @@ const Subtitles = React.memo(({
     const hasSubtitles = useAppSelector(selectIsSubtitlesEnabled);
 
     const subtitlesContainerRef = useRef<HTMLDivElement | null>(null);
-    const previousSubtitleRef = useRef<string>('');
+    // Direction of the loaded file, derived from its text (see detectTextDirection)
+    const [direction, setDirection] = useState<'rtl' | 'ltr'>('ltr');
 
     const subtitlesSize = useAppSelector(selectSubtitlesSize);
     const appearance = useSyncExternalStore(subscribePlayerPrefs, getPlayerPrefs);
@@ -63,6 +65,7 @@ const Subtitles = React.memo(({
             try {
                 if (vttSubtitlesContent) {
                     const parsed = parseVTTToCues(vttSubtitlesContent as string);
+                    setDirection(detectTextDirection(parsed, lang));
                     setParsedSubtitles(parsed);
                 } else {
                     console.log("Non-SRT subtitles not yet handled for custom rendering");
@@ -83,11 +86,10 @@ const Subtitles = React.memo(({
             setCurrentSubtitle('');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [vttSubtitlesContent]);
+    }, [vttSubtitlesContent, lang]);
 
     // Calculate style values (but don't create object yet to avoid unnecessary re-renders)
     const styleValues = useMemo(() => {
-        const isRTLDirection = isRTL(lang as string);
         const actualHeight = height || 720;
         const actualWidth = width || 1280;
         const bottomPosition = actualWidth > 1280 && !isFullscreen
@@ -95,21 +97,23 @@ const Subtitles = React.memo(({
             : actualHeight * (isFullscreen ? 0.13 : 0.18);
         
         return {
-            direction: (isRTLDirection ? 'rtl' : 'ltr') as 'rtl' | 'ltr',
+            direction,
             bottom: `${bottomPosition}px`,
             fontSize: `${subtitlesSize}px`,
             maxHeight: `${actualHeight * 0.25}px`,
         };
-    }, [lang, subtitlesSize, height, width, isFullscreen]);
+    }, [direction, subtitlesSize, height, width, isFullscreen]);
 
     // Memoize complete style object to avoid recreating it
     const subtitleStyle = useMemo(() => ({
         direction: styleValues.direction,
-        unicodeBidi: 'embed' as const,
+        unicodeBidi: 'isolate' as const,
         textShadow: '2px 2px 3px rgba(0, 0, 0, 1)',
         whiteSpace: 'pre-line' as const,
         color: appearance.subtitleColor,
-        backgroundColor: appearance.subtitleBackground,
+        // Not a background on this full-width container (that drew a band across the whole
+        // video): each line's box reads it through this variable (styles/subtitles.css).
+        '--subtitle-bg': appearance.subtitleBackground,
         fontFamily: appearance.subtitleFont,
         fontSize: styleValues.fontSize,
         maxHeight: styleValues.maxHeight,
@@ -126,33 +130,22 @@ const Subtitles = React.memo(({
         bottom: styleValues.bottom,
         textAlign: 'center' as const,
         pointerEvents: 'none' as const,
-    }), [styleValues, appearance.subtitleColor, appearance.subtitleBackground, appearance.subtitleFont]);
+    }) as React.CSSProperties, [styleValues, appearance.subtitleColor, appearance.subtitleBackground, appearance.subtitleFont]);
 
-    // Update subtitle text directly via ref to avoid React re-renders and flickering
+    const subtitleHTML = useMemo(() => subtitleTextToHTML(currentSubtitle, direction), [currentSubtitle, direction]);
+
+    // Update subtitle text directly via ref to avoid React re-renders and flickering.
+    // hasSubtitles is a dependency because toggling subtitles back on mounts a new, empty element.
     useEffect(() => {
-        if (!subtitlesContainerRef.current) return;
-        
-        // Only update if text actually changed
-        if (previousSubtitleRef.current === currentSubtitle) return;
-
-        // Use requestAnimationFrame for smoother updates
-        requestAnimationFrame(() => {
-            const element = subtitlesContainerRef.current;
-            if (!element) return;
-
-            // Update content only if it changed - preserve newlines for multi-line subtitles
-            // whiteSpace: 'pre-line' will preserve newlines, so we can use innerHTML directly
-            if (element.innerHTML !== currentSubtitle) {
-                element.innerHTML = currentSubtitle;
-            }
-            previousSubtitleRef.current = currentSubtitle;
-        });
-    }, [currentSubtitle]);
+        const element = subtitlesContainerRef.current;
+        if (!element) return;
+        element.innerHTML = subtitleHTML;
+    }, [subtitleHTML, hasSubtitles]);
 
     return hasSubtitles ? (
                 <div
                     ref={subtitlesContainerRef}
-                    dir={isRTL(lang) ? 'rtl' : 'ltr'}
+                    dir={direction}
                     className={twMerge(`w-full text-center text-white px-4 z-10`)}
                     style={subtitleStyle}
                 />

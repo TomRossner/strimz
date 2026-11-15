@@ -310,6 +310,23 @@ export const searchSubtitlesByImdbId = async (
 }
 
 /**
+ * Base name (without extension) of a downloaded subtitle file.
+ * The file ID is part of it: several files exist per language, and a name based on the
+ * language alone made every later pick of that language return the first downloaded file.
+ */
+export const getSubtitleBaseName = (
+    imdbCode: string,
+    title: string,
+    year: string,
+    language: string,
+    fileId: string
+): string => {
+    const sanitizedTitle = title.replace(/[^A-Za-z]/g, '.');
+    const sanitizedFileId = String(fileId).replace(/[^A-Za-z0-9]/g, '');
+    return `${imdbCode}-${sanitizedTitle}-${year}-[${language}]-${sanitizedFileId}`;
+}
+
+/**
  * Download subtitle file from OpenSubtitles REST API
  * @param fileId - OpenSubtitles file ID
  * @param downloadPath - Path where to save the subtitle file
@@ -367,8 +384,8 @@ export const downloadSubtitleFromApi = async (
         // Generate filename
         const fs = await import('fs');
         const path = await import('path');
-        const sanitizedTitle = title.replace(/[^A-Za-z]/g, '.');
-        const fileName = `${imdbCode}-${sanitizedTitle}-${year}-[${language}].srt`;
+        const baseName = getSubtitleBaseName(imdbCode, title, year, language, fileId);
+        const fileName = `${baseName}.srt`;
         const filePath = path.join(downloadPath, fileName);
 
         // Ensure directory exists
@@ -386,8 +403,6 @@ export const downloadSubtitleFromApi = async (
             fs.writeFileSync(tempZipPath, fileResponse.data);
             
             // Extract SRT from ZIP using existing utility
-            const sanitizedTitle = title.replace(/[^A-Za-z]/g, '.');
-            const baseName = `${imdbCode}-${sanitizedTitle}-${year}-[${language}]`;
             const extractedPath = await extractSrtFiles(tempZipPath, downloadPath, baseName);
             
             // Clean up temp ZIP file
@@ -399,8 +414,11 @@ export const downloadSubtitleFromApi = async (
             
             return extractedPath;
         } else {
-            // Write file directly (assuming it's already an SRT)
-            fs.writeFileSync(filePath, fileResponse.data);
+            // Assuming it's already an SRT. Written to a temp file and renamed so the file
+            // only appears once complete (its existence is used as the download cache).
+            const tempPath = `${filePath}.part`;
+            fs.writeFileSync(tempPath, fileResponse.data);
+            fs.renameSync(tempPath, filePath);
             return filePath;
         }
     } catch (error) {

@@ -9,5 +9,6 @@ export const selectPlayTorrentPrompt = (state: RootState): boolean => state.moda
 export const selectSubtitlesSizeModal = (state: RootState): boolean => state.modals.subtitlesSize;
 export const selectMovieDownloadInfoPanel = (state: RootState): boolean => state.modals.movieDownloadInfo;
 export const selectSubtitlesSelectorTab = (state: RootState): boolean => state.modals.subtitlesSelectorTab;
+export const selectSubtitleColorPicker = (state: RootState): boolean => state.modals.subtitleColorPicker;
 export const selectSummaryModal = (state: RootState): boolean => state.modals.summary;
 export const selectPlayFromMagnetModal = (state: RootState): boolean => state.modals.playFromMagnet;

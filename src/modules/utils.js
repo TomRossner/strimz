@@ -40,9 +40,16 @@ export async function clearDownloadFolderAsync(folderPath) {
 export const RTLLanguages = ['he', 'ar', 'fa', 'ur'];
 
 export const isRTL = (lang) => {
+  if (!lang) return false;
   const langCode = lang.split('-')[0].toLowerCase();
   return RTLLanguages.includes(langCode);
 }
+
+// Hebrew, Arabic, Syriac, Thaana, NKo... plus presentation forms
+const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+const TAG = /<\/?[^>]+>/g;
+const LEADING_PUNCT = /^[\s\-\u2013]*[.,!?\u2026:;]/;
+const TRAILING_PUNCT = /[.,!?\u2026:;]["'\u201D]?\s*$/;
 
 const convertLegacyStylingToHTML = (text) => {
     // Convert italics
@@ -63,85 +70,64 @@ const convertLegacyStylingToHTML = (text) => {
     return text;
 }
 
-function reinsertTags(text, tags) {
-    if (!tags.length) return text;
+/**
+ * RTL subtitles come in two flavours:
+ * - Logical order (correct Unicode): "שלום." - the period is stored at the end and the
+ *   renderer (direction: rtl) shows it on the left. Nothing must be moved.
+ * - Visual order: ".שלום" - punctuation was moved to the start so that players without
+ *   bidi support (rendering everything LTR) show it on the left. Rendered RTL, the
+ *   punctuation then appears on the wrong (right) side.
+ * The order is a property of the file, not of the OS or its language, so it is detected
+ * per file by counting which side the sentence punctuation sits on.
+ */
+const isVisualOrderRTL = (lines) => {
+    let leading = 0;
+    let trailing = 0;
 
-    let offset = 0;
-    let clean = text;
+    for (const line of lines) {
+        const plain = line.replace(TAG, '').trim();
+        if (!RTL_CHAR.test(plain)) continue;
 
-    for (const { tag, index } of tags) {
-        const safeIndex = Math.min(index + offset, clean.length);
-        clean = clean.slice(0, safeIndex) + tag + clean.slice(safeIndex);
-        offset += tag.length;
+        if (TRAILING_PUNCT.test(plain)) trailing += 1;
+        else if (LEADING_PUNCT.test(plain)) leading += 1;
     }
 
-    return clean;
+    return leading >= 3 && leading > trailing;
+}
+
+/** Restores logical order for one line of a visual-order RTL file: ".שלום" -> "שלום." */
+const fixVisualOrderLine = (line) => {
+    const parts = line.match(/^((?:\s*<[^/>][^>]*>)*)([\s\S]*?)((?:<\/[^>]+>\s*)*)$/);
+    if (!parts) return line;
+
+    const [, openTags, body, closeTags] = parts;
+    if (!RTL_CHAR.test(body)) return line;
+
+    let core = body.trim();
+    let dash = '';
+
+    // Dialogue dash stored at the end ("שלום -") belongs at the logical start
+    const trailingDash = core.match(/^([\s\S]*?[^\-\u2013\s])\s*[\-\u2013]$/);
+    const leadingDash = core.match(/^([\-\u2013]\s*)([\s\S]*)$/);
+    if (trailingDash) {
+        dash = '- ';
+        core = trailingDash[1];
+    } else if (leadingDash) {
+        dash = leadingDash[1];
+        core = leadingDash[2];
+    }
+
+    const leadingPunct = core.match(/^([.,!?\u2026:;]+)\s*([\s\S]+)$/);
+    if (leadingPunct) {
+        core = `${leadingPunct[2]}${leadingPunct[1]}`;
+    }
+
+    return `${openTags}${dash}${core}${closeTags}`;
 }
 
 export const parseSRTtoVTT = (data, lang) => {
-    const isLangRTL = isRTL(lang);
-    
-    const processRTLText = (line) => {
-        const RLE = '\u202B';
-        const PDF = '\u202C';
-
-        // Step 1: Extract and remove HTML tags
-        const tagRegex = /<\/?(i|b|u)>/gi;
-        const tags = [];
-        let tagMatch;
-
-        // Capture tags and their positions
-        while ((tagMatch = tagRegex.exec(line)) !== null) {
-            tags.push({ tag: tagMatch[0], index: tagMatch.index });
-        }
-
-        // Remove all tags from the line for punctuation processing
-        const plainText = line.replace(tagRegex, '');
-
-        // For LTR languages, return the line as-is (no RTL processing)
-        if (!isLangRTL) {
-            return line; // Keep original line for LTR languages
-        }
-
-        // Step 2: Handle lines that start with hyphen (RTL only)
-        if (plainText.startsWith('-')) {
-            const restOfLine = plainText.substring(1);
-            const trailingPunctMatch = restOfLine.match(/([.…?!`':,]+)$/);
-            if (trailingPunctMatch) {
-                const trailingPunct = trailingPunctMatch[1];
-                const textWithoutTrailing = restOfLine.slice(0, -trailingPunct.length);
-                const final = `${RLE}-${textWithoutTrailing}${PDF}${trailingPunct}`;
-                return reinsertTags(final, tags);
-            }
-            const final = `${RLE}-${restOfLine}${PDF}`;
-            return reinsertTags(final, tags);
-        }
-
-        // Step 3: Match leading/trailing punctuation (RTL only)
-        const leadingPunctMatch = plainText.match(/^([.…?!'"`:=,\-\s]+)/);
-        const trailingPunctMatch = plainText.match(/([.…?!'"`:=,\-\s]+)$/);
-
-        const leadingPunct = leadingPunctMatch ? leadingPunctMatch[0] : '';
-        const trailingPunct = trailingPunctMatch ? trailingPunctMatch[0] : '';
-
-        // Step 4: Strip punctuation
-        const cleanedText = plainText
-            .replace(/^([.…?!'"`:=,\-\s]+)/, '')
-            .replace(/([.…?!'"`:=,\-\s]+)$/, '');
-
-        // Step 5: Reverse punctuation for correct rendering in RTL
-        const reversedLeading = leadingPunct.split('').reverse().join('');
-        const reversedTrailing = trailingPunct.split('').reverse().join('');
-
-        // Step 6: Wrap in bidi markers
-        const finalLine = `${RLE}${reversedTrailing}${cleanedText}${reversedLeading}${PDF}`;
-
-        // Step 7: Restore tags to the final output
-        return reinsertTags(finalLine, tags);
-    }
-
     const blocks = data.split(/\r?\n\r?\n/);
-    const cues = [];
+    const parsed = [];
 
     for (const block of blocks) {
         const lines = block.split(/\r?\n/).filter(Boolean);
@@ -160,9 +146,8 @@ export const parseSRTtoVTT = (data, lang) => {
         const [startStr, endStr] = timeMatch.split('-->');
 
         const parseTime = (timeStr) => {
-        const [h, m, sWithMs] = timeStr.trim().replace(',', '.').split(':');
-        const seconds = parseFloat(h) * 3600 + parseFloat(m) * 60 + parseFloat(sWithMs);
-            return seconds;
+            const [h, m, sWithMs] = timeStr.trim().replace(',', '.').split(':');
+            return parseFloat(h) * 3600 + parseFloat(m) * 60 + parseFloat(sWithMs);
         }
 
         const start = parseTime(startStr);
@@ -171,26 +156,25 @@ export const parseSRTtoVTT = (data, lang) => {
         if (isNaN(start) || isNaN(end)) continue;
 
         const textContentLines = lines.slice(timeLineIndex + 1);
-        let text = textContentLines.join('\n').trim();
+        // Convert legacy styling tags to HTML tags
+        const text = convertLegacyStylingToHTML(textContentLines.join('\n').trim());
 
-        // First, convert legacy styling tags to HTML tags
-        text = convertLegacyStylingToHTML(text);
-
-        // Then apply your RTL/LTR processing
-        const processedLines = text.split('\n').map(processRTLText);
-        text = processedLines.join('\n');
-
-        // Sanitize to remove unsafe HTML but allow <i>, <b>, <u>
-        // const sanitizedText = DOMPurify.sanitize(text, { ALLOWED_TAGS: ['i', 'b', 'u'] });
-
-        cues.push({
-            start,
-            end,
-            text,
-        });
+        parsed.push({ start, end, lines: text.split('\n') });
     }
 
-    return cues;
+    // Text is kept in logical order: the renderer sets the direction (RTL/LTR) from the
+    // text, which places punctuation correctly regardless of the OS language. Only files
+    // stored in visual order are converted back to logical order.
+    const visualOrder = isVisualOrderRTL(parsed.flatMap((cue) => cue.lines));
+    if (visualOrder) {
+        log.info(`Subtitle file stored in visual RTL order (lang: ${lang || 'unknown'}), restoring logical order`);
+    }
+
+    return parsed.map(({ start, end, lines }) => ({
+        start,
+        end,
+        text: (visualOrder ? lines.map(fixVisualOrderLine) : lines).join('\n'),
+    }));
 }
 
 export async function convertSRTtoVTT(srtFilePath, languageCode) {
@@ -202,7 +186,7 @@ export async function convertSRTtoVTT(srtFilePath, languageCode) {
     log.info('Detected encoding:', encoding);
 
     // Fallback logic for Hebrew if encoding is mis-detected
-    if (languageCode.startsWith('he') && (!encoding || encoding === 'ISO-8859-1' || encoding === 'windows-1252')) {
+    if ((languageCode || '').startsWith('he') && (!encoding || encoding === 'ISO-8859-1' || encoding === 'windows-1252')) {
       log.warn('Falling back to windows-1255 for Hebrew subtitle decoding');
       encoding = 'windows-1255';
     }
