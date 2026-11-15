@@ -124,7 +124,9 @@ export const pauseDownload = async (hash: string) => {
     return await axios.post(`${API_URL}/stream/pause/${hash}`);
 }
 
-export const getMoviesByIds = async (ids: string[]) => {
+export type SavedMovieLookup = string | { id: string; imdb_code?: string };
+
+export const getMoviesByIds = async (ids: SavedMovieLookup[]) => {
     return await axios.post(`${MOVIES_FETCH_URL}`, {ids});
 }
 

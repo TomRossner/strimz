@@ -108,6 +108,52 @@ export const removeWatchListMovie = (movieId: string) => {
 
 
 
+export type SavedMovieKind = 'favorites' | 'watchList';
+
+const SAVED_MOVIE_KEYS: Record<SavedMovieKind, { ids: string; movies: string }> = {
+    favorites: { ids: 'user_favorites', movies: FAVORITE_MOVIES_KEY },
+    watchList: { ids: 'user_watch_list', movies: WATCH_LIST_MOVIES_KEY },
+};
+
+/**
+ * Rewrites saved favorites / watch list ids + snapshots with fresher movie data.
+ * `replacements` maps a previously saved id to the up-to-date movie, which may carry a new id
+ * (e.g. a title saved from "In Theatres" under its TMDB id that is now streamable on YTS).
+ */
+export const refreshSavedMovies = (
+    kind: SavedMovieKind,
+    replacements: Map<string, { id: string | number }>
+) => {
+    if (!replacements.size) return;
+    const keys = SAVED_MOVIE_KEYS[kind];
+
+    let ids: string[] = [];
+    try {
+        const parsed = JSON.parse(localStorage.getItem(keys.ids) ?? '[]') as unknown;
+        ids = Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        ids = [];
+    }
+
+    const stored = readStoredMovies(keys.movies);
+    const nextIds: string[] = [];
+
+    for (const id of ids) {
+        const movie = replacements.get(id);
+        const nextId = movie ? String(movie.id) : id;
+        if (movie) {
+            if (nextId !== id) delete stored[id];
+            stored[nextId] = movie as unknown as Record<string, unknown>;
+        }
+        if (!nextIds.includes(nextId)) nextIds.push(nextId);
+    }
+
+    localStorage.setItem(keys.ids, JSON.stringify(nextIds));
+    localStorage.setItem(keys.movies, JSON.stringify(stored));
+}
+
+
+
 // Watch list
 
 export const saveWatchList = (list: string[]) => {

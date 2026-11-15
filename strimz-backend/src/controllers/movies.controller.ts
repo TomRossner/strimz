@@ -688,15 +688,20 @@ export const getMovies = async (req: Request, res: Response) => {
             return { ...m, rating, runtime, genres };
         };
 
-        const findSavedMovie = async (movieId: string): Promise<Record<string, unknown> | null> => {
+        const findSavedMovie = async (movieId: string, imdbHint?: string): Promise<Record<string, unknown> | null> => {
             const key = movieId.trim().toLowerCase();
-            if (!key) return null;
+            const imdbCode = (imdbHint ?? "").trim().toLowerCase() || (key.startsWith("tt") ? key : "");
+            if (!key && !imdbCode) return null;
 
-            if (!Number.isNaN(Number(key))) {
+            if (key && !Number.isNaN(Number(key))) {
                 try {
                     const response = await yts.getMovie({ movieId: movieId.trim(), withCast: false, withImages: true });
                     const listed = response?.data?.movie as Record<string, unknown> | undefined;
-                    if (response?.status !== "error" && listed && String(listed.id) === movieId.trim()) {
+                    const listedImdb = String(listed?.imdb_code ?? "").toLowerCase();
+                    // Movies saved from "In Theatres" carry a TMDB id, which can collide with an
+                    // unrelated YTS id, so only accept the hit when the IMDb code agrees.
+                    const sameTitle = !imdbCode || !listedImdb || listedImdb === imdbCode;
+                    if (response?.status !== "error" && listed && String(listed.id) === movieId.trim() && sameTitle) {
                         return normalizeMovie(listed);
                     }
                 } catch (error) {
@@ -707,18 +712,36 @@ export const getMovies = async (req: Request, res: Response) => {
                 }
             }
 
+            // A title saved while it was only in theatres becomes streamable under a new YTS
+            // id/slug, so look it up by IMDb code to pick up the streamable release.
+            if (imdbCode) {
+                try {
+                    const streamable = await findYtsMovieByImdb(imdbCode);
+                    if (streamable) return normalizeMovie(streamable);
+                } catch (error) {
+                    console.error(
+                        `Movie IMDb lookup failed for "${imdbCode}":`,
+                        error instanceof Error ? error.message : error
+                    );
+                }
+            }
+
             const inTheatres = await ensureInTheatresMovies().catch(() => []);
             return inTheatres.find((movie) => {
                 const id = String(movie.id ?? "").toLowerCase();
-                const imdbCode = String(movie.imdb_code ?? "").toLowerCase();
+                const movieImdb = String(movie.imdb_code ?? "").toLowerCase();
                 const slug = String(movie.slug ?? "").toLowerCase();
-                return id === key || imdbCode === key || slug === key;
+                return (key && (id === key || movieImdb === key || slug === key))
+                    || (imdbCode && movieImdb === imdbCode);
             }) ?? null;
         };
 
-        for (const movieId of ids) {
-            const movie = await findSavedMovie(String(movieId));
-            if (movie) movies = [...movies, movie];
+        for (const entry of ids) {
+            const isObject = entry && typeof entry === "object";
+            const movieId = String(isObject ? (entry as Record<string, unknown>).id ?? "" : entry);
+            const imdbHint = isObject ? String((entry as Record<string, unknown>).imdb_code ?? "") : undefined;
+            const movie = await findSavedMovie(movieId, imdbHint);
+            if (movie) movies = [...movies, { ...movie, saved_id: movieId }];
         }
 
         return res.status(200).json({movies});

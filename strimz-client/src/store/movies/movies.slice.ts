@@ -1,5 +1,5 @@
 import { getMoviesByIds } from '@/services/movies';
-import { getFavoriteMovies, getWatchListMovies } from '@/services/localStorage';
+import { getFavoriteMovies, getWatchListMovies, refreshSavedMovies, SavedMovieKind } from '@/services/localStorage';
 import { Movie } from '../../components/MovieCard';
 import { DEFAULT_PAGE, API_URL, DEFAULT_MOVIES_SEARCH_COUNT, DEFAULT_PARAMS, DEFAULT_SUBTITLES_SIZE } from '../../utils/constants';
 import { movieMatchesLanguages, parseLanguageCodes } from '../../utils/filterByLanguage';
@@ -196,34 +196,65 @@ const rawMovieToMovie = (m: Record<string, unknown>): Movie => ({
   imdb_code: (m.imdb_code as string) ?? '',
 });
 
+const hasTorrents = (movie?: Movie) => Array.isArray(movie?.torrents) && movie.torrents.length > 0;
+
 const loadSavedMovies = async (
   ids: string[],
-  snapshots: Record<string, Record<string, unknown>>
+  snapshots: Record<string, Record<string, unknown>>,
+  kind: SavedMovieKind
 ): Promise<Map<string, Movie>> => {
-  let fromApi: Movie[] = [];
+  let fromApi: (Movie & { saved_id?: string })[] = [];
 
   if (ids.length) {
     try {
-      const response = await getMoviesByIds(ids);
+      // Send the IMDb code with each id: titles saved from "In Theatres" are stored under a
+      // TMDB id, and only the IMDb code links them to the YTS release once it's streamable.
+      const lookups = ids.map((id) => {
+        const imdbCode = snapshots[id]?.imdb_code;
+        return typeof imdbCode === 'string' && imdbCode ? { id, imdb_code: imdbCode } : id;
+      });
+      const response = await getMoviesByIds(lookups);
       const raw = (response.data?.movies ?? []) as Record<string, unknown>[];
-      fromApi = raw.map(rawMovieToMovie);
+      fromApi = raw.map((movie) => ({
+        ...rawMovieToMovie(movie),
+        saved_id: movie.saved_id != null ? String(movie.saved_id) : undefined,
+      }));
     } catch (error) {
       console.error(error);
     }
   }
 
   const movies = new Map<string, Movie>();
+  const replacements = new Map<string, Movie>();
 
   for (const id of ids) {
     const snapshot = snapshots[id] ? rawMovieToMovie(snapshots[id]) : undefined;
-    const apiMovie = fromApi.find((movie) =>
+    const match = fromApi.find((movie) => movie.saved_id === String(id)) ?? fromApi.find((movie) =>
       String(movie.id) === String(id) || movie.imdb_code === id || movie.slug === id
     );
-    const apiMatchesSnapshot = !snapshot?.imdb_code || !apiMovie?.imdb_code || apiMovie.imdb_code === snapshot.imdb_code;
-    const chosen = apiMovie && apiMatchesSnapshot ? apiMovie : (snapshot ?? apiMovie);
+    let found: Movie | undefined;
+    if (match) {
+      found = { ...match };
+      delete (found as Movie & { saved_id?: string }).saved_id;
+    }
+    const apiMatchesSnapshot = !snapshot?.imdb_code || !found?.imdb_code || found.imdb_code === snapshot.imdb_code;
+    const chosen = found && apiMatchesSnapshot ? found : (snapshot ?? found);
     if (!chosen?.id) continue;
+
+    // Persist the fresh data when the saved entry has moved to a new id/slug or just became
+    // streamable, so the change survives offline restarts and toggling stays in sync.
+    if (chosen === found && snapshot && (
+      String(found.id) !== String(id) ||
+      found.slug !== snapshot.slug ||
+      hasTorrents(found) !== hasTorrents(snapshot)
+    )) {
+      replacements.set(String(id), found);
+    }
+
     movies.set(chosen.slug || String(chosen.id), chosen);
   }
+
+  refreshSavedMovies(kind, replacements);
 
   return movies;
 };
@@ -231,13 +262,13 @@ const loadSavedMovies = async (
 export const fetchFavoritesAsync = createAsyncThunk(
   'movies/fetchFavoritesAsync',
   async (ids: string[]) => {
-    return loadSavedMovies(ids, getFavoriteMovies());
+    return loadSavedMovies(ids, getFavoriteMovies(), 'favorites');
 });
 
 export const fetchWatchListAsync = createAsyncThunk(
   'movies/fetchWatchListAsync',
   async (ids: string[]) => {
-    return loadSavedMovies(ids, getWatchListMovies());
+    return loadSavedMovies(ids, getWatchListMovies(), 'watchList');
 });
 
 // type FetchAvailableSubtitlesProps = {

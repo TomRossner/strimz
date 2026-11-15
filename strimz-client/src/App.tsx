@@ -10,6 +10,7 @@ import ErrorDialog from './components/ErrorDialog';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { API_URL, DEFAULT_PARAMS } from './utils/constants';
 import { getFavorites, getWatchList } from './services/localStorage';
+import { refreshUnstreamableListMovies } from './services/library';
 import Overlay from './components/Overlay';
 import { selectFiltersModal, selectMenu, selectMovieModal, selectPlayFromMagnetModal, selectPlayTorrentPrompt, selectVpnModal } from './store/modals/modals.selectors';
 import Nav from './components/Nav';
@@ -157,6 +158,9 @@ const MoviesPage = () => {
       } finally {
         setIsLoading(false);
       }
+
+      // Non-blocking: swap custom-list entries saved from "In Theatres" for their streamable release.
+      refreshUnstreamableListMovies().catch((error) => console.error(error));
     };
 
     initializeApp();

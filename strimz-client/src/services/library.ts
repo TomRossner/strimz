@@ -1,4 +1,5 @@
 import { Movie } from '@/components/MovieCard';
+import { getMoviesByIds } from '@/services/movies';
 
 const titleFromReleaseName = (name: string) => {
     const base = name.replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[._]+/g, ' ').trim();
@@ -190,6 +191,63 @@ export const addMovieToList = (listId: string, movie: Movie) => {
             if (list.id !== listId) return list;
             if (list.movies.some((entry) => entry.id === movie.id)) return list;
             return { ...list, movies: [movie, ...list.movies] };
+        }),
+    };
+    persist();
+};
+
+/**
+ * List entries are full movie snapshots, so a title added while it was only in theatres
+ * (no torrents, TMDB id) would stay unstreamable forever. Look those up again by IMDb code
+ * and swap in the streamable release once one exists.
+ */
+export const refreshUnstreamableListMovies = async () => {
+    const pending = new Map<string, Movie>();
+    for (const list of snapshot.lists) {
+        for (const movie of list.movies) {
+            const streamable = Array.isArray(movie.torrents) && movie.torrents.length > 0;
+            if (!streamable && movie.imdb_code) pending.set(String(movie.id), movie);
+        }
+    }
+    if (!pending.size) return;
+
+    let found: Record<string, unknown>[] = [];
+    try {
+        const response = await getMoviesByIds(
+            Array.from(pending.values()).map((movie) => ({ id: String(movie.id), imdb_code: movie.imdb_code }))
+        );
+        found = (response.data?.movies ?? []) as Record<string, unknown>[];
+    } catch (error) {
+        console.error(error);
+        return;
+    }
+
+    const replacements = new Map<string, Movie>();
+    for (const raw of found) {
+        const savedId = String(raw.saved_id ?? '');
+        const previous = pending.get(savedId);
+        const torrents = Array.isArray(raw.torrents) ? raw.torrents as object[] : [];
+        if (!previous || !torrents.length || raw.imdb_code !== previous.imdb_code) continue;
+        const movie = { ...previous, ...raw, id: String(raw.id), torrents } as Movie & Record<string, unknown>;
+        delete movie.saved_id;
+        delete movie.in_theatres;
+        replacements.set(savedId, movie);
+    }
+    if (!replacements.size) return;
+
+    snapshot = {
+        ...snapshot,
+        lists: snapshot.lists.map((list) => {
+            const seen = new Set<string>();
+            const movies = list.movies
+                .map((movie) => replacements.get(String(movie.id)) ?? movie)
+                .filter((movie) => {
+                    const key = String(movie.id);
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+            return { ...list, movies };
         }),
     };
     persist();
