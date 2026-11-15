@@ -52,8 +52,74 @@ const readJson = <T>(key: string, fallback: T): T => {
     }
 };
 
+const normalizePath = (path?: string) => (path || '').replace(/[\\/]+/g, '/').trim().toLowerCase();
+const normalizeTitle = (title?: string) => (title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const hashOf = (item: Pick<WatchHistoryItem, 'hash'>) => (item.hash || '').trim().toLowerCase();
+const movieIdOf = (item: Pick<WatchHistoryItem, 'movie'>) => item.movie?.imdb_code || (item.movie?.id ? String(item.movie.id) : '');
+
+/**
+ * Whether two history entries are the same movie watched through different routes. The same
+ * movie used to get several entries because the key depends on how it was played (streamed:
+ * torrent hash, played from disk: file path). Episodes are never merged: the episodes of a
+ * season pack share one torrent hash.
+ */
+const isSameMovie = (a: WatchHistoryItem, b: WatchHistoryItem) => {
+    if (a.kind !== 'movie' || b.kind !== 'movie') return false;
+
+    const hashA = hashOf(a);
+    const hashB = hashOf(b);
+    if (hashA && hashA === hashB) return true;
+
+    const fileA = normalizePath(a.fileName);
+    if (fileA && fileA === normalizePath(b.fileName)) return true;
+
+    const idA = movieIdOf(a);
+    if (idA && idA === movieIdOf(b)) return true;
+
+    const titleA = normalizeTitle(a.title);
+    return !!titleA && !!a.year && a.year === b.year && titleA === normalizeTitle(b.title);
+};
+
+/** Fills what `base` is missing from `alias` (another entry of the same movie). `base` wins. */
+const fillFromAlias = (base: WatchHistoryItem, alias: WatchHistoryItem): WatchHistoryItem => {
+    // The hash and the file go together: don't pair a file with another torrent's hash
+    const compatibleSource = !hashOf(base) || !hashOf(alias) || hashOf(base) === hashOf(alias);
+    return {
+        ...base,
+        poster: base.poster || alias.poster || '',
+        slug: base.slug || alias.slug,
+        movie: base.movie ?? alias.movie,
+        year: base.year || alias.year,
+        duration: base.duration > 0 ? base.duration : (alias.duration || 0),
+        hash: base.hash || (compatibleSource ? alias.hash : undefined),
+        fileName: base.fileName || (compatibleSource ? alias.fileName : undefined),
+    };
+};
+
+/** Merges duplicate entries of the same movie, keeping the most recent one (list is newest first). */
+const dedupeHistory = (history: WatchHistoryItem[]) => {
+    const result: WatchHistoryItem[] = [];
+    for (const entry of history) {
+        const index = result.findIndex((kept) => isSameMovie(kept, entry));
+        if (index === -1) result.push(entry);
+        else result[index] = fillFromAlias(result[index], entry);
+    }
+    return result;
+};
+
+const storedHistory = readJson<WatchHistoryItem[]>(HISTORY_KEY, []);
+const initialHistory = Array.isArray(storedHistory) ? dedupeHistory(storedHistory) : [];
+// Clean up duplicates saved before entries were merged
+if (Array.isArray(storedHistory) && initialHistory.length !== storedHistory.length) {
+    try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(initialHistory));
+    } catch {
+        // Storage unavailable: the cleaned list is still used for this session
+    }
+}
+
 let snapshot: LibrarySnapshot = {
-    history: readJson<WatchHistoryItem[]>(HISTORY_KEY, []),
+    history: initialHistory,
     lists: readJson<CustomList[]>(LISTS_KEY, []),
     recentSearches: readJson<string[]>(RECENT_SEARCHES_KEY, []),
 };
@@ -99,10 +165,14 @@ export const recordWatchProgress = (item: Omit<WatchHistoryItem, 'updatedAt' | '
         watched: item.watched ?? previous?.watched ?? false,
         updatedAt: Date.now(),
     };
-    const without = snapshot.history.filter((entry) => entry.key !== item.key);
+    // Other entries of this movie (e.g. streamed before, now played from disk) are merged into
+    // this one, so the movie appears once in Continue watching / History
+    const aliases = snapshot.history.filter((entry) => entry.key !== item.key && isSameMovie(next, entry));
+    const merged = aliases.reduce(fillFromAlias, next);
+    const without = snapshot.history.filter((entry) => entry.key !== item.key && !aliases.includes(entry));
     snapshot = {
         ...snapshot,
-        history: [next, ...without].slice(0, 200),
+        history: [merged, ...without].slice(0, 200),
     };
     persist();
 };

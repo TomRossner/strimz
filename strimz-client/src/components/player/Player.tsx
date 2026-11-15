@@ -88,7 +88,12 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
     const watchKey = searchParams.get('watchKey');
     const isEpisode = searchParams.get('kind') === 'episode';
     const filePath = filePathFromSrc(searchParams.get('src'));
-    const progressKey = (isEpisode && watchKey) ? watchKey : (hash?.toLowerCase() || (filePath ? `file:${filePath}` : ''));
+    // A completed download played from disk carries its torrent hash in `downloadHash` (not `hash`,
+    // which turns on streaming: socket progress, pausing the torrent...). Keying the watch progress
+    // by that hash keeps one history entry per movie, whether it is streamed or played from disk.
+    const downloadHash = searchParams.get('downloadHash');
+    const identityHash = (hash || downloadHash)?.toLowerCase() || null;
+    const progressKey = (isEpisode && watchKey) ? watchKey : (identityHash || (filePath ? `file:${filePath}` : ''));
     const { slug } = useParams();
     const playerPrefs = useSyncExternalStore(subscribePlayerPrefs, getPlayerPrefs);
     const dispatch = useAppDispatch();
@@ -223,7 +228,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         // Throttled function to save playback position (save every 5 seconds)
         const saveProgress = throttle((currentTime: number) => {
             if (!progressKey || currentTime <= 0) return;
-            if (hash) updatePlaybackPosition(hash, currentTime);
+            if (identityHash) updatePlaybackPosition(identityHash, currentTime);
             const video = videoRef.current;
             const liveDuration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
             if (liveDuration > 0) lastDurationRef.current = liveDuration;
@@ -237,10 +242,10 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                 title: title || playingMovie?.title || 'Untitled',
                 poster: isEpisode
                     ? (poster || '')
-                    : (playingMovie?.medium_cover_image || playingMovie?.large_cover_image || playingMovie?.small_cover_image || cover || poster || lookupSavedPoster(title, hash, folderName) || ''),
+                    : (playingMovie?.medium_cover_image || playingMovie?.large_cover_image || playingMovie?.small_cover_image || cover || poster || lookupSavedPoster(title, identityHash, folderName) || ''),
                 year: isEpisode ? undefined : playingMovie?.year,
                 slug,
-                hash: hash || undefined,
+                hash: identityHash || undefined,
                 position: currentTime,
                 duration,
                 watched: isMostlyWatched({ position: currentTime, duration }),
@@ -254,7 +259,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
             saveProgress.flush();
             saveProgress.cancel();
         };
-    }, [hash, title, movie, poster, cover, slug, progressKey, isEpisode, filePath]);
+    }, [identityHash, title, movie, poster, cover, slug, progressKey, isEpisode, filePath]);
 
     // Note: Playback position restoration is handled in onLoadedMetadata handler on the video element
     // This ensures it happens at the right time after the video metadata is loaded
@@ -799,8 +804,8 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
         if (!isInitialMount && !identityChanged) return;
 
         const playingTitle = releaseTitle(title || '').title || title || '';
-        const matchesHash = !!movie && !!hash && ((movie.torrents || []) as Torrent[])
-            .some((torrent) => torrent.hash?.toLowerCase() === hash.toLowerCase());
+        const matchesHash = !!movie && !!identityHash && ((movie.torrents || []) as Torrent[])
+            .some((torrent) => torrent.hash?.toLowerCase() === identityHash);
         const movieMatches = !!movie && (matchesHash || (slug
             ? movie.slug === slug
             : !!playingTitle && sameTitle(movie.title, playingTitle)));
@@ -900,7 +905,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     save?.flush();
                                     markWatched(progressKey);
                                 }
-                                if (hash) updatePlaybackPosition(hash, 0);
+                                if (identityHash) updatePlaybackPosition(identityHash, 0);
                                 setShowPlayNext(true);
                             }}
                             onLoadedMetadata={() => {
@@ -910,7 +915,7 @@ const Player = ({ src }: React.VideoHTMLAttributes<HTMLVideoElement>) => {
                                     videoRef.current.playbackRate = stored.playbackRate || 1;
                                 }
                                 if (videoRef.current && !activeFile && progressKey) {
-                                    const cachedPosition = hash ? getPlaybackPosition(hash) : null;
+                                    const cachedPosition = identityHash ? getPlaybackPosition(identityHash) : null;
                                     const historyItem = getLibrarySnapshot().history.find((entry) => entry.key === progressKey);
                                     const historyPosition = historyItem && historyItem.position > 5 && !isMostlyWatched(historyItem)
                                         ? Math.max(0, historyItem.position - 5)

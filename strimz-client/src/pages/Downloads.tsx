@@ -746,7 +746,7 @@ const DownloadsPage = () => {
 
         if (isCompleted && filePath && folderName) {
             // Play from disk for completed downloads
-            await handlePlayFileOnly(filePath, folderName, title);
+            await handlePlayFileOnly(filePath, folderName, title, hash);
             return;
         }
 
@@ -768,7 +768,7 @@ const DownloadsPage = () => {
         }
     }
 
-    const handlePlayFileOnly = async (filePath: string, folderName: string, title: string) => {
+    const handlePlayFileOnly = async (filePath: string, folderName: string, title: string, downloadHash?: string) => {
         // For file-only downloads, stream directly from file path using the backend endpoint
         const fullPath = `${settings.downloadsFolderPath}/${filePath}`;
         const streamUrl = `${API_URL}/stream/file/stream?path=${encodeURIComponent(fullPath)}`;
@@ -781,6 +781,8 @@ const DownloadsPage = () => {
             params.set('poster', poster);
             params.set('cover', poster);
         }
+        // Same history entry as when this torrent is streamed (see Player's progress key)
+        if (downloadHash) params.set('downloadHash', downloadHash.toLowerCase());
         
         // Navigate to watch page with the stream URL and navigation state
         navigate(`/watch-file?${params.toString()}`, {

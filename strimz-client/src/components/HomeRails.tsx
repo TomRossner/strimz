@@ -80,6 +80,8 @@ const resumeItem = (
             title: item.title,
         });
         if (item.poster) params.set('poster', item.poster);
+        // Movies keep their torrent hash so resuming from disk updates the same history entry
+        if (item.hash && item.kind !== 'episode') params.set('downloadHash', item.hash.toLowerCase());
         navigate(`/watch-file?${params.toString()}`);
     }
 };
