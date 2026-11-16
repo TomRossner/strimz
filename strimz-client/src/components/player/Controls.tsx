@@ -693,7 +693,8 @@ const Controls = ({
                     movie.title,
                     movie.year.toString(),
                     openSubtitlesLangCode,
-                    settings.downloadsFolderPath
+                    settings.downloadsFolderPath,
+                    settings.subtitlesFolderPath
                 );
                 // Ignore if the user picked another file meanwhile, or closed the player
                 if (!isLatestRequest()) return;

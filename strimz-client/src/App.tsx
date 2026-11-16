@@ -29,6 +29,7 @@ import { selectSocket } from './store/socket/socket.selectors';
 import { DownloadProgressData } from './utils/types';
 import PersistedWatch from './components/PersistedWatch';
 import PageScroll from './components/PageScroll';
+import useUpdateEvents from './components/useUpdateEvents';
 
 // Lazy load pages
 const SettingsPage = lazy(() => import('./pages/Settings'));
@@ -57,6 +58,8 @@ const MoviesPage = () => {
   const {pathname} = useLocation();
   const navigate = useNavigate();
   const reopenedSession = useRef(false);
+
+  useUpdateEvents();
 
   const isFiltersDialogOpen = useAppSelector(selectFiltersModal);
   const isMovieDialogOpen = useAppSelector(selectMovieModal);

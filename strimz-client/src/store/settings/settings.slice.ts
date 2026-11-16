@@ -2,6 +2,8 @@ import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface Settings {
     downloadsFolderPath: string;
+    /** Empty means "<downloadsFolderPath>/subtitles" */
+    subtitlesFolderPath: string;
     loadOnScroll: boolean;
     updateOnQuit: boolean;
     clearOnExit: boolean;
@@ -10,9 +12,7 @@ export interface Settings {
     maxUploadKbps: number;
     maxConnections: number;
     hardwareAcceleration: boolean;
-    startMinimized: boolean;
     reopenLastTitle: boolean;
-    closeToTray: boolean;
     alwaysOnTop: boolean;
 }
 
@@ -22,6 +22,7 @@ interface SettingsState {
 
 export const DEFAULT_SETTINGS: Settings = {
     downloadsFolderPath: "",
+    subtitlesFolderPath: "",
     loadOnScroll: false,
     updateOnQuit: false,
     clearOnExit: false,
@@ -30,9 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
     maxUploadKbps: 0,
     maxConnections: 55,
     hardwareAcceleration: true,
-    startMinimized: false,
     reopenLastTitle: false,
-    closeToTray: false,
     alwaysOnTop: false,
 }
 

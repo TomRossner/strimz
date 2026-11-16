@@ -78,7 +78,8 @@ const WatchMoviePage = () => {
                     movie.title || title,
                     movie.year.toString(),
                     openSubtitlesLangCode,
-                    settings.downloadsFolderPath
+                    settings.downloadsFolderPath,
+                    settings.subtitlesFolderPath
                 );
                 if (cancelled) return;
                 dispatch(setSubtitleFilePath(subtitleFilePath));
@@ -99,6 +100,7 @@ const WatchMoviePage = () => {
         movie?.title,
         title,
         settings.downloadsFolderPath,
+        settings.subtitlesFolderPath,
         dispatch
     ]);
 

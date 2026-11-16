@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notify: (title, body) => ipcRenderer.send('notify', { title, body }),
 
   openDirectoryDialog: async () => await ipcRenderer.invoke('open-directory-dialog'),
+  openSubtitlesDirectoryDialog: async () => await ipcRenderer.invoke('open-subtitles-directory-dialog'),
   openSubtitleFileDialog: async () => await ipcRenderer.invoke('open-subtitle-file-dialog'),
   getDefaultDownloadsPath: async () => await ipcRenderer.invoke('get-default-downloads-path'),
   getAutoInstallSetting: async () => await ipcRenderer.invoke('get-auto-install-setting'),

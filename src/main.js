@@ -7,7 +7,7 @@ import { clearDownloadFolderAsync, ensureDefaultDownloadPath } from './modules/u
 import { startStaticServer, stopStaticServer } from './modules/staticServer.js';
 import log from 'electron-log';
 import store from './store.js';
-import { attachCloseToTray, createTray } from './modules/tray.js';
+import { createTray } from './modules/tray.js';
 import electronUpdater from "electron-updater";
 
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
@@ -26,9 +26,8 @@ const isDev = !app.isPackaged;
 
 let mainWindow;
 let backendProcess;
-let isQuitting = false;
 
-let updateState = { downloaded: false };
+let updateState = { available: false, downloaded: false };
 
 const registerMediaShortcuts = (win) => {
   const send = () => {
@@ -65,14 +64,8 @@ app.whenReady().then(async () => {
         }
       }
       
-      const startMinimized = store.get('startMinimized') === true;
-      mainWindow = createMainWindow(isDev, { startHidden: startMinimized });
+      mainWindow = createMainWindow(isDev);
       createTray(() => mainWindow);
-      attachCloseToTray(
-        mainWindow,
-        () => store.get('closeToTray') === true,
-        () => isQuitting,
-      );
       registerMediaShortcuts(mainWindow);
 
       const torrentArg = process.argv.find(arg => arg.endsWith(".torrent") || arg.startsWith("magnet:"));
@@ -103,7 +96,8 @@ app.whenReady().then(async () => {
         setupAutoUpdater(mainWindow, updateState);
         autoUpdater.autoInstallOnAppQuit = store.get("autoInstallOnQuit");
         log.info("Checking for updates...");
-        autoUpdater.checkForUpdatesAndNotify();
+        // The renderer shows an update button in the nav bar, so no OS prompt here.
+        autoUpdater.checkForUpdates().catch((err) => log.error('Update check failed:', err));
       } else {
         globalShortcut.register('CommandOrControl+Shift+G', () => {
           const gpuWindow = new BrowserWindow({
@@ -129,7 +123,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', async () => {
-  isQuitting = true;
   globalShortcut.unregisterAll();
   if (backendProcess) {
     log.info("Killing backend process...");

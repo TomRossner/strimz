@@ -42,19 +42,20 @@ export const searchSubtitlesByImdb = async (req: Request, res: Response) => {
 /**
  * Download subtitle using OpenSubtitles REST API
  * POST /api/subtitles/download-from-api
- * Body: { fileId, imdbCode, title, year, language, dir }
+ * Body: { fileId, imdbCode, title, year, language, dir, subtitlesDir? }
  */
 export const downloadSubtitleFromOpenSubtitlesApi = async (req: Request, res: Response) => {
     try {
         res.setTimeout(RESPONSE_TIMEOUT);
-        const { fileId, imdbCode, title, year, language, dir } = req.body;
+        const { fileId, imdbCode, title, year, language, dir, subtitlesDir } = req.body;
 
-        if (!fileId || !imdbCode || !title || !year || !language || !dir) {
+        if (!fileId || !imdbCode || !title || !year || !language || (!dir && !subtitlesDir)) {
             res.status(400).json({ error: 'Missing required parameters' });
             return;
         }
 
-        const subsDir = path.join(dir, 'subtitles');
+        // A custom subtitles folder from Settings wins; otherwise "<downloads>/subtitles"
+        const subsDir = subtitlesDir ? String(subtitlesDir) : path.join(dir, 'subtitles');
 
         if (!fs.existsSync(subsDir)) {
             fs.mkdirSync(subsDir, { recursive: true });

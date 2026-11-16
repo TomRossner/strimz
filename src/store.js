@@ -4,6 +4,8 @@ import { DEFAULT_DOWNLOADS_PATH } from "./constants.js";
 const store = new ElectronStore({
     defaults: {
         downloadsFolderPath: DEFAULT_DOWNLOADS_PATH,
+        // Empty means "<downloadsFolderPath>/subtitles"
+        subtitlesFolderPath: '',
         autoInstallOnQuit: false,
         clearOnExit: false,
         loadOnScroll: false,
@@ -12,11 +14,14 @@ const store = new ElectronStore({
         maxUploadKbps: 0,
         maxConnections: 55,
         hardwareAcceleration: true,
-        startMinimized: false,
         reopenLastTitle: false,
-        closeToTray: false,
         alwaysOnTop: false,
     },
 });
+
+// Settings that were removed from the app
+for (const key of ['startMinimized', 'closeToTray']) {
+    if (store.has(key)) store.delete(key);
+}
 
 export default store;

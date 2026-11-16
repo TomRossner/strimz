@@ -46,6 +46,16 @@ export function attachIPCHandlers(isDev, updateState) {
     return finalPath;
   });
 
+  ipcMain.handle('open-subtitles-directory-dialog', async () => {
+    const res = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+    });
+
+    if (res.canceled || res.filePaths.length === 0) return null;
+
+    return res.filePaths[0];
+  });
+
   ipcMain.handle('open-subtitle-file-dialog', async () => {
     const res = await dialog.showOpenDialog({
       properties: ['openFile'],

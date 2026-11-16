@@ -8,7 +8,10 @@ import { twMerge } from 'tailwind-merge';
 import { GiHamburgerMenu } from 'react-icons/gi';
 import Logo from './Logo';
 import Button from './Button';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { MdOutlineBrowserUpdated } from 'react-icons/md';
+import { selectUpdateProgress, selectUpdateStatus } from '@/store/updates/updates.selectors';
+import { setHighlightInstall } from '@/store/updates/updates.slice';
 
 interface NavProps {
   withSearchBar: boolean;
@@ -20,6 +23,17 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
   const isMovieDialogOpen = useAppSelector(selectMovieModal);
 
   const {pathname} = useLocation();
+  const navigate = useNavigate();
+
+  const updateStatus = useAppSelector(selectUpdateStatus);
+  const updateProgress = useAppSelector(selectUpdateProgress);
+  const isUpdateReady = updateStatus === 'downloaded';
+  const hasUpdate = isUpdateReady || updateStatus === 'available';
+
+  const handleUpdateClick = useCallback(() => {
+    dispatch(setHighlightInstall(true));
+    if (!pathname.startsWith('/settings')) navigate('/settings');
+  }, [dispatch, navigate, pathname]);
 
   const handleOpen = useCallback(() => {
     if (isMovieDialogOpen) {
@@ -100,6 +114,40 @@ const Nav = ({withSearchBar = true, className}: NavProps) => {
       </ul>
 
       <div className='grow' />
+
+      {hasUpdate && (
+        <Button
+          title={isUpdateReady ? 'A new version is ready. Click to install it from Settings.' : 'A new version is downloading.'}
+          onClick={handleUpdateClick}
+          className={twMerge(`
+            relative
+            gap-2
+            text-sm
+            py-1.5
+            px-3
+            mr-1
+            md:mr-0
+            ml-auto
+            md:ml-0
+            ${isUpdateReady
+              ? 'bg-green-700 hover:bg-green-600 text-white'
+              : 'bg-stone-800 hover:bg-stone-700 text-blue-300'}
+          `)}
+        >
+          <MdOutlineBrowserUpdated className='text-lg' />
+          <span>
+            {isUpdateReady
+              ? 'Update ready'
+              : `Downloading update${updateProgress !== null ? ` ${Math.floor(updateProgress)}%` : '...'}`}
+          </span>
+          {isUpdateReady && (
+            <span className='absolute -top-1 -right-1 flex size-2.5'>
+              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-green-300 opacity-75' />
+              <span className='relative inline-flex size-2.5 rounded-full bg-green-300' />
+            </span>
+          )}
+        </Button>
+      )}
 
       {withSearchBar && (
         <section id='searchSection' className='flex w-full md:w-fit items-center gap-2'>

@@ -27,7 +27,8 @@ export const searchSubtitlesByImdb = async (
  * @param title - Movie title
  * @param year - Movie year
  * @param language - Language code
- * @param dir - Download directory
+ * @param dir - Download directory (subtitles go to "<dir>/subtitles" by default)
+ * @param subtitlesDir - Custom subtitles directory from Settings, if any
  */
 export const downloadSubtitleFromApi = async (
   fileId: string,
@@ -35,7 +36,8 @@ export const downloadSubtitleFromApi = async (
   title: string,
   year: string,
   language: string,
-  dir: string
+  dir: string,
+  subtitlesDir?: string
 ) => {
   return axios.post(`${API_URL}/subtitles/download-from-api`, {
     fileId,
@@ -43,6 +45,14 @@ export const downloadSubtitleFromApi = async (
     title,
     year,
     language,
-    dir
+    dir,
+    subtitlesDir: subtitlesDir || undefined,
   });
+}
+
+/** Default subtitles folder for a downloads folder: "<downloads>/subtitles". */
+export const getDefaultSubtitlesPath = (downloadsFolderPath: string) => {
+  if (!downloadsFolderPath) return '';
+  const sep = downloadsFolderPath.includes('\\') ? '\\' : '/';
+  return `${downloadsFolderPath.replace(/[\\/]+$/, '')}${sep}subtitles`;
 }

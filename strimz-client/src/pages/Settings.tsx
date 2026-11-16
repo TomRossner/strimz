@@ -5,7 +5,7 @@ import PageTitle from '../components/PageTitle';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectSettings } from '../store/settings/settings.selectors';
 import { DEFAULT_SETTINGS, fetchUserSettings, setSettings, Settings } from '../store/settings/settings.slice';
-import React, { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
+import React, { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { MdOpenInNew } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
 import CheckForUpdatesButton from '@/components/CheckForUpdatesButton';
@@ -22,6 +22,60 @@ import { IoWarningOutline } from 'react-icons/io5';
 import { DiskSpaceInfo } from '@/utils/types';
 import axios from 'axios';
 import { API_URL } from '@/utils/constants';
+import NumberInput from '@/components/NumberInput';
+import { getDefaultSubtitlesPath } from '@/services/subtitles';
+import { selectHighlightInstall } from '@/store/updates/updates.selectors';
+import { setHighlightInstall } from '@/store/updates/updates.slice';
+
+const HIGHLIGHT_DURATION = 4000; // milliseconds
+
+type NumberSettingKey = 'maxConcurrentDownloads' | 'maxDownloadKbps' | 'maxUploadKbps' | 'maxConnections';
+
+const numberFields: {
+    key: NumberSettingKey;
+    label: string;
+    description: string;
+    min: number;
+    max?: number;
+    step: number;
+    unit?: string;
+    zeroLabel?: string;
+}[] = [
+    {
+        key: 'maxConcurrentDownloads',
+        label: 'Active downloads',
+        description: 'How many torrents can download at once. Extra ones wait in a queue.',
+        min: 1,
+        max: 10,
+        step: 1,
+    },
+    {
+        key: 'maxDownloadKbps',
+        label: 'Max download',
+        description: 'Download speed limit. Set to 0 for unlimited.',
+        min: 0,
+        step: 100,
+        unit: 'KB/s',
+        zeroLabel: 'Unlimited',
+    },
+    {
+        key: 'maxUploadKbps',
+        label: 'Max upload',
+        description: 'Upload speed limit. Set to 0 for unlimited.',
+        min: 0,
+        step: 100,
+        unit: 'KB/s',
+        zeroLabel: 'Unlimited',
+    },
+    {
+        key: 'maxConnections',
+        label: 'Max connections',
+        description: 'Maximum number of peers to connect to per torrent.',
+        min: 1,
+        max: 500,
+        step: 5,
+    },
+];
 
 const SettingsPage = () => {
     const dispatch = useAppDispatch();
@@ -39,6 +93,28 @@ const SettingsPage = () => {
 
     const hasEnoughSpace = diskSpace ? (freePercent >= FREE_PERCENTAGE_REQUIRED || freeSpaceGB >= FREE_GB_REQUIRED) : false;
     const shouldShowLowSpaceWarning = diskSpace ? (freePercent < FREE_PERCENTAGE_REQUIRED && freeSpaceGB < FREE_GB_REQUIRED) : false;
+
+    const subtitlesFolderPath = formValues.subtitlesFolderPath || getDefaultSubtitlesPath(formValues.downloadsFolderPath);
+
+    const highlightRequested = useAppSelector(selectHighlightInstall);
+    const [highlightInstall, setHighlightInstallLocal] = useState<boolean>(false);
+    const updateButtonRef = useRef<HTMLDivElement>(null);
+
+    // Coming from the nav bar update button: consume the request, bring "Install update" into view and pulse it
+    useEffect(() => {
+        if (!highlightRequested) return;
+
+        dispatch(setHighlightInstall(false));
+        setHighlightInstallLocal(true);
+        updateButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, [highlightRequested, dispatch]);
+
+    useEffect(() => {
+        if (!highlightInstall) return;
+
+        const timeout = setTimeout(() => setHighlightInstallLocal(false), HIGHLIGHT_DURATION);
+        return () => clearTimeout(timeout);
+    }, [highlightInstall]);
 
 
     const handleSubmit = useCallback((ev: FormEvent<HTMLFormElement>) => {
@@ -75,7 +151,22 @@ const SettingsPage = () => {
         }
     }
 
-    const handleAutoUpdateChange = (ev: ChangeEvent<HTMLInputElement>) => {
+    const handleSubtitlesDirectoryChange = async () => {
+        try {
+            const directoryPath = await window.electronAPI.openSubtitlesDirectoryDialog();
+
+            if (directoryPath) {
+                setFormValues(values => ({
+                    ...values,
+                    subtitlesFolderPath: directoryPath,
+                }));
+            }
+        } catch (err) {
+            console.error("❌ React: failed to get subtitles directory", err);
+        }
+    }
+
+    const handleAutoUpdateChange =(ev: ChangeEvent<HTMLInputElement>) => {
         window.electronAPI.updateAutoInstallSetting(ev.target.checked);
         
         setFormValues(formValues => ({
@@ -128,7 +219,13 @@ const SettingsPage = () => {
                 <BackButton cb={() => navigate(-1)} />
                 <span className='grow -mt-1'>Settings</span>
 
-                <CheckForUpdatesButton withText className='min-w-[200px] text-sm justify-center font-normal py-1 self-end' />
+                <div ref={updateButtonRef} className='self-end'>
+                    <CheckForUpdatesButton
+                        withText
+                        highlighted={highlightInstall}
+                        className='min-w-[200px] text-sm justify-center font-normal py-1'
+                    />
+                </div>
             </PageTitle>
             
             <PageDescription>Customize your preferences to get the best experience with the app.</PageDescription>
@@ -204,6 +301,51 @@ const SettingsPage = () => {
                                 <IoWarningOutline className='text-xl' />
                                 Low disk space: Less than {FREE_PERCENTAGE_REQUIRED}% and under {FREE_GB_REQUIRED}GB free. Please free up space to ensure downloads complete successfully.
                             </p>
+                        )}
+                    </div>
+
+                    <div className='flex w-full gap-2 flex-col'>
+                        <p className='w-full flex justify-between'>
+                            <span className='flex gap-2 items-center'>Subtitles path</span>
+
+                            <span className='flex gap-2'>
+                                {formValues.subtitlesFolderPath && (
+                                    <Button
+                                        onClick={() => setFormValues(values => ({ ...values, subtitlesFolderPath: '' }))}
+                                        className='text-stone-300 hover:text-white text-sm bg-stone-800 hover:bg-stone-700'
+                                    >
+                                        Reset to default
+                                    </Button>
+                                )}
+                                <Button onClick={handleSubtitlesDirectoryChange} className='text-blue-300 hover:text-blue-400 text-sm bg-stone-800'>
+                                    Choose subtitles path
+                                </Button>
+                            </span>
+                        </p>
+
+                        <OptionDescription>
+                            Select the folder where downloaded subtitles will be saved. By default they are saved in a "subtitles" folder inside the download path.
+                        </OptionDescription>
+
+                        {subtitlesFolderPath && (
+                            <div className='flex w-full gap-3 items-center'>
+                                <span
+                                    title={subtitlesFolderPath}
+                                    className='text-sm py-1 grow rounded-sm font-light italic px-2 outline-none max-w-full bg-stone-800 truncate cursor-pointer'
+                                    onClick={handleSubtitlesDirectoryChange}
+                                >
+                                    {subtitlesFolderPath}
+                                    {!formValues.subtitlesFolderPath && <span className='not-italic text-stone-500'> (default)</span>}
+                                </span>
+
+                                <Button
+                                    title='Open folder'
+                                    onClick={() => window.electronAPI.openFolder(subtitlesFolderPath)}
+                                    className='p-1.5 text-stone-100 text-lg hover:bg-stone-600'
+                                >
+                                    <MdOpenInNew />
+                                </Button>
+                            </div>
                         )}
                     </div>
 
@@ -285,66 +427,27 @@ const SettingsPage = () => {
                         <OptionDescription>Automatically install new updates when quitting the app.</OptionDescription>
                     </div>
 
-                    <div className='flex w-full gap-2 flex-col'>
-                        <label className='flex gap-2 items-center justify-between'>
-                            <span>Active downloads</span>
-                            <input
-                                type='number'
-                                min={1}
-                                max={10}
-                                value={formValues.maxConcurrentDownloads}
-                                onChange={(ev) => setFormValues((values) => ({
-                                    ...values,
-                                    maxConcurrentDownloads: Number(ev.target.value) || 1,
-                                }))}
-                                className='bg-stone-800 text-white w-24 px-2 py-1 rounded-sm'
-                            />
-                        </label>
-                        <OptionDescription>How many torrents can download at once. Extra ones wait in a queue.</OptionDescription>
-                    </div>
+                    <div className='flex w-full flex-col border border-stone-700 rounded-sm divide-y divide-stone-700'>
+                        {numberFields.map(({ key, label, description, min, max, step, unit, zeroLabel }) => (
+                            <div key={key} className='flex w-full gap-4 items-center justify-between px-3 py-2.5'>
+                                <div className='flex flex-col gap-0.5 min-w-0'>
+                                    <label htmlFor={key}>{label}</label>
+                                    <OptionDescription>{description}</OptionDescription>
+                                </div>
 
-                    <div className='flex w-full gap-3 flex-col md:flex-row'>
-                        <label className='flex flex-col gap-1 grow'>
-                            <span>Max download (KB/s)</span>
-                            <input
-                                type='number'
-                                min={0}
-                                value={formValues.maxDownloadKbps}
-                                onChange={(ev) => setFormValues((values) => ({
-                                    ...values,
-                                    maxDownloadKbps: Number(ev.target.value) || 0,
-                                }))}
-                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
-                            />
-                        </label>
-                        <label className='flex flex-col gap-1 grow'>
-                            <span>Max upload (KB/s)</span>
-                            <input
-                                type='number'
-                                min={0}
-                                value={formValues.maxUploadKbps}
-                                onChange={(ev) => setFormValues((values) => ({
-                                    ...values,
-                                    maxUploadKbps: Number(ev.target.value) || 0,
-                                }))}
-                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
-                            />
-                        </label>
-                        <label className='flex flex-col gap-1 grow'>
-                            <span>Max connections</span>
-                            <input
-                                type='number'
-                                min={1}
-                                value={formValues.maxConnections}
-                                onChange={(ev) => setFormValues((values) => ({
-                                    ...values,
-                                    maxConnections: Number(ev.target.value) || 1,
-                                }))}
-                                className='bg-stone-800 text-white px-2 py-1 rounded-sm'
-                            />
-                        </label>
+                                <NumberInput
+                                    id={key}
+                                    value={formValues[key]}
+                                    min={min}
+                                    max={max}
+                                    step={step}
+                                    unit={unit}
+                                    zeroLabel={zeroLabel}
+                                    onChange={(value) => setFormValues((values) => ({ ...values, [key]: value }))}
+                                />
+                            </div>
+                        ))}
                     </div>
-                    <OptionDescription>Use 0 for unlimited download or upload speed.</OptionDescription>
 
                     <div className='flex w-full gap-2 flex-col'>
                         <div className='w-full flex gap-4 items-center justify-between'>
@@ -368,34 +471,6 @@ const SettingsPage = () => {
                         </div>
                         <OptionDescription>Turn this off if video stutters. Restart Strimz after saving for it to take effect.</OptionDescription>
                         <Button type='button' onClick={() => window.electronAPI.restartApp()} className='w-fit bg-stone-800 text-sm'>Restart now</Button>
-                    </div>
-
-                    <div className='flex w-full gap-2 flex-col'>
-                        <div className='w-full flex gap-4 items-center justify-between'>
-                            <span>Start minimized</span>
-                            <div className='flex items-center gap-2'>
-                                <span>{formValues.startMinimized ? 'On' : 'Off'}</span>
-                                <div className="relative inline-block w-11 h-5">
-                                    <input id="startMinimized" type="checkbox" checked={formValues.startMinimized} onChange={() => setFormValues((values) => ({ ...values, startMinimized: !values.startMinimized }))} className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer" />
-                                    <label htmlFor="startMinimized" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 transition-transform duration-300 peer-checked:translate-x-6 cursor-pointer" />
-                                </div>
-                            </div>
-                        </div>
-                        <OptionDescription>Open in the tray instead of showing the window on launch.</OptionDescription>
-                    </div>
-
-                    <div className='flex w-full gap-2 flex-col'>
-                        <div className='w-full flex gap-4 items-center justify-between'>
-                            <span>Close to tray</span>
-                            <div className='flex items-center gap-2'>
-                                <span>{formValues.closeToTray ? 'On' : 'Off'}</span>
-                                <div className="relative inline-block w-11 h-5">
-                                    <input id="closeToTray" type="checkbox" checked={formValues.closeToTray} onChange={() => setFormValues((values) => ({ ...values, closeToTray: !values.closeToTray }))} className="peer appearance-none w-11 h-5 bg-gray-100 rounded-full checked:bg-green-600 cursor-pointer" />
-                                    <label htmlFor="closeToTray" className="absolute top-0 left-0 w-5 h-5 bg-white rounded-full border border-slate-300 transition-transform duration-300 peer-checked:translate-x-6 cursor-pointer" />
-                                </div>
-                            </div>
-                        </div>
-                        <OptionDescription>Closing the window keeps Strimz running. Quit from the tray menu to exit.</OptionDescription>
                     </div>
 
                     <div className='flex w-full gap-2 flex-col'>

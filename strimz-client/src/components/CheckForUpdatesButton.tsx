@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Button from './Button';
 import { MdOutlineBrowserUpdated } from 'react-icons/md';
 import { RxUpdate } from 'react-icons/rx';
 import { twMerge } from 'tailwind-merge';
 import { setUpdateStatus } from '@/store/updates/updates.slice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { selectUpdateStatus } from '@/store/updates/updates.selectors';
+import { selectUpdateProgress, selectUpdateStatus } from '@/store/updates/updates.selectors';
 
 const setStatusText = (updateStatus: string) => {
     switch (updateStatus) {
@@ -14,72 +14,37 @@ const setStatusText = (updateStatus: string) => {
         case 'checking':
             return 'Checking...';
         case 'available':
-            return 'Downloading...';
+            return 'Downloading update...';
         case 'up-to-date':
             return "You're up to date";
         case 'downloaded':
-            return 'Update ready, click to install';
+            return 'Install update';
         case 'skipped':
             return 'Check for updates';
         case 'failed':
             return 'Update check failed';
-    
+
         default:
             return 'Check for updates';
     }
 }
 
-type ProgressData = {
-    percent: number;
-    transferred: number;
-    total: number;
-    bytesPerSecond: number;
-}
-
 interface CheckForUpdatesButtonProps {
     withText?: boolean;
     className?: string;
+    /** Draws attention to the button (set when coming from the nav bar update button) */
+    highlighted?: boolean;
 }
 
-const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesButtonProps) => {
-    const [progress, setProgress] = useState<number | null>(null);
+const CheckForUpdatesButton = ({withText = false, className, highlighted = false}: CheckForUpdatesButtonProps) => {
     const dispatch = useAppDispatch();
     const updateStatus = useAppSelector(selectUpdateStatus);
+    const progress = useAppSelector(selectUpdateProgress);
 
     const checkForUpdates = () => {
         dispatch(setUpdateStatus('checking'));
         window.electronAPI.checkForUpdates();
     }
-
-    useEffect(() => {
-        const updateDownloadedHandler = () => dispatch(setUpdateStatus('downloaded'));
-        const updateAvailableHandler = () => dispatch(setUpdateStatus('available'));
-        const updateNotAvailableHandler = () => dispatch(setUpdateStatus('up-to-date'));
-        const updateSkippedHandler = () => dispatch(setUpdateStatus('skipped'));
-        const updateFailedHandler = () => dispatch(setUpdateStatus('failed'));
-
-        const downloadProgressHandler = (progressData: ProgressData) => {
-            dispatch(setUpdateStatus(progressData.percent === 100 ? 'downloaded' : 'available'));
-            setProgress(progressData.percent);
-        }
-    
-        window.electronAPI.onUpdateDownloaded(updateDownloadedHandler);
-        window.electronAPI.onUpdateAvailable(updateAvailableHandler);
-        window.electronAPI.onUpdateNotAvailable(updateNotAvailableHandler);
-        window.electronAPI.onUpdateCheckSkipped(updateSkippedHandler);
-        window.electronAPI.onUpdateCheckFailed(updateFailedHandler);
-        window.electronAPI.onDownloadProgress(downloadProgressHandler);
-    
-        return () => {
-            // Preload wraps these callbacks, so removeListener cannot match them.
-            window.electronAPI.ipcRenderer.removeAllListeners('update-downloaded');
-            window.electronAPI.ipcRenderer.removeAllListeners('update-available');
-            window.electronAPI.ipcRenderer.removeAllListeners('update-not-available');
-            window.electronAPI.ipcRenderer.removeAllListeners('update-check-skipped');
-            window.electronAPI.ipcRenderer.removeAllListeners('update-check-failed');
-            window.electronAPI.ipcRenderer.removeAllListeners('update-download-progress');
-        }
-    }, [dispatch]);
 
   return (
     <Button
@@ -95,6 +60,8 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
             hover:text-blue-300
             justify-end
             ${updateStatus === 'available' && "disabled:text-blue-300"}
+            ${updateStatus === 'downloaded' && withText && "bg-green-700 hover:bg-green-600 hover:text-white text-white"}
+            ${highlighted && "ring-2 ring-green-400 ring-offset-2 ring-offset-stone-900 animate-pulse"}
             ${className}
         `)}
     >
@@ -115,9 +82,9 @@ const CheckForUpdatesButton = ({withText = false, className}: CheckForUpdatesBut
                 <RxUpdate />
             </span>
         )}
-       
+
         {updateStatus === 'downloaded' && (
-            <span className='text-green-500 animate-pulse'>
+            <span className={withText ? 'text-white' : 'text-green-500 animate-pulse'}>
                 <MdOutlineBrowserUpdated />
             </span>
         )}

@@ -7,7 +7,7 @@ import { getServerUrl } from './staticServer.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export function createMainWindow(isDev, { startHidden = false } = {}) {
+export function createMainWindow(isDev) {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -38,7 +38,7 @@ export function createMainWindow(isDev, { startHidden = false } = {}) {
   mainWindow.loadURL(url);
 
   mainWindow.on("ready-to-show", () => {
-    if (!startHidden) mainWindow.show();
+    mainWindow.show();
   });
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {

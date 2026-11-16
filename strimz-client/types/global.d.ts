@@ -17,6 +17,7 @@ declare global {
             notify: (title: string, body: string) => void;
 
             openDirectoryDialog: () => Promise<string | null>;
+            openSubtitlesDirectoryDialog: () => Promise<string | null>;
             openSubtitleFileDialog: () => Promise<string | null>;
             getDefaultDownloadsPath: () => Promise<string>;
             getAutoInstallSetting: () => Promise<boolean>;

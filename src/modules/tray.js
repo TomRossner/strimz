@@ -34,11 +34,3 @@ export function createTray(getWindow) {
     tray.on('click', showWindow);
     return tray;
 }
-
-export function attachCloseToTray(win, shouldCloseToTray, isQuitting) {
-    win.on('close', (event) => {
-        if (isQuitting() || !shouldCloseToTray()) return;
-        event.preventDefault();
-        win.hide();
-    });
-}

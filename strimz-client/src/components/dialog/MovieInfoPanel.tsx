@@ -294,7 +294,8 @@ const MovieInfoPanel = ({movie, close, isLoadingSubtitles = false}: MovieInfoPan
                     movie.title,
                     movie.year.toString(),
                     openSubtitlesLangCode,
-                    settings.downloadsFolderPath
+                    settings.downloadsFolderPath,
+                    settings.subtitlesFolderPath
                 );
                 
                 // Set subtitle file path and enable subtitles
